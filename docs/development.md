@@ -1,0 +1,90 @@
+# Building Speaker studio
+
+The main README is for users. This document is for contributors and maintainers.
+
+## Run from source
+
+Python 3.11+ on Linux, BlueZ (`bluetoothd`, `sdptool`) and the usual Qt desktop
+libraries are required. Ubuntu: `sudo apt install python3-venv bluez libxcb-cursor0`.
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-build.txt
+.venv/bin/python -m pip install -e .
+.venv/bin/python -m speakerstudio.app
+# No Bluetooth access, simulated devices:
+.venv/bin/python -m speakerstudio.app --demo
+.venv/bin/python -m pytest -q
+```
+
+Run tests outside restrictive sandboxes which prohibit Unix socketpair traffic.
+The protocol tests use local socketpairs, not Bluetooth hardware. GUI tests run
+offscreen with temporary preferences. No unit test changes real speaker settings.
+
+## AppImage
+
+The current binary targets **x86_64 Linux**, built on Ubuntu/Zorin 24.04 with
+Python 3.12. A bundled Python runtime does not remove glibc requirements. Treat
+Ubuntu 24.04 or newer as the current baseline; other distributions and older
+glibc versions require testing. No ARM build is supplied.
+
+The builder includes PySide6/Qt, Python, dbus-next, images, licences, the X11
+cursor library and `sdptool`. The cursor library must be installed on the build
+host (`libxcb-cursor0`), or extracted under
+`.local/tools/xcb/usr/lib/x86_64-linux-gnu/` using `apt-get download` and `dpkg-deb -x`.
+BlueZ itself and the desktop session remain host services. No root application
+or background service is installed. Desktop pairing stays in system Bluetooth
+settings. RFCOMM channel discovery searches the speaker's SPP service rather
+than assuming channel 1. Source and helper build metadata accompany the bundle.
+
+Download official packaging tools into ignored local storage:
+
+```bash
+mkdir -p .local/tools
+curl -fL -o .local/tools/appimagetool \
+  https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+curl -fL -o .local/tools/runtime-x86_64 \
+  https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64
+chmod +x .local/tools/appimagetool
+scripts/build_appimage.sh
+```
+
+The builder verifies pinned hashes of the two upstream artifacts. The upstream
+`continuous` URLs can change; if a hash fails, obtain the matching artifact or
+review the new release and deliberately update the pins. Never bypass the check.
+Qt/Python wheels and their dependencies should be obtained from the same
+requirements/build record when reproducing a particular binary.
+
+The script runs tests, builds a PyInstaller one-directory application, verifies
+its images offscreen, packages a type-2 AppImage and smoke-tests the AppImage
+using its extract-and-run mode. It writes `downloads/Speaker-Studio-x86_64.AppImage`
+and `downloads/SHA256SUMS`. The GitHub size limit is 100 MiB per file; if a future
+build exceeds it, use a GitHub Release asset and update the README download URL.
+Do not commit an unusable pointer or claim an unverified build succeeded.
+
+## Implementation boundaries
+
+The packet codec, asynchronous controller, BlueZ integration and Qt UI are
+separate modules. Requests are serialized per speaker. Timed-out sessions close
+rather than reusing a stream where late responses could satisfy a new request.
+Only verified legacy model identities unlock controls. Artwork choice is a
+local preference and never selects a protocol. Unknown/CPP devices must not
+receive guessed legacy writes. Source research remains under `docs/`.
+
+Battery display matches the Android rounding convention. Device addresses and
+preferences remain on the user's machine; no telemetry or cloud account exists.
+The application does not route music itself. Audio remains managed by the Linux
+desktop's sound settings and player.
+
+## Check a packaged build against hardware
+
+For maintainers, a read-only diagnostic uses the same BlueZ discovery, bundled
+SDP helper, protocol transport and controller as the window:
+
+```bash
+./downloads/Speaker-Studio-x86_64.AppImage --check-speaker YOUR_BLUETOOTH_ADDRESS
+```
+
+It connects to an already-paired, powered-on speaker, prints sanitized readings,
+and disconnects without changing settings. Do not post actual addresses in
+issues. Use `--appimage-extract-and-run` first if FUSE is unavailable.

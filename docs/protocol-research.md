@@ -1,3 +1,5 @@
+> Historical first-pass research. A native app now exists; see the README and [implementation updates](implementation-protocol.md) for resolved mappings and live validation.
+
 # Ultimate Ears Android control logic
 
 This is the initial static interoperability investigation, performed on

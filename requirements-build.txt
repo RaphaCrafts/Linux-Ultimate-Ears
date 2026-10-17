@@ -1,0 +1,4 @@
+PySide6-Essentials==6.8.3
+dbus-next==0.2.3
+PyInstaller==6.16.0
+pytest==8.4.2

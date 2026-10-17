@@ -1873,6 +1873,1538 @@
       "markers": []
     },
     {
+      "local_record": "impl-CenturionConductor-processExpectedMessage-0.json",
+      "evidence_id": "ev_50887d19e3f3ee178a801cbbeb4aeaf6619116acbf804050c4713d085ab52824",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.spp.centurion.CenturionConductor",
+        "method_name": "processExpectedMessage",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-CenturionConductor-processNotifications-0.json",
+      "evidence_id": "ev_9b1c6b520f0b51573fff82b50240438ab2f08e6e98b2ef847ea58426c57ac0fb",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.spp.centurion.CenturionConductor",
+        "method_name": "processNotifications",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-EQProfile-init-1.json",
+      "evidence_id": "ev_414edb32eadbbf6176fb8de1f0460c7a184b29f11754d54d4aa86ba74a0db672",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.eq.EQProfile",
+        "method_name": "<init>",
+        "overload_index": 1
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-EQProfile-init-3.json",
+      "evidence_id": "ev_e6f123bd4ef283f3cad6865bac65ccf211a95779b8ba51016c3018349915f543",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.eq.EQProfile",
+        "method_name": "<init>",
+        "overload_index": 3
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-UtilsKt-getByCode-2.json",
+      "evidence_id": "ev_ee21de90eca82d0ffd28e1cb911ca1f40c77a864469795bceb5772dd5866d6ca",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.utils.UtilsKt",
+        "method_name": "getByCode",
+        "overload_index": 2
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-UtilsKt-getCode-2.json",
+      "evidence_id": "ev_0ee247c7741619b5620e4f39eec1bfaa003049a608c7a59d71bda6d821dc18dd",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.utils.UtilsKt",
+        "method_name": "getCode",
+        "overload_index": 2
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-VolumeControlPresenter-get16Volume-lambda-0-0.json",
+      "evidence_id": "ev_d622f290260245a87861fa6698f0e14f84b55d7793d9d21424b26d7cebc993bd",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.howhigh.presenters.VolumeControlPresenter",
+        "method_name": "get16Volume$lambda$0",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-VolumeControlPresenter-get32Volume-lambda-0-0.json",
+      "evidence_id": "ev_e405b6afe5c73e55c98004ced7e787e89de329ff3df0ed340606304126ccfa7e",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.howhigh.presenters.VolumeControlPresenter",
+        "method_name": "get32Volume$lambda$0",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-VolumeControlPresenter-setVolumeUpdater-lambda-0-0-0.json",
+      "evidence_id": "ev_72fdd23704fd11d0cbc3a2dcc61312f0c677875a65d7664ea63b0978bc0eeb2b",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.howhigh.presenters.VolumeControlPresenter",
+        "method_name": "setVolumeUpdater$lambda$0$0",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-VolumeControlPresenter-setVolumeUpdater-lambda-0-1-0.json",
+      "evidence_id": "ev_26a08dfd3f9dda6ab236001859d20ffe7e2a336332744dc7096652a0292b31ec",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.howhigh.presenters.VolumeControlPresenter",
+        "method_name": "setVolumeUpdater$lambda$0$1",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-complete-BroadcastAudioMode-clinit.json",
+      "evidence_id": "ev_1d928cd6795c7a903fc853df1c2f3e2660df9a850806d6ae5a35bc56ae47ce9d",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.xup.BroadcastAudioMode",
+        "method_name": "<clinit>",
+        "overload_index": 0
+      },
+      "representation": "smali",
+      "body_status": "available",
+      "fell_back": true,
+      "markers": [
+        "static_initializer_disassembly"
+      ]
+    },
+    {
+      "local_record": "impl-complete-EqualizerRDView-onEQBandsChanged.json",
+      "evidence_id": "ev_2de40848f28f3ccb6b7233319346f7656cc0b5119c66f3fb6cb29e60c51c314c",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.howhigh.ui.view.EqualizerRDView",
+        "method_name": "onEQBandsChanged",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-complete-EqualizerRDView-setEQBands.json",
+      "evidence_id": "ev_3ad4db5c01a4c72eb0e18f1ec72126025d5cdaa90a3ad3445af63f57107c2e3e",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.howhigh.ui.view.EqualizerRDView",
+        "method_name": "setEQBands",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-complete-LegacySPPDevice-init.json",
+      "evidence_id": "ev_44dea57e3eab843e32bcdada85a46d0ccaa9eb69ad23bbdf70d17dc68f5f2581",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.spp.LegacySPPDevice",
+        "method_name": "<init>",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-complete-MAC-MACStringToByteArray.json",
+      "evidence_id": "ev_0c02ea9e4724a0511f1f24ac5a2532fc80b27b60b498fcb965125c9d9236c2dd",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.utils.MAC",
+        "method_name": "MACStringToByteArray",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-decode-BroadcastReceiverInfo.json",
+      "evidence_id": "ev_4d3c31e86a1be44a106e759f77bc75fa43f2b17436e0c2c5768d2bcc0a996e5a",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.xup.BroadcastReceiverInfo",
+        "method_name": "<init>",
+        "overload_index": 3
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-decode-CenturionConductor.json",
+      "evidence_id": "ev_e6e66646b1d8d92e17bef22043a40c06c33508b9e63a5e86a12afa13587bb5da",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.spp.centurion.CenturionConductor",
+        "method_name": "<init>",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-decode-DataUnpacker.json",
+      "evidence_id": "ev_2c8b5ead88b529e5e90576079b085bd1dbff3bea42e462b45feae1061529f5a0",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.utils.DataUnpacker",
+        "method_name": "<init>",
+        "overload_index": 1
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-decode-ExecutionStatus.json",
+      "evidence_id": "ev_9e02a1ea5f1c7b3a404ca35c0965b77d5361bf4241ac81349cbf57af41cf686c",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.xup.ExecutionStatus",
+        "method_name": "<clinit>",
+        "overload_index": 0
+      },
+      "representation": "smali",
+      "body_status": "available",
+      "fell_back": true,
+      "markers": [
+        "static_initializer_disassembly"
+      ]
+    },
+    {
+      "local_record": "impl-decode-HHDeviceFactory.json",
+      "evidence_id": "ev_2b16e6b62276509f66a2c9c5e187f44e4fc1f20a33d6d02c30b72f552c29f0f4",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.howhigh.HHDeviceFactory",
+        "method_name": "setupLegacySppDevice",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-detail-EQProfile-clinit.json",
+      "evidence_id": "ev_cb3ee94d3731a9f3396507bfeeb9042fc60721a08f908adbda4b009a5f9ea5f1",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.eq.EQProfile",
+        "method_name": "<clinit>",
+        "overload_index": 0
+      },
+      "representation": "smali",
+      "body_status": "available",
+      "fell_back": true,
+      "markers": [
+        "static_initializer_disassembly"
+      ]
+    },
+    {
+      "local_record": "impl-detail-VolumeControlPresenter-getSpeakerVolume.json",
+      "evidence_id": "ev_932ecbabc0f0f0411cd038826ddce205b340fa1091af30b330a8fe7825670951",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.howhigh.presenters.VolumeControlPresenter",
+        "method_name": "getSpeakerVolume",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-detail-VolumeControlPresenter-setVolumeUpdater.json",
+      "evidence_id": "ev_b2e16e6426a7b8a077c50f0147382684878153ce3af1e58c979cff9462df315e",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.howhigh.presenters.VolumeControlPresenter",
+        "method_name": "setVolumeUpdater",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-detail-VolumeControlPresenter-updateVolumeSettings-lambda-0-1.json",
+      "evidence_id": "ev_d71dbf187c847ff131b420b60e5b5ee1e0f52a3a829d13122438825feedfffc1",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.howhigh.presenters.VolumeControlPresenter",
+        "method_name": "updateVolumeSettings$lambda$0$1",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-detail-WhenMappings-clinit.json",
+      "evidence_id": "ev_5fdd9afef96e745a25c59a1352e7ba3d5b14ddc91faf22f36243e6b6a9e44bc7",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.utils.UtilsKt.WhenMappings",
+        "method_name": "<clinit>",
+        "overload_index": 0
+      },
+      "representation": "smali",
+      "body_status": "available",
+      "fell_back": true,
+      "markers": [
+        "static_initializer_disassembly"
+      ]
+    },
+    {
+      "local_record": "impl-event-BroadcastStatusEvent.json",
+      "evidence_id": "ev_f07eae27dd9a63dfea0369a1a824fb9f923874311d7f892ad1e81ce2fe08bffe",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.xup.events.BroadcastStatusEvent",
+        "method_name": "<init>",
+        "overload_index": 1
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-event-ReceiverAddedEvent.json",
+      "evidence_id": "ev_c337733ac935273a835a11164f4cc398984981b5e3d7d26dbad4a340d064675a",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.xup.events.ReceiverAddedEvent",
+        "method_name": "<init>",
+        "overload_index": 3
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-event-ReceiverRemovedEvent.json",
+      "evidence_id": "ev_fafff30890b2e8536ede0961e696b8667f90443cea5bb3374811642ccdd8245a",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.xup.events.ReceiverRemovedEvent",
+        "method_name": "<init>",
+        "overload_index": 3
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-event-XupAddCommand.json",
+      "evidence_id": "ev_b1dfee522d0775b1fcd1a272a1ab19276b87f509494d8ae2391edd18da090083",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.grouping.xup.broadcaster.XupAddCommand",
+        "method_name": "action_delegate$lambda$0$0$0",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-final-addReceiverToBroadcast-lambda-0.json",
+      "evidence_id": "ev_7d7d9e5abef74b3f73725b9efd1184831ddbb0a1a286311533dc679b754d359f",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.spp.LegacySPPDevice",
+        "method_name": "addReceiverToBroadcast$lambda$0",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-final-getByPattern.json",
+      "evidence_id": "ev_895ea6cf39d293dd87f334133fe1e408a9d75b77ff4dba336ade783dace73a71",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.devicedata.DeviceType.Companion",
+        "method_name": "getByPattern",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-getBroadcastMode-lambda-0-0.json",
+      "evidence_id": "ev_6c9ec126987462ce11889bbd251ca11d09ebc9f12427afa6e35ce369a6b6c210",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.spp.LegacySPPDevice",
+        "method_name": "getBroadcastMode$lambda$0$0",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-getCustomEQ-lambda-0-0.json",
+      "evidence_id": "ev_90a382c612bcc1619b79d06eebcf0486b2cf8a5354ce25c9bc35d254ac69d673",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.spp.LegacySPPDevice",
+        "method_name": "getCustomEQ$lambda$0$0",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-getDeviceType-lambda-0.json",
+      "evidence_id": "ev_c225c364045b248430287b74a1b80f6314948bb9d2883b7ca7113d259b67c1f8",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.spp.LegacySPPDevice",
+        "method_name": "getDeviceType$lambda$0",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-getEQSetting-lambda-0-0.json",
+      "evidence_id": "ev_3bdd295bf62ff04259b881b911c5d771c4633e4c15497b564b7ed56bf3ff3ea2",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.spp.LegacySPPDevice",
+        "method_name": "getEQSetting$lambda$0$0",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-getFirmwareVersion-lambda-0-0.json",
+      "evidence_id": "ev_5bfdc9a8026d33161bbaacb5882ad2dcbb4a02701e150ad3c9aa470c02a1f773",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.spp.LegacySPPDevice",
+        "method_name": "getFirmwareVersion$lambda$0$0",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-getVolume.json",
+      "evidence_id": "ev_12fdebf961b401af5e5d66ceac4478e397ac4ce06747c5290e7c68c9edde5074",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.spp.LegacySPPDevice",
+        "method_name": "getVolume",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-group-BroadcastAudioOptions.json",
+      "evidence_id": "ev_a9595bdb2f8adec8ba9e43b7ed2f5e8ae4491c8f31eb521a46e1b47c6861c7be",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.xup.BroadcastAudioOptions",
+        "method_name": "<clinit>",
+        "overload_index": 0
+      },
+      "representation": "smali",
+      "body_status": "available",
+      "fell_back": true,
+      "markers": [
+        "static_initializer_disassembly"
+      ]
+    },
+    {
+      "local_record": "impl-group-BroadcastConfiguration.json",
+      "evidence_id": "ev_55c611bc56526aae29cceb742104c5b1cdf16bb5e5ba578470005618578024c2",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.xup.BroadcastConfiguration",
+        "method_name": "<init>",
+        "overload_index": 1
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-group-BroadcastState.json",
+      "evidence_id": "ev_0e94d4b7a800d95669a1e6bc3cc0f4f9e0a8d53627fe5750522d48c004f8ab33",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.xup.BroadcastState",
+        "method_name": "<clinit>",
+        "overload_index": 0
+      },
+      "representation": "smali",
+      "body_status": "available",
+      "fell_back": true,
+      "markers": [
+        "static_initializer_disassembly"
+      ]
+    },
+    {
+      "local_record": "impl-group-EqualizerRDView.json",
+      "evidence_id": "ev_876ea23fbbe3a45595ddbf72a5bbd9738d021fbc5a66cf7cf057e6d09c204931",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.howhigh.ui.view.EqualizerRDView",
+        "method_name": "<init>",
+        "overload_index": 2
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-inventory-BaseConductor.json",
+      "evidence_id": "ev_205ee4e1760ac9788ca15f7863eb4f012fa313a692c216a58b6ceb547b9dc483",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.messaging.BaseConductor"
+      }
+    },
+    {
+      "local_record": "impl-inventory-BroadcastAudioMode.json",
+      "evidence_id": "ev_18b435ddf3fa5230dd2273609cab7b17efdb1ddf91fe54fc8d66c14f26722983",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.xup.BroadcastAudioMode"
+      }
+    },
+    {
+      "local_record": "impl-inventory-BroadcastAudioOptions.json",
+      "evidence_id": "ev_a1e8c6022c267afafdf87a1e96821eadbeb7a8f1f3b2383d25043461e537f3af",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.xup.BroadcastAudioOptions"
+      }
+    },
+    {
+      "local_record": "impl-inventory-BroadcastConfiguration.json",
+      "evidence_id": "ev_9064a2cc7b2389a00267175b14b5aa70c700a84d7aa8d8263624a33cc254e171",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.xup.BroadcastConfiguration"
+      }
+    },
+    {
+      "local_record": "impl-inventory-BroadcastReceiverInfo.json",
+      "evidence_id": "ev_15caa1db6ae0ba59767838c0fc7df42a7bd1ee0800af8549ff8e667557823363",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.xup.BroadcastReceiverInfo"
+      }
+    },
+    {
+      "local_record": "impl-inventory-BroadcastReceiverStatus.json",
+      "evidence_id": "ev_f275fffe3d2722b304b9188b1bb843a2e48989823b0434ebd69cf33be201de60",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.devicedata.BroadcastReceiverStatus"
+      }
+    },
+    {
+      "local_record": "impl-inventory-BroadcastState.json",
+      "evidence_id": "ev_713ebb7f7f6bb8446d205bab3156961244b3923b9648fb010a6534c154aa30e5",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.xup.BroadcastState"
+      }
+    },
+    {
+      "local_record": "impl-inventory-BroadcastStatusEvent.json",
+      "evidence_id": "ev_55d61de38add6e08abaaecf798340f4bdbc7eda3eb343de265abdc476aed8a0b",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.xup.events.BroadcastStatusEvent"
+      }
+    },
+    {
+      "local_record": "impl-inventory-CenturionConductor.json",
+      "evidence_id": "ev_04950458cf581cea0edd5820f4ab79e295cd1870738c1ad8b69773ed1f95050e",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.spp.centurion.CenturionConductor"
+      }
+    },
+    {
+      "local_record": "impl-inventory-CenturionNotificator.json",
+      "evidence_id": "ev_1bb33b393531023fb801d81474b6091dec3e90d8a4fc0624c9757fbde1662edf",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.notification.CenturionNotificator"
+      }
+    },
+    {
+      "local_record": "impl-inventory-DataPacker.json",
+      "evidence_id": "ev_ba4895b8b1d26bd305422ec15f2e05c92642ebe51ca5d85c5bbcfa2bf69da22d",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.utils.DataPacker"
+      }
+    },
+    {
+      "local_record": "impl-inventory-DataUnpacker.json",
+      "evidence_id": "ev_195fbf6783e53b193b8048f1563be1f7338aa2e8cf3a1759fc69e981703e391a",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.utils.DataUnpacker"
+      }
+    },
+    {
+      "local_record": "impl-inventory-DeviceType.json",
+      "evidence_id": "ev_f917582a048380fcce115077909ad3aac9a96146546416cd591f69c08f06b4d9",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.devicedata.DeviceType.Companion"
+      }
+    },
+    {
+      "local_record": "impl-inventory-EQProfile.json",
+      "evidence_id": "ev_e4e882fe59eeb5370815be09243b9186382a83363d71cedc8ccd55e2451c72bb",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.eq.EQProfile.Companion"
+      }
+    },
+    {
+      "local_record": "impl-inventory-EqualizerRDView.json",
+      "evidence_id": "ev_93b8a44b6cd136b45387169287d4af6cb9a2a7c2912db7a598cc1e2bf06745dc",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.howhigh.ui.view.EqualizerRDView"
+      }
+    },
+    {
+      "local_record": "impl-inventory-ExecutionStatus.json",
+      "evidence_id": "ev_9f9a48399beffac7bdc94ff6a0408c1481b98d51bb8c38be6c222ae0162b76f6",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.xup.ExecutionStatus"
+      }
+    },
+    {
+      "local_record": "impl-inventory-HHDeviceFactory.json",
+      "evidence_id": "ev_b3b2aba226e065fe831dee58e76316e6c80de006a2f085fe454c8293302e82d7",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.howhigh.HHDeviceFactory"
+      }
+    },
+    {
+      "local_record": "impl-inventory-LegacyDeviceUtilsKt.json",
+      "evidence_id": "ev_654036de4a0bc324eb31e83fe805bcfdf2c9a9fe09c89a8f6cb0ad0409abfce2",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.utils.LegacyDeviceUtilsKt"
+      }
+    },
+    {
+      "local_record": "impl-inventory-MAC.json",
+      "evidence_id": "ev_82fe71fe0d06030910ed36ee8bed2bd1d5657515b4c7558136706a93ec1d7e9f",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.utils.MAC"
+      }
+    },
+    {
+      "local_record": "impl-inventory-ReceiverAddedEvent.json",
+      "evidence_id": "ev_bb907fb65135bc1b49e099246477964b0e3bb62e14d0dc9e60bd771132ad8133",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.xup.events.ReceiverAddedEvent"
+      }
+    },
+    {
+      "local_record": "impl-inventory-ReceiverRemovedEvent.json",
+      "evidence_id": "ev_c97bc0d413bdac3058b4730dddc08b059c90102ac352e98e60d199c49f3ab7d8",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.xup.events.ReceiverRemovedEvent"
+      }
+    },
+    {
+      "local_record": "impl-inventory-UtilsKt.json",
+      "evidence_id": "ev_ade505b82516c54acd4fdfb532b975e6fa1e8f00a282ee84d3bd84a4a4dcb921",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.utils.UtilsKt"
+      }
+    },
+    {
+      "local_record": "impl-inventory-VolumeControlPresenter.json",
+      "evidence_id": "ev_2458fab05bc55e496dd9fcaeb0673f45c025a759c7ed4a401f818406236acd4d",
+      "operation": "inspect_android_class",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.howhigh.presenters.VolumeControlPresenter"
+      }
+    },
+    {
+      "local_record": "impl-mask-DataUnpacker-getShort.json",
+      "evidence_id": "ev_4760295c6f77848f6c7e145524c3b0c809b341ff67e34b1f1019416a30f4fe01",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.utils.DataUnpacker",
+        "method_name": "getShort",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-mask-HHDeviceFactory-setupLegacySppDevice-lambda-0.json",
+      "evidence_id": "ev_48af8821af2a17080cfb20e39b4b29b9c4c4515864b1eb6c66454e1043f5ea35",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.howhigh.HHDeviceFactory",
+        "method_name": "setupLegacySppDevice$lambda$0",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-mask-LegacySPPDevice-getEnabledNotificationsMask-lambda-0-0.json",
+      "evidence_id": "ev_6b9e2950ef37ac73109ef14d7f9beaeb82b0ffd7cc565281e499991948c0ba76",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.spp.LegacySPPDevice",
+        "method_name": "getEnabledNotificationsMask$lambda$0$0",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-mask-LegacySPPDevice-setEnabledNotificationsMask-lambda-0.json",
+      "evidence_id": "ev_b6264b27a279f40b4f043819edc0182e1145f3b6d85477ed79dd815fea499132",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.spp.LegacySPPDevice",
+        "method_name": "setEnabledNotificationsMask$lambda$0",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-mask-NotificationMask-clinit.json",
+      "evidence_id": "ev_4039761df76032950f97de2498d00f7b5b5e93d760ac89359785890dbabcabde",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.devicedata.NotificationMask",
+        "method_name": "<clinit>",
+        "overload_index": 0
+      },
+      "representation": "smali",
+      "body_status": "available",
+      "fell_back": true,
+      "markers": [
+        "static_initializer_disassembly"
+      ]
+    },
+    {
+      "local_record": "impl-mask-pack.json",
+      "evidence_id": "ev_35e27b7fa291c1bb429158bf616d89cbb304b7e6416c783205e2cd75ac684f5c",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.utils.DataPacker",
+        "method_name": "add",
+        "overload_index": 1
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-notification-setup.json",
+      "evidence_id": "ev_6bf88c22685cab6deff831675435e027ce710c458b90bbf753d8c658e44d5dd2",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.utils.LegacyDeviceUtilsKt",
+        "method_name": "setupLegacyDeviceNotificators",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-powerOff-lambda-0.json",
+      "evidence_id": "ev_20f4cac21312d7afc7661fc8214a74c879f5e1e3eddf0ff562c7471885f847e0",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.spp.LegacySPPDevice",
+        "method_name": "powerOff$lambda$0",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-refs-ReceiverAddedEvent.json",
+      "evidence_id": "ev_d99e6cb5f11138c0870bc296e2487483ab5838d9e9b27721c2c99a99f1e9d8d3",
+      "operation": "trace_android_references",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "observed",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.xup.events.ReceiverAddedEvent"
+      },
+      "coverage": "complete"
+    },
+    {
+      "local_record": "impl-removeReceiverFromBroadcast-lambda-0.json",
+      "evidence_id": "ev_97b4f07c1bf51439d15b9d233832dba07935fafe8edec42fa11c4fdaed4ab6b7",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.spp.LegacySPPDevice",
+        "method_name": "removeReceiverFromBroadcast$lambda$0",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-set32Volume-lambda-0.json",
+      "evidence_id": "ev_c74e3fb2070886cf40bab2b41d4d332000da47e5a234f19c80757fcd135137de",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.spp.LegacySPPDevice",
+        "method_name": "set32Volume$lambda$0",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-setBroadcastMode-lambda-0.json",
+      "evidence_id": "ev_6821e41dce0a5f1fdad21d745deefac63df8751a10bcb4cde451bbede86f4c56",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.spp.LegacySPPDevice",
+        "method_name": "setBroadcastMode$lambda$0",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-setVolume.json",
+      "evidence_id": "ev_107458020aeb7f3bb7a6a26592df419e5cb4a8964eb2d2f50908e186061ffcb4",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.legacy.spp.LegacySPPDevice",
+        "method_name": "setVolume",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
+      "local_record": "impl-status-BroadcastReceiverStatus.json",
+      "evidence_id": "ev_ad052a8d28ab265a44b25977d38f2f1d802654aabbc613efd082487421d42698",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.devicedata.BroadcastReceiverStatus",
+        "method_name": "<clinit>",
+        "overload_index": 0
+      },
+      "representation": "smali",
+      "body_status": "available",
+      "fell_back": true,
+      "markers": [
+        "static_initializer_disassembly"
+      ]
+    },
+    {
+      "local_record": "impl-status-UtilsKt.json",
+      "evidence_id": "ev_db159ad87ae82c17eb1fae8280bbb744830eea3332b8c1f54ec926085d7e69f3",
+      "operation": "inspect_android_method",
+      "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+      "provider": {
+        "id": "jadx",
+        "name": "JADX headless",
+        "version": "0.7.1"
+      },
+      "confidence": "derived",
+      "selectors": {
+        "class_name": "com.logitech.ue.centurion.utils.UtilsKt",
+        "method_name": "twoBytesToInt",
+        "overload_index": 0
+      },
+      "representation": "java",
+      "body_status": "available",
+      "fell_back": false,
+      "markers": []
+    },
+    {
       "local_record": "message-build.json",
       "evidence_id": "ev_6b7dad0adedc19ee62f451280642ceb5c1c5b4a01b340c47253aa2c2d558c38f",
       "operation": "inspect_android_method",
@@ -2268,6 +3800,14 @@
     },
     {
       "local_record": "get-byte.json",
+      "error_type": "AnalysisInputError"
+    },
+    {
+      "local_record": "impl-addReceiverToBroadcast-lambda-0.json",
+      "error_type": "AnalysisOutputError"
+    },
+    {
+      "local_record": "impl-inventory-centurion.json",
       "error_type": "AnalysisInputError"
     },
     {

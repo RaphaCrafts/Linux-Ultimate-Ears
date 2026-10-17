@@ -1,0 +1,2 @@
+# Preserve upstream licence notices verbatim, including their original spacing.
+packaging/licenses/*.txt whitespace=-blank-at-eol

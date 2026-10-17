@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Speaker studio
+Comment=Control your Ultimate Ears speakers
+Exec=speaker-studio
+Icon=speaker-studio
+Categories=AudioVideo;Audio;Utility;
+Terminal=false
+StartupWMClass=speaker-studio
