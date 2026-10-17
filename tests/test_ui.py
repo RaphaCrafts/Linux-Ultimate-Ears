@@ -47,3 +47,28 @@ def test_demo_group_and_unsaved_custom_levels(tmp_path,monkeypatch):
     assert w.devices[host]['bands'][0]==32
     assert w.devices[host]['eq']==4
     w.close()
+
+
+def test_paired_speaker_artwork_before_connection(tmp_path,monkeypatch):
+    from dataclasses import asdict
+    from speakerstudio.models import Speaker
+    from PySide6.QtWidgets import QPushButton
+    monkeypatch.setenv('XDG_CONFIG_HOME',str(tmp_path))
+    app=QApplication.instance() or QApplication([])
+    w=Window(Controller(),demo=True);app.processEvents()
+    row=asdict(Speaker('demo-paired','','MEGABOOM 3',paired=True))
+    w.update_devices([row])
+    assert w.inferred_model(row)=='megaboom-3'
+    assert not w.photo.pixmap().isNull()
+    assert w.colour_select.currentText()=='Unicorn pink'
+    assert w.battery_hint.text()=='Connect to check'
+    assert not w.identify_button.isEnabled()
+    assert not any('demo' in b.text().lower() for b in w.findChildren(QPushButton))
+    w.colour_select.setCurrentText('Lagoon blue')
+    w.update_devices([row])
+    assert w.colour_select.currentText()=='Lagoon blue'
+    row.update(connected=True,battery=30)
+    w.update_devices([row])
+    assert w.battery_meter.value()==30
+    assert w.identify_button.isEnabled()
+    w.close()

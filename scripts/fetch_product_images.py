@@ -45,7 +45,8 @@ def main():
     if args.legacy_colours:
         for model in ['megaboom-3', 'boom-3']:
             for slug, label in [('night-black', 'Night black'), ('lagoon-blue', 'Lagoon blue'),
-                                ('sunset-red', 'Sunset red'), ('ultraviolet-purple', 'Ultraviolet purple')]:
+                                ('sunset-red', 'Sunset red'), ('ultraviolet-purple', 'Ultraviolet purple'),
+                                ('unicorn', 'Unicorn pink')]:
                 if any(r['model'] == model and r['colour'].lower() == label.lower() for r in records):
                     continue
                 filename = f"ue-{model.replace('-', '')}-{slug}-front.png"

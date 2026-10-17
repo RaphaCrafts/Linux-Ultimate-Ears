@@ -29,7 +29,7 @@ X11 window startup and extract-and-run fallback were checked on the build host.
 
 ## Automated checks
 
-25 automated tests passed in the final build.
+26 automated tests passed in the final build.
 
 Protocol tests cover arbitrary stream fragmentation and concatenation, malformed
 lengths and encoding bounds, ACK correlation, unsupported-command errors,
@@ -52,3 +52,12 @@ with deterministic simulated peer responses. Custom EQ uses five signed byte lev
 and its +/-128 view offset. The UI presents relative levels, not an assumed
 calibrated dB mapping. CPP control, firmware updates, phone playlist integrations,
 remote wake and alarms are not claimed by this first build.
+
+## Interface update 0.1.1
+
+Fixed case-insensitive artwork matching for paired speakers before a control
+connection exists. Added the official historical Unicorn pink MEGABOOM 3
+packshot, a battery charge bar and explicit disconnected battery guidance.
+Removed the demo entry from the user interface. A regression test covers the
+paired/disconnected state, colour persistence and charge display. The packaging
+smoke check now loads every catalogued image and a model inferred from its name.

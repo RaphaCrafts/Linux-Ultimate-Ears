@@ -19,7 +19,7 @@ your music setup in one place.
 1. **Download** the AppImage using the button above.
 2. **Allow it to run.** Right-click the downloaded file, open **Properties →
    Permissions**, and enable **Allow executing file as program** (your desktop
-   may call this **Executable**).
+   may call this **Executable as Program**).
 3. **Double-click** the AppImage to open Speaker studio.
 4. Turn on your speaker and pair it in your desktop's **Bluetooth settings**.
 5. Choose your speaker in the app and click **Connect**.
@@ -38,7 +38,6 @@ Zorin OS 18, or newer** as the baseline. ARM computers are not supported yet.
 - Choose the matching speaker colour from the built-in official product images.
 - Keep several connected speakers visible in one app.
 - Use the **PartyUp preview** to add or remove compatible connected speakers.
-- Explore the interface with **Try demo**, even without a speaker.
 
 This is the **first preview release**, focused on **MEGABOOM 3 and BOOM 3**.
 MEGABOOM 3 has been tested with a real speaker. Other models and every firmware

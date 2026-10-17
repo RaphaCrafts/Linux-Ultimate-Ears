@@ -9,7 +9,7 @@ from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, 
 from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import (QMainWindow, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout,
     QGridLayout, QListWidget, QListWidgetItem, QFrame, QSlider, QComboBox, QStackedWidget,
-    QScrollArea, QMessageBox, QMenu, QApplication)
+    QScrollArea, QMessageBox, QMenu, QApplication, QProgressBar)
 from PySide6.QtCore import QProcess, QProcessEnvironment
 from . import __version__
 
@@ -127,7 +127,6 @@ class Window(QMainWindow):
         side.addWidget(button('Search for speakers', self.scan, True))
         side.addWidget(button('Bluetooth settings', self.bluetooth_settings))
         side.addWidget(button('PartyUp', lambda:self.navigate('party')))
-        side.addWidget(button('Try demo' if not demo else 'Exit demo', self.switch_demo))
         side.addWidget(text('Independent app by RaphaCrafts','muted'))
         body.addWidget(sidebar)
         scroll = QScrollArea()
@@ -188,15 +187,17 @@ QLabel#title {{font-size:29px;font-weight:600;}} QLabel#section {{font-size:17px
 QLabel#muted {{color:{muted};font-size:12px;}} QLabel#eyebrow {{color:{muted};font-size:11px;}}
 QFrame#header {{border-bottom:1px solid {line};background:{bg};}}
 QFrame#sidebar {{border-right:1px solid {line};background:{bg};}}
-QFrame#panel {{background:{surface};border-radius:14px;}} QFrame#hero {{background:{soft};border-radius:14px;}}
+QFrame#panel {{background:{surface};border:1px solid {line};border-radius:16px;}}
+QFrame#hero {{background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {soft},stop:1 {'#302932' if dark else '#f0e4ee'});border:1px solid {line};border-radius:18px;}}
 QPushButton {{background:{surface};border:1px solid {line};border-radius:8px;padding:9px 12px;}}
-QPushButton:hover {{border-color:#12b5d3;}} QPushButton:checked,QPushButton#primary {{background:#292d28;color:#ffffff;border-color:#292d28;}}
+QPushButton:hover {{border-color:#12b5d3;}} QPushButton:checked {{background:{soft};border-color:#12b5d3;}} QPushButton#primary {{background:#12b5d3;color:#102b31;border-color:#12b5d3;font-weight:600;}}
 QPushButton:disabled {{color:{muted};background:{soft};border-color:{line};}}
 QPushButton:focus {{border:2px solid #12b5d3;}}
 QListWidget {{border:0;background:transparent;outline:none;}} QListWidget::item {{padding:8px 5px;margin-bottom:4px;border-radius:10px;}}
 QListWidget::item:selected {{background:{surface};color:{fg};}}
 QComboBox {{background:{surface};border:1px solid {line};border-radius:8px;padding:8px;min-height:20px;}}
 QComboBox QAbstractItemView {{background:{surface};color:{fg};selection-background-color:#12b5d3;selection-color:#151515;}}
+QProgressBar {{background:{line};border:0;border-radius:4px;}}
 QSlider::groove:horizontal {{height:5px;background:{line};border-radius:2px;}}
 QSlider::sub-page:horizontal {{background:#12b5d3;border-radius:2px;}}
 QSlider::handle:horizontal {{background:#12b5d3;width:16px;height:16px;margin:-6px 0;border-radius:8px;}}
@@ -248,15 +249,28 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.photo = QLabel()
         self.photo.setTextFormat(Qt.PlainText)
         self.photo.setAlignment(Qt.AlignCenter)
-        self.photo.setMinimumHeight(290)
+        self.photo.setMinimumHeight(320)
         image_layout.addWidget(self.photo,1)
         self.battery_label = text('Battery —','section')
-        image_layout.addWidget(self.battery_label)
+        battery_row = QHBoxLayout()
+        battery_row.addWidget(self.battery_label)
+        battery_row.addStretch()
+        self.battery_hint = text('Connect to check', 'muted')
+        battery_row.addWidget(self.battery_hint)
+        image_layout.addLayout(battery_row)
+        self.battery_meter = QProgressBar()
+        self.battery_meter.setRange(0,100)
+        self.battery_meter.setTextVisible(False)
+        self.battery_meter.setFixedHeight(8)
+        self.battery_meter.setAccessibleName('Battery charge')
+        image_layout.addWidget(self.battery_meter)
+        image_layout.addSpacing(12)
+        image_layout.addWidget(text('SPEAKER FINISH','eyebrow'))
         self.colour_select = QComboBox()
         self.colour_select.setAccessibleName('Speaker colour')
         self.colour_select.currentTextChanged.connect(self.choose_colour)
         image_layout.addWidget(self.colour_select)
-        image_layout.addWidget(text('Choose the colour of your speaker.','muted'))
+        image_layout.addWidget(text('Choose a finish to match your speaker.','muted'))
         columns.addWidget(hero,1)
         controls = QVBoxLayout()
         vol = QVBoxLayout()
@@ -290,10 +304,13 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         eq_layout.addWidget(self.mini_curve)
         eq_layout.addWidget(button('Open equalizer',lambda:self.navigate('eq')))
         controls.addWidget(panel(eq_layout))
-        self.identify_button = button('Find speaker · announce battery',lambda:self.command('identify'))
+        self.identify_button = button('Hear battery level',lambda:self.command('identify'))
         self.power_button = button('Power off',self.power_off)
-        controls.addWidget(self.identify_button)
-        controls.addWidget(self.power_button)
+        actions = QHBoxLayout()
+        actions.addWidget(self.identify_button,1)
+        actions.addWidget(self.power_button)
+        controls.addLayout(actions)
+        controls.addWidget(text('Hear the charge spoken aloud by your speaker.','muted'))
         controls.addStretch()
         columns.addLayout(controls,1)
         layout.addLayout(columns)
@@ -432,14 +449,18 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         if d.get('model'):return d['model']
         name = d['name'].upper().replace(' ','')
         for model in ['megaboom-4','megaboom-3','boom-4','boom-3','epicboom','everboom','hyperboom','wonderboom-4']:
-            if model.replace('-','') in name:return model
+            if model.replace('-','').upper() in name:return model
         return ''
+
+    @staticmethod
+    def default_artwork(variants):
+        return next((r for r in variants if r['colour']=='Unicorn pink'), variants[0] if variants else None)
 
     def image_path(self,d):
         model = self.inferred_model(d)
         variants = [r for r in self.catalogue if r['model']==model]
         colour = self.settings.value('colour/'+d['address'],'')
-        record = next((r for r in variants if r['colour']==colour),variants[0] if variants else None)
+        record = next((r for r in variants if r['colour']==colour),self.default_artwork(variants))
         return asset_root()/'speakers'/record['file'] if record else None
 
     def render(self):
@@ -462,7 +483,12 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.connection_label.setText(status)
         self.connect_button.setText('Disconnect' if d['connected'] else 'Connect')
         self.connect_button.setEnabled(not d['busy'] and d['paired'])
-        self.battery_label.setText(f"Battery {d['battery']}%" if d['battery'] is not None else 'Battery —')
+        charge = d['battery']
+        self.battery_label.setText(f'Battery {charge}%' if charge is not None else 'Battery')
+        self.battery_hint.setText('Low charge' if charge is not None and charge<=20 else 'Charge remaining' if charge is not None else 'Connect to check')
+        self.battery_meter.setValue(charge if charge is not None else 0)
+        self.battery_meter.setEnabled(charge is not None)
+        self.battery_meter.setStyleSheet('QProgressBar::chunk {background:'+('#efab59' if charge is not None and charge<=20 else '#12b5d3')+';border-radius:4px;}')
         if not self.volume.isSliderDown() and not self.volume_debounce.isActive():
             self.volume.blockSignals(True)
             self.volume.setValue(d['volume'] or 0)
@@ -476,11 +502,13 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.colour_select.clear()
         self.colour_select.addItems([r['colour'] for r in variants])
         saved = self.settings.value('colour/'+d['address'],'')
-        if saved:self.colour_select.setCurrentText(saved)
+        record = next((r for r in variants if r['colour']==saved),self.default_artwork(variants))
+        if record:self.colour_select.setCurrentText(record['colour'])
+        self.colour_select.setVisible(bool(variants))
         self.colour_select.blockSignals(False)
         image = self.image_path(d)
         if image:
-            self.photo.setPixmap(QPixmap(str(image)).scaled(220,290,Qt.KeepAspectRatio,Qt.SmoothTransformation))
+            self.photo.setPixmap(QPixmap(str(image)).scaled(320,370,Qt.KeepAspectRatio,Qt.SmoothTransformation))
         else:
             self.photo.clear()
             self.photo.setText('Ultimate Ears\n'+d['name'])
@@ -705,17 +733,6 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
                 if started:return
 
         QMessageBox.information(self,'Bluetooth settings','Open Bluetooth settings from your desktop’s system menu and pair your speaker there.')
-
-    def switch_demo(self):
-        if self.demo:
-            self.demo=False
-            self.devices={};self.selected=None
-            if not self.controller.isRunning():self.controller.start()
-            self.mode_label.setText('Linux');self.poll.start();self.render()
-        else:
-            if self.controller.isRunning():
-                self.poll.stop();self.controller.shutdown()
-            self.demo=True;self.mode_label.setText('DEMO — no Bluetooth controls');self.load_demo()
 
     def load_demo(self):
         from .models import Speaker

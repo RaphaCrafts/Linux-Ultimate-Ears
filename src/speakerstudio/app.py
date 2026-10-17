@@ -35,7 +35,11 @@ def main():
             if args.screenshot:window.grab().save(args.screenshot)
             if args.smoke_test:
                 from PySide6.QtGui import QPixmap
-                valid=not QPixmap(str(asset_root()/'speakers/megaboom-3-ultraviolet-purple.webp')).isNull()
+                valid=all(not QPixmap(str(asset_root()/'speakers'/r['file'])).isNull() for r in window.catalogue)
+                from dataclasses import asdict
+                from .models import Speaker
+                window.update_devices([asdict(Speaker('demo-packaging','','MEGABOOM 3',paired=True))])
+                valid=valid and not window.photo.pixmap().isNull() and window.colour_select.count()>0
                 print('Speaker studio UI and bundled images: '+('OK' if valid else 'FAILED'),flush=True)
                 window.close()
                 app.exit(0 if valid else 1)

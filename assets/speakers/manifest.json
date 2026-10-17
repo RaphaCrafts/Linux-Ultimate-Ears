@@ -315,6 +315,18 @@
       "download_url": "https://resource.ultimateears.com/w_320,h_320,c_fit,f_webp,q_auto/content/dam/ue/products/wireless-speakers/boom-3/ultraviolet-purple/ue-boom3-ultraviolet-purple-front.png",
       "sha256": "50d61038923fe3c6bc5ec31781b9a6b41f02fcef401e6e24ac612ca82171319d",
       "bytes": 21986
+    },
+    {
+      "model": "megaboom-3",
+      "colour": "Unicorn pink",
+      "sku": null,
+      "source_page": "https://www.ultimateears.com/en-us/shop/p/megaboom-3",
+      "source_image": "https://resource.ultimateears.com/content/dam/ue/products/wireless-speakers/megaboom-3/unicorn/ue-megaboom3-unicorn-front.png",
+      "label_source": "Historical official CDN filename; not a current shop listing",
+      "file": "megaboom-3-unicorn-pink.webp",
+      "download_url": "https://resource.ultimateears.com/w_600,h_600,c_fit,f_webp,q_auto/content/dam/ue/products/wireless-speakers/megaboom-3/unicorn/ue-megaboom3-unicorn-front.png",
+      "sha256": "19683e37b0ae3e129b6cb15f0edf8bea19f99969aa38834575893da0e144be78",
+      "bytes": 54806
     }
   ],
   "unavailable": []
