@@ -1,0 +1,838 @@
+{
+  "apk_sha256": "018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76",
+  "evidence_id": "ev_1259699207ef62d5d8814913d959081b0146a49f02b1f10bdde571c8ddbe1a2d",
+  "class": "com.logitech.ue.centurion.legacy.spp.centurion.CenturionCommand",
+  "scope": "Static IDs; presence does not prove speaker support or payload semantics.",
+  "commands": [
+    {
+      "name": "Acknowledge",
+      "code": 0,
+      "hex": "0x0000"
+    },
+    {
+      "name": "QueryProtocolVersion",
+      "code": 1,
+      "hex": "0x0001"
+    },
+    {
+      "name": "ReturnProtocolVersion",
+      "code": 2,
+      "hex": "0x0002"
+    },
+    {
+      "name": "QueryFirmwareVersion",
+      "code": 3,
+      "hex": "0x0003"
+    },
+    {
+      "name": "ReturnFirmwareVersion",
+      "code": 4,
+      "hex": "0x0004"
+    },
+    {
+      "name": "QueryDeviceId",
+      "code": 6,
+      "hex": "0x0006"
+    },
+    {
+      "name": "ReturnDeviceId",
+      "code": 7,
+      "hex": "0x0007"
+    },
+    {
+      "name": "QueryLanguageSetting",
+      "code": 352,
+      "hex": "0x0160"
+    },
+    {
+      "name": "ReturnLanguageSetting",
+      "code": 353,
+      "hex": "0x0161"
+    },
+    {
+      "name": "SetLanguage",
+      "code": 354,
+      "hex": "0x0162"
+    },
+    {
+      "name": "QuerySonfication",
+      "code": 355,
+      "hex": "0x0163"
+    },
+    {
+      "name": "ReturnSonfication",
+      "code": 356,
+      "hex": "0x0164"
+    },
+    {
+      "name": "SetSonfication",
+      "code": 357,
+      "hex": "0x0165"
+    },
+    {
+      "name": "QueryDeviceStatus",
+      "code": 358,
+      "hex": "0x0166"
+    },
+    {
+      "name": "ReturnDeviceStatus",
+      "code": 359,
+      "hex": "0x0167"
+    },
+    {
+      "name": "BeginDeviceInquery",
+      "code": 360,
+      "hex": "0x0168"
+    },
+    {
+      "name": "BeginDeviceDiscovery",
+      "code": 361,
+      "hex": "0x0169"
+    },
+    {
+      "name": "StopRestreaming",
+      "code": 362,
+      "hex": "0x016a"
+    },
+    {
+      "name": "AnnounceBatteryLevel",
+      "code": 363,
+      "hex": "0x016b"
+    },
+    {
+      "name": "PlaySound",
+      "code": 364,
+      "hex": "0x016c"
+    },
+    {
+      "name": "QueryBluetoothName",
+      "code": 365,
+      "hex": "0x016d"
+    },
+    {
+      "name": "ReturnBluetoothName",
+      "code": 366,
+      "hex": "0x016e"
+    },
+    {
+      "name": "SetBluetoothName",
+      "code": 367,
+      "hex": "0x016f"
+    },
+    {
+      "name": "QueryHardwareId",
+      "code": 368,
+      "hex": "0x0170"
+    },
+    {
+      "name": "ReturnHardwareId",
+      "code": 369,
+      "hex": "0x0171"
+    },
+    {
+      "name": "QueryAudioRouting",
+      "code": 370,
+      "hex": "0x0172"
+    },
+    {
+      "name": "ReturnAudioRouting",
+      "code": 371,
+      "hex": "0x0173"
+    },
+    {
+      "name": "SetAudioRouting",
+      "code": 372,
+      "hex": "0x0174"
+    },
+    {
+      "name": "QueryChargingInfo",
+      "code": 373,
+      "hex": "0x0175"
+    },
+    {
+      "name": "ReturnChargingInfo",
+      "code": 374,
+      "hex": "0x0176"
+    },
+    {
+      "name": "QueryEQSetting",
+      "code": 375,
+      "hex": "0x0177"
+    },
+    {
+      "name": "ReturnEQSetting",
+      "code": 376,
+      "hex": "0x0178"
+    },
+    {
+      "name": "SetEQSetting",
+      "code": 377,
+      "hex": "0x0179"
+    },
+    {
+      "name": "QueryNumberOfOtherConnectedDevices",
+      "code": 378,
+      "hex": "0x017a"
+    },
+    {
+      "name": "ReturnNumberOfOtherConnectedDevices",
+      "code": 379,
+      "hex": "0x017b"
+    },
+    {
+      "name": "QuerySerialNumber",
+      "code": 380,
+      "hex": "0x017c"
+    },
+    {
+      "name": "ReturnSerialNumber",
+      "code": 381,
+      "hex": "0x017d"
+    },
+    {
+      "name": "QueryAlarm",
+      "code": 382,
+      "hex": "0x017e"
+    },
+    {
+      "name": "ReturnAlarm",
+      "code": 383,
+      "hex": "0x017f"
+    },
+    {
+      "name": "SetAlarm",
+      "code": 384,
+      "hex": "0x0180"
+    },
+    {
+      "name": "QueryChargerRegister",
+      "code": 385,
+      "hex": "0x0181"
+    },
+    {
+      "name": "ReturnChargerRegister",
+      "code": 386,
+      "hex": "0x0182"
+    },
+    {
+      "name": "QuerySoCVariables",
+      "code": 387,
+      "hex": "0x0183"
+    },
+    {
+      "name": "ReturnSoCVariables",
+      "code": 388,
+      "hex": "0x0184"
+    },
+    {
+      "name": "QueryHardwareRevision",
+      "code": 389,
+      "hex": "0x0185"
+    },
+    {
+      "name": "ReturnHardwareRevision",
+      "code": 390,
+      "hex": "0x0186"
+    },
+    {
+      "name": "SendAVRCPCommand",
+      "code": 391,
+      "hex": "0x0187"
+    },
+    {
+      "name": "QueryEQTable",
+      "code": 392,
+      "hex": "0x0188"
+    },
+    {
+      "name": "ReturnEQTable",
+      "code": 393,
+      "hex": "0x0189"
+    },
+    {
+      "name": "SetEQTable",
+      "code": 394,
+      "hex": "0x018a"
+    },
+    {
+      "name": "Set32Volume",
+      "code": 397,
+      "hex": "0x018d"
+    },
+    {
+      "name": "Query32Volume",
+      "code": 398,
+      "hex": "0x018e"
+    },
+    {
+      "name": "Return32Volume",
+      "code": 399,
+      "hex": "0x018f"
+    },
+    {
+      "name": "SetVolume",
+      "code": 400,
+      "hex": "0x0190"
+    },
+    {
+      "name": "QueryVolume",
+      "code": 401,
+      "hex": "0x0191"
+    },
+    {
+      "name": "ReturnVolume",
+      "code": 402,
+      "hex": "0x0192"
+    },
+    {
+      "name": "QueryTWSSavePairFlag",
+      "code": 403,
+      "hex": "0x0193"
+    },
+    {
+      "name": "ReturnTWSSavePairFlag",
+      "code": 404,
+      "hex": "0x0194"
+    },
+    {
+      "name": "SetTWSSavePairFlag",
+      "code": 405,
+      "hex": "0x0195"
+    },
+    {
+      "name": "QuerySupportedLanguage",
+      "code": 406,
+      "hex": "0x0196"
+    },
+    {
+      "name": "ReturnSupportedLanguage",
+      "code": 407,
+      "hex": "0x0197"
+    },
+    {
+      "name": "QueryCustomState",
+      "code": 408,
+      "hex": "0x0198"
+    },
+    {
+      "name": "ReturnCustomState",
+      "code": 409,
+      "hex": "0x0199"
+    },
+    {
+      "name": "SetCustomState",
+      "code": 410,
+      "hex": "0x019a"
+    },
+    {
+      "name": "QueryTWSBalance",
+      "code": 411,
+      "hex": "0x019b"
+    },
+    {
+      "name": "ReturnTWSBalance",
+      "code": 412,
+      "hex": "0x019c"
+    },
+    {
+      "name": "SetTWSBalance",
+      "code": 413,
+      "hex": "0x019d"
+    },
+    {
+      "name": "QueryFeatures",
+      "code": 414,
+      "hex": "0x019e"
+    },
+    {
+      "name": "ReturnFeatures",
+      "code": 415,
+      "hex": "0x019f"
+    },
+    {
+      "name": "QueryPlaybackMetadata",
+      "code": 416,
+      "hex": "0x01a0"
+    },
+    {
+      "name": "ReturnPlaybackMetadata",
+      "code": 417,
+      "hex": "0x01a1"
+    },
+    {
+      "name": "QuerySleepTimer",
+      "code": 418,
+      "hex": "0x01a2"
+    },
+    {
+      "name": "ReturnSleepTimer",
+      "code": 419,
+      "hex": "0x01a3"
+    },
+    {
+      "name": "SetSleepTimer",
+      "code": 420,
+      "hex": "0x01a4"
+    },
+    {
+      "name": "QueryConnectedDeviceNameRequest",
+      "code": 421,
+      "hex": "0x01a5"
+    },
+    {
+      "name": "ReturnConnectedDeviceName",
+      "code": 422,
+      "hex": "0x01a6"
+    },
+    {
+      "name": "SetOTAState",
+      "code": 423,
+      "hex": "0x01a7"
+    },
+    {
+      "name": "QueryOTAState",
+      "code": 424,
+      "hex": "0x01a8"
+    },
+    {
+      "name": "ReturnOTAState",
+      "code": 425,
+      "hex": "0x01a9"
+    },
+    {
+      "name": "QuerySlaveBatteryLevel",
+      "code": 426,
+      "hex": "0x01aa"
+    },
+    {
+      "name": "ReturnSlaveBatteryLevel",
+      "code": 427,
+      "hex": "0x01ab"
+    },
+    {
+      "name": "QuerySourceBluetoothAddress",
+      "code": 428,
+      "hex": "0x01ac"
+    },
+    {
+      "name": "ReturnSourceBluetoothAddress",
+      "code": 429,
+      "hex": "0x01ad"
+    },
+    {
+      "name": "QueryDeviceBluetoothAddress",
+      "code": 430,
+      "hex": "0x01ae"
+    },
+    {
+      "name": "ReturnDeviceBluetoothAddress",
+      "code": 431,
+      "hex": "0x01af"
+    },
+    {
+      "name": "QueryTWSSlaveBluetoothAddress",
+      "code": 432,
+      "hex": "0x01b0"
+    },
+    {
+      "name": "ReturnTWSSlaveBluetoothAddress",
+      "code": 433,
+      "hex": "0x01b1"
+    },
+    {
+      "name": "SlaveRemoteOff",
+      "code": 434,
+      "hex": "0x01b2"
+    },
+    {
+      "name": "QueryAUXLevelInDB",
+      "code": 436,
+      "hex": "0x01b4"
+    },
+    {
+      "name": "ReturnAUXLevelInDB",
+      "code": 437,
+      "hex": "0x01b5"
+    },
+    {
+      "name": "MasterRemoteOff",
+      "code": 438,
+      "hex": "0x01b6"
+    },
+    {
+      "name": "QueryBLEState",
+      "code": 439,
+      "hex": "0x01b7"
+    },
+    {
+      "name": "ReturnBLEState",
+      "code": 440,
+      "hex": "0x01b8"
+    },
+    {
+      "name": "SetBLEState",
+      "code": 441,
+      "hex": "0x01b9"
+    },
+    {
+      "name": "AdjustVolume",
+      "code": 443,
+      "hex": "0x01bb"
+    },
+    {
+      "name": "QuerySlaveVolume",
+      "code": 444,
+      "hex": "0x01bc"
+    },
+    {
+      "name": "ReturnSlaveVolume",
+      "code": 445,
+      "hex": "0x01bd"
+    },
+    {
+      "name": "QueryDeviceColor",
+      "code": 446,
+      "hex": "0x01be"
+    },
+    {
+      "name": "ReturnDeviceColor",
+      "code": 447,
+      "hex": "0x01bf"
+    },
+    {
+      "name": "QueryGestureEnable",
+      "code": 452,
+      "hex": "0x01c4"
+    },
+    {
+      "name": "ReturnGestureEnable",
+      "code": 453,
+      "hex": "0x01c5"
+    },
+    {
+      "name": "SetGestureEnable",
+      "code": 454,
+      "hex": "0x01c6"
+    },
+    {
+      "name": "PartitionSerialFlash",
+      "code": 512,
+      "hex": "0x0200"
+    },
+    {
+      "name": "MountPartition",
+      "code": 513,
+      "hex": "0x0201"
+    },
+    {
+      "name": "GetPartitionMountState",
+      "code": 514,
+      "hex": "0x0202"
+    },
+    {
+      "name": "ReturnPartitionMountState",
+      "code": 515,
+      "hex": "0x0203"
+    },
+    {
+      "name": "SetPartitionMountState",
+      "code": 516,
+      "hex": "0x0204"
+    },
+    {
+      "name": "CheckPartitionState",
+      "code": 517,
+      "hex": "0x0205"
+    },
+    {
+      "name": "ReturnCheckPartitionState",
+      "code": 518,
+      "hex": "0x0206"
+    },
+    {
+      "name": "SetEnableNotifications",
+      "code": 519,
+      "hex": "0x0207"
+    },
+    {
+      "name": "QueryEnableNotifications",
+      "code": 520,
+      "hex": "0x0208"
+    },
+    {
+      "name": "ReturnEnableNotifications",
+      "code": 521,
+      "hex": "0x0209"
+    },
+    {
+      "name": "QueryPartitionFiveInfo",
+      "code": 522,
+      "hex": "0x020a"
+    },
+    {
+      "name": "ReturnPartitionFiveInfo",
+      "code": 523,
+      "hex": "0x020b"
+    },
+    {
+      "name": "GetSonificationFileSize",
+      "code": 525,
+      "hex": "0x020d"
+    },
+    {
+      "name": "ReturnSonificationFileSize",
+      "code": 526,
+      "hex": "0x020e"
+    },
+    {
+      "name": "SetBlockPartyState",
+      "code": 1024,
+      "hex": "0x0400"
+    },
+    {
+      "name": "QueryBlockPartyState",
+      "code": 1025,
+      "hex": "0x0401"
+    },
+    {
+      "name": "ReturnBlockPartyState",
+      "code": 1026,
+      "hex": "0x0402"
+    },
+    {
+      "name": "QueryBlockPartyInfo",
+      "code": 1027,
+      "hex": "0x0403"
+    },
+    {
+      "name": "ReturnBlockPartyInfo",
+      "code": 1028,
+      "hex": "0x0404"
+    },
+    {
+      "name": "KickBlockPartyMember",
+      "code": 1031,
+      "hex": "0x0407"
+    },
+    {
+      "name": "QueryBlockPartyCurrentStreamingDeviceMAC",
+      "code": 1032,
+      "hex": "0x0408"
+    },
+    {
+      "name": "ReturnBlockPartyCurrentStreamingDeviceMAC",
+      "code": 1033,
+      "hex": "0x0409"
+    },
+    {
+      "name": "BlockPartyNotification",
+      "code": 1040,
+      "hex": "0x0410"
+    },
+    {
+      "name": "TrackLengthInfoNotification",
+      "code": 1042,
+      "hex": "0x0412"
+    },
+    {
+      "name": "SetBroadcastMode",
+      "code": 1043,
+      "hex": "0x0413"
+    },
+    {
+      "name": "QueryBroadcastMode",
+      "code": 1044,
+      "hex": "0x0414"
+    },
+    {
+      "name": "ReturnBroadcastMode",
+      "code": 1045,
+      "hex": "0x0415"
+    },
+    {
+      "name": "BroadcastStatusNotification",
+      "code": 1046,
+      "hex": "0x0416"
+    },
+    {
+      "name": "AddReceiverToBroadcast",
+      "code": 1047,
+      "hex": "0x0417"
+    },
+    {
+      "name": "ReceiverAddedToBroadcastNotification",
+      "code": 1048,
+      "hex": "0x0418"
+    },
+    {
+      "name": "RemoveReceiverFromBroadcast",
+      "code": 1049,
+      "hex": "0x0419"
+    },
+    {
+      "name": "ReceiverRemovedFromBroadcastNotification",
+      "code": 1050,
+      "hex": "0x041a"
+    },
+    {
+      "name": "SetBroadcastSyncVolume",
+      "code": 1051,
+      "hex": "0x041b"
+    },
+    {
+      "name": "QueryReceiverVariableAttributes",
+      "code": 1052,
+      "hex": "0x041c"
+    },
+    {
+      "name": "VariableReceiverAttributesNotification",
+      "code": 1053,
+      "hex": "0x041d"
+    },
+    {
+      "name": "QueryReceiverFixedAttributes",
+      "code": 1054,
+      "hex": "0x041e"
+    },
+    {
+      "name": "FixedReceiverAttributesNotification",
+      "code": 1055,
+      "hex": "0x041f"
+    },
+    {
+      "name": "QueryReceiverOneAttribute",
+      "code": 1056,
+      "hex": "0x0420"
+    },
+    {
+      "name": "GetOneReceiverAttributeNotification",
+      "code": 1057,
+      "hex": "0x0421"
+    },
+    {
+      "name": "SetReceiverOneAttribute",
+      "code": 1058,
+      "hex": "0x0422"
+    },
+    {
+      "name": "SetOneReceiverAttributeNotification",
+      "code": 1059,
+      "hex": "0x0423"
+    },
+    {
+      "name": "SetReceiverIdentificationSignal",
+      "code": 1060,
+      "hex": "0x0424"
+    },
+    {
+      "name": "SetReceiverIdentificationSignalNotification",
+      "code": 1061,
+      "hex": "0x0425"
+    },
+    {
+      "name": "SetXUPPromiscuousMode",
+      "code": 1062,
+      "hex": "0x0426"
+    },
+    {
+      "name": "QueryXUPPromiscuousMode",
+      "code": 1066,
+      "hex": "0x042a"
+    },
+    {
+      "name": "ReturnXUPPromiscuousMode",
+      "code": 1067,
+      "hex": "0x042b"
+    },
+    {
+      "name": "VoiceNotification",
+      "code": 1068,
+      "hex": "0x042c"
+    },
+    {
+      "name": "SetVoiceLEDState",
+      "code": 1069,
+      "hex": "0x042d"
+    },
+    {
+      "name": "GetVoiceControlFlag",
+      "code": 1070,
+      "hex": "0x042e"
+    },
+    {
+      "name": "ReturnVoiceControlFlag",
+      "code": 1071,
+      "hex": "0x042f"
+    },
+    {
+      "name": "SetVoiceControlFlag",
+      "code": 1072,
+      "hex": "0x0430"
+    },
+    {
+      "name": "BLEAvailableNotification",
+      "code": 1075,
+      "hex": "0x0433"
+    },
+    {
+      "name": "GetVoiceCapabilities",
+      "code": 1076,
+      "hex": "0x0434"
+    },
+    {
+      "name": "ReturnVoiceCapabilities",
+      "code": 1077,
+      "hex": "0x0435"
+    },
+    {
+      "name": "SetVoiceModeAcknowledge",
+      "code": 1078,
+      "hex": "0x0436"
+    },
+    {
+      "name": "TapNotification",
+      "code": 1079,
+      "hex": "0x0437"
+    },
+    {
+      "name": "SetVoiceModeFlag",
+      "code": 1081,
+      "hex": "0x0439"
+    },
+    {
+      "name": "MagicButtonNotification",
+      "code": 1088,
+      "hex": "0x0440"
+    },
+    {
+      "name": "MagicButtonLEDState",
+      "code": 1089,
+      "hex": "0x0441"
+    },
+    {
+      "name": "PowerDownNotification",
+      "code": 1091,
+      "hex": "0x0443"
+    },
+    {
+      "name": "GetMagicButtonStatus",
+      "code": 1092,
+      "hex": "0x0444"
+    },
+    {
+      "name": "ReturnMagicButtonStatus",
+      "code": 1093,
+      "hex": "0x0445"
+    },
+    {
+      "name": "AddPlaylistNotification",
+      "code": 1094,
+      "hex": "0x0446"
+    },
+    {
+      "name": "UNKNOWN",
+      "code": -1,
+      "hex": null
+    }
+  ]
+}
