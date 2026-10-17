@@ -14,6 +14,8 @@ features and firmware, including variants sold under the same retail name.
 - [Reproduce the research](docs/research-workflow.md)
 - [Legacy command IDs](docs/legacy-command-catalog.json)
 - [Evidence index](docs/evidence-index.json)
+- [Interface direction](docs/interface-direction.md)
+- [Official speaker images and colours](assets/speakers/README.md)
 
 This repository currently contains research and reproducible analysis helpers.
 There is no runnable Linux controller or interface yet. Findings are static;
