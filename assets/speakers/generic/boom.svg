@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400" viewBox="0 0 300 400" role="img" aria-label="Generic boom speaker illustration">
+<defs><linearGradient id="body"><stop stop-color="#49515b"/><stop offset=".5" stop-color="#66707a"/><stop offset="1" stop-color="#3c444f"/></linearGradient><pattern id="mesh" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r=".7" fill="#b8c0c8" opacity=".35"/></pattern></defs>
+<ellipse cx="150" cy="370" rx="85" ry="9" fill="#111827" opacity=".14"/>
+<rect x="106" y="35" width="88" height="320" rx="42" fill="url(#body)"/>
+<rect x="111" y="47" width="78" height="296" rx="37" fill="url(#mesh)"/>
+<path d="M130 150h40m-20-20v40M150 200v40" stroke="#d5dce1" stroke-width="7" stroke-linecap="round"/>
+</svg>

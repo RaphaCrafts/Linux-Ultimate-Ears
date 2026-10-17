@@ -327,7 +327,180 @@
       "download_url": "https://resource.ultimateears.com/w_600,h_600,c_fit,f_webp,q_auto/content/dam/ue/products/wireless-speakers/megaboom-3/unicorn/ue-megaboom3-unicorn-front.png",
       "sha256": "19683e37b0ae3e129b6cb15f0edf8bea19f99969aa38834575893da0e144be78",
       "bytes": 54806
+    },
+    {
+      "model": "megaboom-3",
+      "colour": "Moon",
+      "sku": null,
+      "source_page": "https://www.ultimateears.com/en-us/shop/p/megaboom-3",
+      "source_image": "https://resource.ultimateears.com/content/dam/ue/products/wireless-speakers/megaboom-3/moon/ue-megaboom3-moon-front.png",
+      "label_source": "Historical official CDN filename; not a current shop listing",
+      "file": "megaboom-3-moon.webp",
+      "download_url": "https://resource.ultimateears.com/w_600,h_600,c_fit,f_webp,q_auto/content/dam/ue/products/wireless-speakers/megaboom-3/moon/ue-megaboom3-moon-front.png",
+      "sha256": "650f9a0c3c7b7e7921a29b2b37efb0c3da383fdbf0df8385258ea56d66a2d459",
+      "bytes": 47274
+    },
+    {
+      "model": "megaboom-3",
+      "colour": "Dusk",
+      "sku": null,
+      "source_page": "https://www.ultimateears.com/en-us/shop/p/megaboom-3",
+      "source_image": "https://resource.ultimateears.com/content/dam/ue/products/wireless-speakers/megaboom-3/dusk/ue-megaboom3-dusk-front.png",
+      "label_source": "Historical official CDN filename; not a current shop listing",
+      "file": "megaboom-3-dusk.webp",
+      "download_url": "https://resource.ultimateears.com/w_600,h_600,c_fit,f_webp,q_auto/content/dam/ue/products/wireless-speakers/megaboom-3/dusk/ue-megaboom3-dusk-front.png",
+      "sha256": "438b3f7d3fb7abb222e06966dbcd5b782bb1a88794042bad2ddbb7d69f799715",
+      "bytes": 51742
+    },
+    {
+      "model": "megaboom-3",
+      "colour": "Seashell peach",
+      "sku": null,
+      "source_page": "https://www.ultimateears.com/en-us/shop/p/megaboom-3",
+      "source_image": "https://resource.ultimateears.com/content/dam/ue/products/wireless-speakers/megaboom-3/seashell-peach/ue-megaboom3-seashell-peach-front.png",
+      "label_source": "Historical official CDN filename; not a current shop listing",
+      "file": "megaboom-3-seashell-peach.webp",
+      "download_url": "https://resource.ultimateears.com/w_600,h_600,c_fit,f_webp,q_auto/content/dam/ue/products/wireless-speakers/megaboom-3/seashell-peach/ue-megaboom3-seashell-peach-front.png",
+      "sha256": "553e22e6fee0e3f9ce1f742a8ff0f5b4555029599af290d1ed2c4371c10ef001",
+      "bytes": 56518
+    },
+    {
+      "model": "megaboom-3",
+      "colour": "Denim",
+      "sku": null,
+      "source_page": "https://www.ultimateears.com/en-us/shop/p/megaboom-3",
+      "source_image": "https://resource.ultimateears.com/content/dam/ue/products/wireless-speakers/megaboom-3/denim/ue-megaboom3-denim-front.png",
+      "label_source": "Historical official CDN filename; not a current shop listing",
+      "file": "megaboom-3-denim.webp",
+      "download_url": "https://resource.ultimateears.com/w_600,h_600,c_fit,f_webp,q_auto/content/dam/ue/products/wireless-speakers/megaboom-3/denim/ue-megaboom3-denim-front.png",
+      "sha256": "cac99e7111ff81fd29f603e5725537548e7bae513304b92fd20cb939a2385b95",
+      "bytes": 53114
+    },
+    {
+      "model": "megaboom-3",
+      "colour": "Cloud",
+      "sku": null,
+      "source_page": "https://www.ultimateears.com/en-us/shop/p/megaboom-3",
+      "source_image": "https://resource.ultimateears.com/content/dam/ue/products/wireless-speakers/megaboom-3/cloud/ue-megaboom3-cloud-front.png",
+      "label_source": "Historical official CDN filename; not a current shop listing",
+      "file": "megaboom-3-cloud.webp",
+      "download_url": "https://resource.ultimateears.com/w_600,h_600,c_fit,f_webp,q_auto/content/dam/ue/products/wireless-speakers/megaboom-3/cloud/ue-megaboom3-cloud-front.png",
+      "sha256": "ffeae1af36cc839c8ef59398e45d453f97ea3de0a84eb037be039cacb40c8b58",
+      "bytes": 78890
+    },
+    {
+      "model": "megaboom-3",
+      "colour": "Urban magenta",
+      "sku": null,
+      "source_page": "https://www.ultimateears.com/en-us/shop/p/megaboom-3",
+      "source_image": "https://resource.ultimateears.com/content/dam/ue/products/wireless-speakers/megaboom-3/urban-magenta/ue-megaboom3-urban-magenta-front.png",
+      "label_source": "Historical official CDN filename; not a current shop listing",
+      "file": "megaboom-3-urban-magenta.webp",
+      "download_url": "https://resource.ultimateears.com/w_600,h_600,c_fit,f_webp,q_auto/content/dam/ue/products/wireless-speakers/megaboom-3/urban-magenta/ue-megaboom3-urban-magenta-front.png",
+      "sha256": "8259a881f6950518cf63475186e1622defce182152b622ad43417c372f424d0d",
+      "bytes": 53478
+    },
+    {
+      "model": "boom-3",
+      "colour": "Unicorn pink",
+      "sku": null,
+      "source_page": "https://www.ultimateears.com/en-us/shop/p/boom-3",
+      "source_image": "https://resource.ultimateears.com/content/dam/ue/products/wireless-speakers/boom-3/unicorn/ue-boom3-unicorn-front.png",
+      "label_source": "Historical official CDN filename; not a current shop listing",
+      "file": "boom-3-unicorn-pink.webp",
+      "download_url": "https://resource.ultimateears.com/w_600,h_600,c_fit,f_webp,q_auto/content/dam/ue/products/wireless-speakers/boom-3/unicorn/ue-boom3-unicorn-front.png",
+      "sha256": "12f44caf1482cb04a7719708b02b029386e90199c58d4c48badd34eb5592fd43",
+      "bytes": 42566
+    },
+    {
+      "model": "boom-3",
+      "colour": "Moon",
+      "sku": null,
+      "source_page": "https://www.ultimateears.com/en-us/shop/p/boom-3",
+      "source_image": "https://resource.ultimateears.com/content/dam/ue/products/wireless-speakers/boom-3/moon/ue-boom3-moon-front.png",
+      "label_source": "Historical official CDN filename; not a current shop listing",
+      "file": "boom-3-moon.webp",
+      "download_url": "https://resource.ultimateears.com/w_600,h_600,c_fit,f_webp,q_auto/content/dam/ue/products/wireless-speakers/boom-3/moon/ue-boom3-moon-front.png",
+      "sha256": "9acebff777a9a96fb28172fe0509c2923c908fb5ee00e420636fa3dd7b34cdbb",
+      "bytes": 33640
+    },
+    {
+      "model": "boom-3",
+      "colour": "Dusk",
+      "sku": null,
+      "source_page": "https://www.ultimateears.com/en-us/shop/p/boom-3",
+      "source_image": "https://resource.ultimateears.com/content/dam/ue/products/wireless-speakers/boom-3/dusk/ue-boom3-dusk-front.png",
+      "label_source": "Historical official CDN filename; not a current shop listing",
+      "file": "boom-3-dusk.webp",
+      "download_url": "https://resource.ultimateears.com/w_600,h_600,c_fit,f_webp,q_auto/content/dam/ue/products/wireless-speakers/boom-3/dusk/ue-boom3-dusk-front.png",
+      "sha256": "09ef42b6f8badc0b2fc7d020351d57d13c3260a1b81911310b44deb1b6767808",
+      "bytes": 42196
+    },
+    {
+      "model": "boom-3",
+      "colour": "Seashell peach",
+      "sku": null,
+      "source_page": "https://www.ultimateears.com/en-us/shop/p/boom-3",
+      "source_image": "https://resource.ultimateears.com/content/dam/ue/products/wireless-speakers/boom-3/seashell-peach/ue-boom3-seashell-peach-front.png",
+      "label_source": "Historical official CDN filename; not a current shop listing",
+      "file": "boom-3-seashell-peach.webp",
+      "download_url": "https://resource.ultimateears.com/w_600,h_600,c_fit,f_webp,q_auto/content/dam/ue/products/wireless-speakers/boom-3/seashell-peach/ue-boom3-seashell-peach-front.png",
+      "sha256": "051382ac3f7fafeaded9fbaa4a1f857c4f9739368edb5b2a7153e39835b1605e",
+      "bytes": 45330
+    },
+    {
+      "model": "boom-3",
+      "colour": "Denim",
+      "sku": null,
+      "source_page": "https://www.ultimateears.com/en-us/shop/p/boom-3",
+      "source_image": "https://resource.ultimateears.com/content/dam/ue/products/wireless-speakers/boom-3/denim/ue-boom3-denim-front.png",
+      "label_source": "Historical official CDN filename; not a current shop listing",
+      "file": "boom-3-denim.webp",
+      "download_url": "https://resource.ultimateears.com/w_600,h_600,c_fit,f_webp,q_auto/content/dam/ue/products/wireless-speakers/boom-3/denim/ue-boom3-denim-front.png",
+      "sha256": "ac6a317d33dbb4e34d7e0c5a227d64d3b6fea0f9e8548c194658c1e5f8d7618b",
+      "bytes": 35124
+    },
+    {
+      "model": "boom-3",
+      "colour": "Cloud",
+      "sku": null,
+      "source_page": "https://www.ultimateears.com/en-us/shop/p/boom-3",
+      "source_image": "https://resource.ultimateears.com/content/dam/ue/products/wireless-speakers/boom-3/cloud/ue-boom3-cloud-front.png",
+      "label_source": "Historical official CDN filename; not a current shop listing",
+      "file": "boom-3-cloud.webp",
+      "download_url": "https://resource.ultimateears.com/w_600,h_600,c_fit,f_webp,q_auto/content/dam/ue/products/wireless-speakers/boom-3/cloud/ue-boom3-cloud-front.png",
+      "sha256": "4ce6686dca8f69ec65a051d78c281ae37ba8e36da32cdb7a621a9d6c99ee6ccf",
+      "bytes": 49204
     }
   ],
-  "unavailable": []
+  "unavailable": [
+    {
+      "model": "megaboom-3",
+      "colour": "Jungle grey",
+      "sku": null,
+      "source_page": "https://www.ultimateears.com/en-us/shop/p/megaboom-3",
+      "source_image": "https://resource.ultimateears.com/content/dam/ue/products/wireless-speakers/megaboom-3/jungle-grey/ue-megaboom3-jungle-grey-front.png",
+      "label_source": "Historical official CDN filename; not a current shop listing",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "model": "boom-3",
+      "colour": "Jungle grey",
+      "sku": null,
+      "source_page": "https://www.ultimateears.com/en-us/shop/p/boom-3",
+      "source_image": "https://resource.ultimateears.com/content/dam/ue/products/wireless-speakers/boom-3/jungle-grey/ue-boom3-jungle-grey-front.png",
+      "label_source": "Historical official CDN filename; not a current shop listing",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "model": "boom-3",
+      "colour": "Urban magenta",
+      "sku": null,
+      "source_page": "https://www.ultimateears.com/en-us/shop/p/boom-3",
+      "source_image": "https://resource.ultimateears.com/content/dam/ue/products/wireless-speakers/boom-3/urban-magenta/ue-boom3-urban-magenta-front.png",
+      "label_source": "Historical official CDN filename; not a current shop listing",
+      "error": "HTTP Error 404: Not Found"
+    }
+  ],
+  "page_failures": []
 }

@@ -27,7 +27,8 @@ cp -a dist/speaker-studio "$appdir/usr/lib/"
 cp packaging/AppRun "$appdir/AppRun"
 cp packaging/speaker-studio.desktop "$appdir/speaker-studio.desktop"
 cp assets/speaker-studio.svg "$appdir/speaker-studio.svg"
-cp assets/speaker-studio.svg "$appdir/.DirIcon"
+cp assets/speaker-studio.png "$appdir/speaker-studio.png"
+cp assets/speaker-studio.png "$appdir/.DirIcon"
 "$python_bin" - <<'PY'
 import json,platform,subprocess
 from pathlib import Path

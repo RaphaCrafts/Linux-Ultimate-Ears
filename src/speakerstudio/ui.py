@@ -84,7 +84,7 @@ class Window(QMainWindow):
         self.settings = QSettings('RaphaCrafts', 'SpeakerStudio')
         self.catalogue = json.loads((asset_root()/'speakers/manifest.json').read_text())['images']
         self.setWindowTitle('Speaker studio')
-        self.setWindowIcon(QIcon(str(asset_root()/'speaker-studio.svg')))
+        self.setWindowIcon(QIcon(str(asset_root()/'speaker-studio.png')))
         self.resize(1080, 810)
         self.setMinimumSize(800, 640)
         container = QWidget()
@@ -270,7 +270,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.colour_select.setAccessibleName('Speaker colour')
         self.colour_select.currentTextChanged.connect(self.choose_colour)
         image_layout.addWidget(self.colour_select)
-        image_layout.addWidget(text('Choose a finish to match your speaker.','muted'))
+        image_layout.addWidget(text('Choose your finish, or Generic if it isn’t listed.','muted'))
         columns.addWidget(hero,1)
         controls = QVBoxLayout()
         vol = QVBoxLayout()
@@ -447,21 +447,31 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
 
     def inferred_model(self, d):
         if d.get('model'):return d['model']
-        name = d['name'].upper().replace(' ','')
-        for model in ['megaboom-4','megaboom-3','boom-4','boom-3','epicboom','everboom','hyperboom','wonderboom-4']:
+        name = ''.join(c for c in d['name'].upper() if c.isalnum())
+        for model in ['megaboom-4','megaboom-3','boom-4','boom-3','epicboom','everboom','hyperboom','wonderboom-4','wonderboom-3','wonderboom-2','wonderboom','megaboom','boom-2','boom']:
             if model.replace('-','').upper() in name:return model
         return ''
 
+    def generic_path(self, model):
+        family = next((f for f in ('megaboom','hyperboom','everboom','epicboom','wonderboom','boom') if model.startswith(f)), 'speaker')
+        return asset_root()/'speakers/generic'/(family+'.svg')
+
+    def artwork_variants(self, d):
+        model = self.inferred_model(d)
+        label = 'Generic '+(model.upper().replace('-',' ') if model else 'speaker')
+        return [{'model':model, 'colour':label, 'path':self.generic_path(model)}] + [r for r in self.catalogue if r['model']==model]
+
     @staticmethod
     def default_artwork(variants):
-        return next((r for r in variants if r['colour']=='Unicorn pink'), variants[0] if variants else None)
+        return variants[0]
 
     def image_path(self,d):
-        model = self.inferred_model(d)
-        variants = [r for r in self.catalogue if r['model']==model]
+        variants = self.artwork_variants(d)
         colour = self.settings.value('colour/'+d['address'],'')
         record = next((r for r in variants if r['colour']==colour),self.default_artwork(variants))
-        return asset_root()/'speakers'/record['file'] if record else None
+        path = record.get('path') or asset_root()/'speakers'/record['file']
+        # Missing or unreadable packshots always fall back to the neutral family art.
+        return path if not QPixmap(str(path)).isNull() else self.generic_path(self.inferred_model(d))
 
     def render(self):
         d = self.devices.get(self.selected)
@@ -497,7 +507,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.volume.setEnabled(active and d['volume'] is not None)
         self.identify_button.setEnabled(active)
         self.power_button.setEnabled(active and d['features'].get('power',False))
-        variants = [r for r in self.catalogue if r['model']==self.inferred_model(d)]
+        variants = self.artwork_variants(d)
         self.colour_select.blockSignals(True)
         self.colour_select.clear()
         self.colour_select.addItems([r['colour'] for r in variants])
@@ -608,7 +618,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             box.addWidget(text('Host' if i==0 else 'Group member','eyebrow'))
             box.addWidget(text(d['name'] if d else 'Speaker in group','section'))
             photo=QLabel();photo.setAlignment(Qt.AlignCenter)
-            image=self.image_path(d) if d else None
+            image=self.image_path(d) if d else self.generic_path('')
             if image:photo.setPixmap(QPixmap(str(image)).scaled(100,135,Qt.KeepAspectRatio,Qt.SmoothTransformation))
             box.addWidget(photo)
             battery=metadata.get('battery',d.get('battery') if d else None)

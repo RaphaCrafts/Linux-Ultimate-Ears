@@ -35,7 +35,8 @@ Zorin OS 18, or newer** as the baseline. ARM computers are not supported yet.
 - Choose a sound profile or adjust five custom EQ bands.
 - Power off the speaker from the app; turn it back on using its power button.
 - Find your speaker by asking it to announce its battery level.
-- Choose the matching speaker colour from the built-in official product images.
+- Choose from 39 official speaker colour images, or use a neutral **Generic**
+  illustration if your finish isn’t listed.
 - Keep several connected speakers visible in one app.
 - Use the **PartyUp preview** to add or remove compatible connected speakers.
 

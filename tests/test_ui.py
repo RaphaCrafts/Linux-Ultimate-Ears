@@ -60,7 +60,7 @@ def test_paired_speaker_artwork_before_connection(tmp_path,monkeypatch):
     w.update_devices([row])
     assert w.inferred_model(row)=='megaboom-3'
     assert not w.photo.pixmap().isNull()
-    assert w.colour_select.currentText()=='Unicorn pink'
+    assert w.colour_select.currentText()=='Generic MEGABOOM 3'
     assert w.battery_hint.text()=='Connect to check'
     assert not w.identify_button.isEnabled()
     assert not any('demo' in b.text().lower() for b in w.findChildren(QPushButton))
@@ -71,4 +71,30 @@ def test_paired_speaker_artwork_before_connection(tmp_path,monkeypatch):
     w.update_devices([row])
     assert w.battery_meter.value()==30
     assert w.identify_button.isEnabled()
+    w.close()
+
+
+def test_generic_artwork_for_unknown_finish_and_missing_image(tmp_path,monkeypatch):
+    from dataclasses import asdict
+    from speakerstudio.models import Speaker, ARTWORK_MODELS
+    from PySide6.QtGui import QPixmap
+    monkeypatch.setenv('XDG_CONFIG_HOME',str(tmp_path))
+    app=QApplication.instance() or QApplication([])
+    w=Window(Controller(),demo=True);app.processEvents()
+    for model in (*ARTWORK_MODELS,'megaboom','boom-2','boom','megaboom-5','unlisted'):
+        row=asdict(Speaker('demo-fallback','',model.upper(),model=model,paired=True))
+        w.settings.setValue('colour/demo-fallback','Unlisted limited edition')
+        w.update_devices([row])
+        assert 'generic' in str(w.image_path(row))
+        assert not w.photo.pixmap().isNull(),model
+        assert w.colour_select.currentText().startswith('Generic ')
+    row['model']='megaboom-3'
+    w.settings.setValue('colour/demo-fallback','Missing packshot')
+    w.catalogue.append({'model':'megaboom-3','colour':'Missing packshot','file':'does-not-exist.webp'})
+    assert w.image_path(row).name=='megaboom.svg'
+    w.settings.setValue('colour/demo-fallback','Unicorn pink')
+    assert w.image_path(row).name=='megaboom-3-unicorn-pink.webp'
+    w.settings.setValue('colour/demo-fallback','Generic MEGABOOM 3')
+    assert w.image_path(row).name=='megaboom.svg'
+    assert not QPixmap(str(w.image_path(row))).isNull()
     w.close()

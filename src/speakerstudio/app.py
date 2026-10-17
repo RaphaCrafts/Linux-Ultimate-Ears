@@ -36,6 +36,8 @@ def main():
             if args.smoke_test:
                 from PySide6.QtGui import QPixmap
                 valid=all(not QPixmap(str(asset_root()/'speakers'/r['file'])).isNull() for r in window.catalogue)
+                valid=valid and all(not QPixmap(str(p)).isNull() for p in (asset_root()/'speakers/generic').glob('*.svg'))
+                valid=valid and not window.windowIcon().isNull()
                 from dataclasses import asdict
                 from .models import Speaker
                 window.update_devices([asdict(Speaker('demo-packaging','','MEGABOOM 3',paired=True))])

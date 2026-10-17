@@ -1,1 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><rect width="256" height="256" rx="60" fill="#292d28"/><rect x="80" y="29" width="96" height="198" rx="31" fill="#454c45"/><path d="M101 94h54M128 67v54M101 163h54" stroke="#12b5d3" stroke-width="12" stroke-linecap="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Speaker studio icon">
+  <defs>
+    <linearGradient id="tile" x2="1" y2="1"><stop stop-color="#303a43"/><stop offset="1" stop-color="#151c27"/></linearGradient>
+    <linearGradient id="speaker" x2="1" y2=".3"><stop stop-color="#174b91"/><stop offset=".52" stop-color="#398fdd"/><stop offset="1" stop-color="#2465b2"/></linearGradient>
+    <linearGradient id="cap"><stop stop-color="#8db6df"/><stop offset="1" stop-color="#3b6190"/></linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#tile)"/>
+  <path d="M366 142a152 152 0 0 1 0 228" fill="none" stroke="#70e0c6" stroke-width="18" stroke-linecap="round"/>
+  <circle cx="365" cy="370" r="13" fill="#70e0c6"/>
+  <rect x="153" y="76" width="168" height="360" rx="44" fill="#080c13" opacity=".3" transform="translate(8 10)"/>
+  <rect x="147" y="70" width="168" height="360" rx="42" fill="url(#cap)"/>
+  <path d="M147 105q84-20 168 0v290q-84 20-168 0z" fill="url(#speaker)"/>
+  <path d="M193 193h76m-38-38v76m0 51v64" fill="none" stroke="#86f1d3" stroke-width="17" stroke-linecap="round"/>
+  <path d="M171 103q60-10 119 0" fill="none" stroke="#c7e6ff" opacity=".45" stroke-width="4" stroke-linecap="round"/>
+</svg>

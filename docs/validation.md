@@ -29,7 +29,7 @@ X11 window startup and extract-and-run fallback were checked on the build host.
 
 ## Automated checks
 
-26 automated tests passed in the final build.
+27 automated tests passed in the final build.
 
 Protocol tests cover arbitrary stream fragmentation and concatenation, malformed
 lengths and encoding bounds, ACK correlation, unsupported-command errors,
@@ -61,3 +61,13 @@ packshot, a battery charge bar and explicit disconnected battery guidance.
 Removed the demo entry from the user interface. A regression test covers the
 paired/disconnected state, colour persistence and charge display. The packaging
 smoke check now loads every catalogued image and a model inferred from its name.
+
+## Artwork and icon update 0.1.2
+
+Expanded to 39 official colour packshots across eight models. Collection preserves
+existing files and records failed pages/probes. Exhaustive historical or future
+variant coverage is not claimed. Original neutral SVG illustrations provide
+family-specific defaults and missing/unreadable-file fallbacks. An additional
+UI regression covers known, older and unlisted model families, unknown finishes,
+explicit Generic selection and a missing packshot. Packaging checks load all
+packshots, all generic illustrations and the original blue app icon.
