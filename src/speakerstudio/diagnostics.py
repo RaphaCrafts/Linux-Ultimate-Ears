@@ -22,7 +22,7 @@ def check_speaker(address):
             controller.speakers[address_key]=Speaker(address_key,row['path'],row['name'],paired=row['paired'])
             await controller._connect(address_key)
             state=asdict(controller.speakers[address_key])
-            fields=('model','identity','firmware','battery','volume','eq','bands','broadcast')
+            fields=('model','identity','firmware','battery','volume','eq','bands','broadcast','colour','colour_code')
             print(json.dumps({k:state[k] for k in fields},indent=2),flush=True)
             return 0
         except Exception as error:

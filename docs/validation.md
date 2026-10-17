@@ -29,7 +29,7 @@ X11 window startup and extract-and-run fallback were checked on the build host.
 
 ## Automated checks
 
-27 automated tests passed in the final build.
+34 automated tests passed in the final build.
 
 Protocol tests cover arbitrary stream fragmentation and concatenation, malformed
 lengths and encoding bounds, ACK correlation, unsupported-command errors,
@@ -71,3 +71,27 @@ family-specific defaults and missing/unreadable-file fallbacks. An additional
 UI regression covers known, older and unlisted model families, unknown finishes,
 explicit Generic selection and a missing packshot. Packaging checks load all
 packshots, all generic illustrations and the original blue app icon.
+
+## Colour and desktop integration 0.1.3
+
+Read-only testing on the real HUMBOLDT MEGABOOM 3 returned colour code 0x0431.
+The integrated controller resolves this to Unicorn pink, with current battery,
+volume and EQ reads preserved. Known base BOOM 3/MEGABOOM 3 colour mappings were
+recovered statically with REA; only this physical finish is hardware-verified.
+Tests cover unknown, malformed and unsupported colour replies, model scoping,
+automatic selection and manual override.
+
+Live X11 checks confirmed WM_CLASS and _GTK_APPLICATION_ID both match
+`speaker-studio`, nonempty _NET_WM_ICON pixel data, and an available tray host
+with the tray icon visible through Qt. The icon supplies sizes through 256px:
+a lone 512px PNG exceeded this host's X11 request limit and published empty icon
+data. The actual desktop launcher parser (GIO) launched temporary harmless test
+executables whose filenames include spaces, quotes, dollar signs, backticks,
+backslashes and percent signs. Persistent launcher tests also cover moved
+AppImages and preservation of unrelated shortcuts. Tray tests verify explicit
+hide/restore, cleanup and refusal to hide when no tray is available. These checks
+do not establish tray rendering on every Linux desktop.
+
+The final AppImage repeated the real-speaker colour diagnostic successfully.
+A normal packaged launch using a temporary XDG data directory created a valid
+persistent launcher and published the matching X11 app identity and icon pixels.

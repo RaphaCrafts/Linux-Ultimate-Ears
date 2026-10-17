@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer
 from . import __version__
 from .backend import Controller
-from .ui import Window, asset_root
+from .ui import Window, asset_root, app_icon
 
 
 def main():
@@ -21,12 +21,20 @@ def main():
         from .diagnostics import check_speaker
         application=QCoreApplication(sys.argv[:1])
         return check_speaker(args.check_speaker)
-    app=QApplication(sys.argv[:1])
-    app.setApplicationName('Speaker studio')
+    app=QApplication(['speaker-studio'])
+    app.setApplicationName('speaker-studio')
+    app.setApplicationDisplayName('Speaker studio')
+    app.setWindowIcon(app_icon())
     app.setDesktopFileName('speaker-studio')
     app.setOrganizationName('RaphaCrafts')
     app.setStyle('Fusion')
+    desktop_error = ''
+    if not (args.demo or args.smoke_test or args.screenshot):
+        from .desktop import register_appimage
+        try:register_appimage(asset_root()/'speaker-studio.png')
+        except (OSError,ValueError) as error:desktop_error = str(error)
     window=Window(Controller(),demo=args.demo or args.smoke_test)
+    if desktop_error:window.show_status('Could not add the app-menu shortcut: '+desktop_error)
     available=app.primaryScreen().availableGeometry()
     window.resize(min(1080,available.width()-40),min(810,available.height()-60))
     window.show()

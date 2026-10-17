@@ -23,6 +23,7 @@ class Speaker:
     firmware: str = ''
     error: str = ''
     colour: str = ''
+    colour_code: int | None = None
     features: dict = field(default_factory=dict)
     members: list = field(default_factory=list)
     bands: list | None = None

@@ -24,13 +24,17 @@ your music setup in one place.
 4. Turn on your speaker and pair it in your desktop's **Bluetooth settings**.
 5. Choose your speaker in the app and click **Connect**.
 
-That's it. Keep the AppImage wherever you like; nothing needs to be installed.
+Keep the AppImage wherever you like. On first launch, Speaker studio adds a
+shortcut to your app menu with its blue icon; no administrator password is needed.
+If you move the file, open it once from its new location to update the shortcut.
 The current download is for **64-bit Intel/AMD Linux PCs**, with **Ubuntu 24.04,
 Zorin OS 18, or newer** as the baseline. ARM computers are not supported yet.
 
 ## What you can do
 
 - See your speaker's battery, connection and current volume.
+- Detect known BOOM 3 / MEGABOOM 3 finishes automatically after connecting.
+- Use the blue icon in your taskbar and system tray.
 - Adjust speaker volume without reaching for your phone.
 - Choose a sound profile or adjust five custom EQ bands.
 - Power off the speaker from the app; turn it back on using its power button.
@@ -39,6 +43,20 @@ Zorin OS 18, or newer** as the baseline. ARM computers are not supported yet.
   illustration if your finish isn’t listed.
 - Keep several connected speakers visible in one app.
 - Use the **PartyUp preview** to add or remove compatible connected speakers.
+
+## Colours and the system tray
+
+Choose **Automatic** under **Speaker finish** to use the colour reported by the
+speaker. Known BOOM 3 and MEGABOOM 3 colours are mapped to matching artwork.
+Unrecognized or unsupported colours use a neutral Generic illustration; you can
+choose any finish manually without changing the speaker. Your selection is saved.
+Colour detection needs a control connection and does not identify every limited
+edition or later-generation speaker.
+
+The tray menu has **Show Speaker studio**, **Hide window**, and **Quit**. Hiding
+keeps the app connected; closing the window or choosing Quit exits the app.
+Tray availability depends on your desktop. If a tray is unavailable, keep the
+app minimized in the taskbar instead.
 
 This is the **first preview release**, focused on **MEGABOOM 3 and BOOM 3**.
 MEGABOOM 3 has been tested with a real speaker. Other models and every firmware

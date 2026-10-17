@@ -5,6 +5,7 @@ import socket
 from PySide6.QtCore import QThread, Signal
 from .bluez import BlueZ, rfcomm_channel
 from .models import Speaker, LEGACY_MODELS
+from .colours import finish_name
 from .protocol import LegacySession, open_rfcomm, CommandError, ProtocolError, battery_percent
 
 
@@ -178,6 +179,16 @@ class Controller(QThread):
         data = await self._read(s, 3, 4, 'firmware')
         if data:
             s.firmware = '.'.join(str(n) for n in data)
+        if 'colour' not in s.features:
+            data = await self._read(s, 0x1be, 0x1bf, 'colour')
+            if data is not None:
+                if len(data)==2:
+                    s.colour_code = int.from_bytes(data,'big')
+                    s.colour = finish_name(s.model,s.colour_code)
+                else:
+                    s.features['colour'] = False
+                    s.colour_code = None
+                    s.colour = ''
         data = await self._read(s, 0x175, 0x176, 'battery')
         if data is not None:
             if len(data) < 12:

@@ -134,3 +134,37 @@ def test_known_cpp_models_are_rejected_before_opening_legacy_transport(monkeypat
             except RuntimeError as e:assert 'not supported' in str(e)
             else:raise AssertionError('Unsupported model accepted')
     asyncio.run(scenario())
+
+
+def test_colour_detection_is_read_only_cached_and_model_scoped():
+    from speakerstudio.colours import finish_name
+    class ColourSession(FakeSession):
+        async def request(self,command,response=0,payload=b''):
+            if command==0x1be:
+                self.commands.append((command,response,payload));return b'\x04\x31'
+            return await super().request(command,response,payload)
+    async def scenario():
+        session=ColourSession();c,s=setup(session);s.model='megaboom-3'
+        await c._read_state('test');await c._read_state('test')
+        assert s.colour_code==0x431 and s.colour=='Unicorn pink'
+        assert [r for r in session.commands if r[0]==0x1be]==[(0x1be,0x1bf,b'')]
+        assert finish_name('boom-3',0x431)==''
+        assert finish_name('megaboom-3',0xffff)==''
+        assert finish_name('boom-3',0x112)=='Lagoon blue'
+    asyncio.run(scenario())
+
+
+def test_unknown_or_unsupported_colour_does_not_prevent_controls():
+    class ColourSession(FakeSession):
+        def __init__(self,payload):super().__init__();self.payload=payload
+        async def request(self,command,response=0,payload=b''):
+            if command==0x1be:
+                if self.payload is None:raise CommandError(command,1)
+                return self.payload
+            return await super().request(command,response,payload)
+    async def scenario():
+        for payload in (None,b'\xff\xff',b'\x01'):
+            c,s=setup(ColourSession(payload));s.model='megaboom-3'
+            await c._read_state('test')
+            assert s.colour=='' and s.volume==26
+    asyncio.run(scenario())

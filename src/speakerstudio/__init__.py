@@ -1,2 +1,2 @@
 """Speaker studio: Linux controls for Ultimate Ears speakers."""
-__version__ = "0.1.2"
+__version__ = "0.1.3"

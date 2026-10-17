@@ -60,7 +60,7 @@ def test_paired_speaker_artwork_before_connection(tmp_path,monkeypatch):
     w.update_devices([row])
     assert w.inferred_model(row)=='megaboom-3'
     assert not w.photo.pixmap().isNull()
-    assert w.colour_select.currentText()=='Generic MEGABOOM 3'
+    assert w.colour_select.currentText()=='Automatic · Generic'
     assert w.battery_hint.text()=='Connect to check'
     assert not w.identify_button.isEnabled()
     assert not any('demo' in b.text().lower() for b in w.findChildren(QPushButton))
@@ -87,7 +87,7 @@ def test_generic_artwork_for_unknown_finish_and_missing_image(tmp_path,monkeypat
         w.update_devices([row])
         assert 'generic' in str(w.image_path(row))
         assert not w.photo.pixmap().isNull(),model
-        assert w.colour_select.currentText().startswith('Generic ')
+        assert w.colour_select.currentText()=='Automatic · Generic'
     row['model']='megaboom-3'
     w.settings.setValue('colour/demo-fallback','Missing packshot')
     w.catalogue.append({'model':'megaboom-3','colour':'Missing packshot','file':'does-not-exist.webp'})
@@ -98,3 +98,38 @@ def test_generic_artwork_for_unknown_finish_and_missing_image(tmp_path,monkeypat
     assert w.image_path(row).name=='megaboom.svg'
     assert not QPixmap(str(w.image_path(row))).isNull()
     w.close()
+
+
+def test_automatic_colour_and_manual_override(tmp_path,monkeypatch):
+    from dataclasses import asdict
+    from speakerstudio.models import Speaker
+    monkeypatch.setenv('XDG_CONFIG_HOME',str(tmp_path))
+    app=QApplication.instance() or QApplication([])
+    w=Window(Controller(),demo=True);app.processEvents()
+    row=asdict(Speaker('demo-auto','','MEGABOOM 3',model='megaboom-3',colour='Unicorn pink',colour_code=0x431))
+    w.update_devices([row])
+    assert w.image_path(row).name=='megaboom-3-unicorn-pink.webp'
+    assert w.colour_select.currentText()=='Automatic · Unicorn pink'
+    w.colour_select.setCurrentText('Generic MEGABOOM 3')
+    w.update_devices([row])
+    assert w.image_path(row).name=='megaboom.svg'
+    w.colour_select.setCurrentIndex(0)
+    assert w.settings.value('colour/demo-auto')=='automatic'
+    assert w.image_path(row).name=='megaboom-3-unicorn-pink.webp'
+    w.close()
+
+
+def test_tray_hide_restore_and_no_tray_fallback(tmp_path,monkeypatch):
+    from speakerstudio.ui import QSystemTrayIcon
+    monkeypatch.setenv('XDG_CONFIG_HOME',str(tmp_path))
+    app=QApplication.instance() or QApplication([])
+    w=Window(Controller(),demo=True);app.processEvents();w.show()
+    assert not w.tray.icon().isNull()
+    assert max(size.width() for size in w.windowIcon().availableSizes())<=256
+    assert [a.text() for a in w.tray_menu.actions() if not a.isSeparator()]==['Show Speaker studio','Hide window','Quit']
+    monkeypatch.setattr(QSystemTrayIcon,'isSystemTrayAvailable',lambda:False)
+    w.hide_to_tray();assert w.isVisible()
+    monkeypatch.setattr(QSystemTrayIcon,'isSystemTrayAvailable',lambda:True)
+    w.hide_to_tray();assert not w.isVisible()
+    w.restore_window();assert w.isVisible()
+    w.close();assert not w.tray.isVisible()

@@ -9,13 +9,23 @@ from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, 
 from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import (QMainWindow, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout,
     QGridLayout, QListWidget, QListWidgetItem, QFrame, QSlider, QComboBox, QStackedWidget,
-    QScrollArea, QMessageBox, QMenu, QApplication, QProgressBar)
+    QScrollArea, QMessageBox, QMenu, QApplication, QProgressBar, QSystemTrayIcon)
 from PySide6.QtCore import QProcess, QProcessEnvironment
 from . import __version__
 
 
 def asset_root():
     return Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parents[2])) / 'assets'
+
+
+def app_icon():
+    # Publish several small sizes: a lone 512px icon can exceed X11's request
+    # limit and leave the taskbar icon empty, especially with display scaling.
+    source = QPixmap(str(asset_root()/'speaker-studio.png'))
+    icon = QIcon()
+    for size in (16,24,32,48,64,128,256):
+        icon.addPixmap(source.scaled(size,size,Qt.KeepAspectRatio,Qt.SmoothTransformation))
+    return icon
 
 
 def text(value, kind=''):
@@ -84,7 +94,7 @@ class Window(QMainWindow):
         self.settings = QSettings('RaphaCrafts', 'SpeakerStudio')
         self.catalogue = json.loads((asset_root()/'speakers/manifest.json').read_text())['images']
         self.setWindowTitle('Speaker studio')
-        self.setWindowIcon(QIcon(str(asset_root()/'speaker-studio.png')))
+        self.setWindowIcon(app_icon())
         self.resize(1080, 810)
         self.setMinimumSize(800, 640)
         container = QWidget()
@@ -106,6 +116,7 @@ class Window(QMainWindow):
         menu.addAction('Bluetooth settings', self.bluetooth_settings)
         menu.addAction('How to use Speaker studio', lambda: QDesktopServices.openUrl(QUrl('https://github.com/RaphaCrafts/Linux-Ultimate-Ears#readme')))
         menu.addAction('About', self.about)
+        menu.addAction('Quit', self.quit_app)
         menu.addSeparator()
         for name in ('System', 'Light', 'Dark'):
             menu.addAction(name+' appearance', lambda n=name:self.set_theme(n.lower()))
@@ -161,6 +172,7 @@ class Window(QMainWindow):
         body.addWidget(scroll,1)
         outer.addLayout(body,1)
         self.setCentralWidget(container)
+        self.setup_tray()
         controller.changed.connect(self.update_devices)
         controller.status.connect(self.show_status)
         controller.error.connect(self.show_error)
@@ -270,7 +282,8 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.colour_select.setAccessibleName('Speaker colour')
         self.colour_select.currentTextChanged.connect(self.choose_colour)
         image_layout.addWidget(self.colour_select)
-        image_layout.addWidget(text('Choose your finish, or Generic if it isn’t listed.','muted'))
+        self.finish_hint = text('Connect to detect the finish, or choose it below.','muted')
+        image_layout.addWidget(self.finish_hint)
         columns.addWidget(hero,1)
         controls = QVBoxLayout()
         vol = QVBoxLayout()
@@ -459,7 +472,11 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
     def artwork_variants(self, d):
         model = self.inferred_model(d)
         label = 'Generic '+(model.upper().replace('-',' ') if model else 'speaker')
-        return [{'model':model, 'colour':label, 'path':self.generic_path(model)}] + [r for r in self.catalogue if r['model']==model]
+        generic = {'model':model, 'colour':label, 'path':self.generic_path(model)}
+        records = [r for r in self.catalogue if r['model']==model]
+        detected = next((r for r in records if r['colour']==d.get('colour')),generic)
+        automatic = dict(detected, colour='Automatic · '+(d.get('colour') or 'Generic'))
+        return [automatic, generic] + records
 
     @staticmethod
     def default_artwork(variants):
@@ -516,6 +533,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         if record:self.colour_select.setCurrentText(record['colour'])
         self.colour_select.setVisible(bool(variants))
         self.colour_select.blockSignals(False)
+        self.finish_hint.setText('Detected: '+d['colour']+'. You can choose a different finish.' if d.get('colour') else 'Finish not recognized. Choose a finish or use Generic.' if d.get('colour_code') is not None else 'Connect to detect the finish, or choose it below.')
         image = self.image_path(d)
         if image:
             self.photo.setPixmap(QPixmap(str(image)).scaled(320,370,Qt.KeepAspectRatio,Qt.SmoothTransformation))
@@ -715,7 +733,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
 
     def choose_colour(self,colour):
         if self.selected and colour:
-            self.settings.setValue('colour/'+self.selected,colour)
+            self.settings.setValue('colour/'+self.selected,'automatic' if colour.startswith('Automatic · ') else colour)
             self.render()
 
     def show_status(self,message):
@@ -759,7 +777,45 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
     def about(self):
         QMessageBox.about(self,'About Speaker studio',f'Speaker studio {__version__}\nAn independent Linux app by RaphaCrafts.\nNot affiliated with Logitech or Ultimate Ears.\n\nSource and licences are included with the download.\nSpeaker images belong to Logitech / Ultimate Ears.')
 
-    def closeEvent(self,event):
+    def setup_tray(self):
+        self.tray = QSystemTrayIcon(self.windowIcon(),self)
+        self.tray.setToolTip('Speaker studio')
+        self.tray_menu = QMenu(self)
+        self.tray_menu.addAction('Show Speaker studio',self.restore_window)
+        self.hide_action = self.tray_menu.addAction('Hide window',self.hide_to_tray)
+        self.tray_menu.addSeparator()
+        self.tray_menu.addAction('Quit',self.quit_app)
+        self.tray.setContextMenu(self.tray_menu)
+        self.tray.activated.connect(self.tray_activated)
+        self.tray.show()
+        QApplication.instance().aboutToQuit.connect(self.cleanup)
+
+    def restore_window(self):
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def tray_activated(self, reason):
+        if reason in (QSystemTrayIcon.Trigger,QSystemTrayIcon.DoubleClick):
+            self.restore_window()
+
+    def hide_to_tray(self):
+        if QSystemTrayIcon.isSystemTrayAvailable():
+            self.hide()
+        else:
+            self.show_status('Your desktop does not currently provide a system tray. You can minimize the window instead.')
+
+    def cleanup(self):
         self.poll.stop()
+        self.tray.hide()
         if self.controller.isRunning():self.controller.shutdown()
+
+    def quit_app(self):
+        self.cleanup()
+        QApplication.instance().quit()
+
+    def closeEvent(self,event):
+        # Closing quits; hiding is explicit, so no invisible background process
+        # remains on desktops that do not provide a tray.
+        self.cleanup()
         event.accept()

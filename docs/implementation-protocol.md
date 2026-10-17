@@ -19,3 +19,25 @@ Full selectors and evidence IDs are in [evidence-index.json](evidence-index.json
 Group status records include nearby devices as well as members. Only status8 (playing this broadcast) is treated as confirmed membership from a broadcast-status record. Add/remove completion notifications are correlated by host and receiver MAC, with status0 required and a 30-second timeout.
 
 The Qt view uses relative signed levels for custom EQ. It does not claim calibrated dB units or reproduce every mobile preset. Remote wake and CPP remain outside this build.
+
+## Finish detection
+
+Legacy colour query `0x01be` returns `0x01bf` with an unsigned big-endian 16-bit
+identifier. BOOM 3 base colours occupy 0x0110–0x0115, Denim/Cloud 0x011c/0x011d;
+MEGABOOM 3 base colours occupy 0x0116–0x011b, Denim/Cloud 0x011e/0x011f.
+Model-specific mappings are in `colours.py`; a code from another model is never
+used to infer a finish. Unknown/malformed/unsupported colour data does not grant
+control capabilities or choose a guessed packshot.
+
+REA static evidence from the extracted APK (SHA-256
+`018e9d6159311034327780480ee3798a7cdf31c5e7d174b6c496bf2254410e76`):
+
+- Colour enum: `ev_9cd2a006f327c73fa28d7a20c0167da625c56e8c073f410664ed518f900b607a`.
+- Query/result selection: `ev_53b4f389c1338b07d6130ec53b9248007aa44da0b6756341b8a1864ed0c4562a`.
+- Unsigned-short parser: `ev_dc0efb33c2800422949c9f6c343c532c79c10c76118a7e38838d89316a94aa53`.
+
+Hardware observation, 2026-10-18: the user's HUMBOLDT speaker returned `04 31`.
+Its finish was identified from the user's supplied phone-app screenshot and
+matched to the official Unicorn packshot. This mapping is recorded separately
+from enum-derived mappings. Broader limited-edition mappings remain unknown;
+commercial SKU identity is not claimed.
