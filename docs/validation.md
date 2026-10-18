@@ -301,3 +301,33 @@ path so the UI cannot wait forever for a request the worker discarded.
   selected receiver, with no automatic search or regroup command.
 - Regression coverage includes unknown versus confirmed-empty inventory,
   scan-only invalidation and audio-host reconnection selection.
+
+
+## Drag-and-drop and existing-host selection 0.1.11
+
+Read-only live check on2026-10-18: PURPLE3 reported broadcasting state3, audio
+mode0, and two matching0x0416 notifications with PINK3 in status8 (playing this
+broadcast). No speaker setting or group membership was changed. The test
+control connection was closed afterward. This establishes an existing group
+independently of the receiver's own Classic control availability.
+
+- PartyUp prefers a broadcasting host, then an active Linux audio speaker, and
+  excludes known group receivers from its host selector. Reversed-order UI
+  regression reproduces the old incorrect receiver selection.
+- Join reads current host configuration before setting broadcast mode, avoiding
+  a restart from stale local state. Confirmed members make repeated joins a
+  no-op. A status8 inventory confirms a pending join without requiring0x0418;
+  nearby status3 cannot confirm it. Full firmware/EQ refresh was removed from
+  the join completion path.
+- A native Qt drag moves a ready card to a highlighted play area. MIME carries
+  host and receiver; current eligibility rejects stale-host and unknown drops.
+  Drop and button share the same command and wait for hardware confirmation.
+- Joining previews and inline errors keep progress visible. Confirmed receivers
+  have a PartyUp sidebar label. Superseded cards hide before deferred deletion
+  so they do not overlap new cards during updates. Drag sources are retained
+  during nested Qt drag events, then rendering catches up afterward.
+- Offscreen UI captures verify the ready shelf, two-speaker balance and larger
+  group layout. Screenshots use simulated devices. Native drag/drop events,
+  button dispatch, stale-host rejection and asynchronous membership completion
+  are covered by automated regression tests. No live regroup was performed;
+  audio stuttering is not claimed fixed.

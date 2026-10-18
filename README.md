@@ -97,8 +97,16 @@ PartyUp runs on the speakers and continues after quitting Speaker studio. Use
 the pair stuttered even with all control apps closed. This remains unresolved;
 the corrected receiver channel in this release is not a confirmed audio fix.
 
-In **PartyUp**, a subtle animation highlights a speaker ready to join and shows
-the connection in progress. With **two speakers**, click the **Stereo** button
+In **PartyUp**, drag a ready speaker from **Available speakers** into the dashed
+**Playing together** area. You can also click **Add to group**. The speaker shows
+**Joining…** until the host confirms it is playing; any error appears above the
+controls. The active host is selected automatically, and a confirmed receiver
+appears as **In PartyUp** even without its own control connection.
+A subtle animation highlights ready speakers and shows the connection in progress.
+
+![PartyUp drag-and-drop preview, simulated devices](docs/screenshots/partyup-drag-preview.png)
+
+The preview above uses simulated devices. With **two speakers**, click the **Stereo** button
 under **Playback mode** (host left, member right), then drag the **balance** slider toward
 either speaker to give it more emphasis; **Centre** restores equal emphasis.
 The **Double Up** button makes both speakers play the full sound and disables stereo balance.

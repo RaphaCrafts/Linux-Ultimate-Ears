@@ -461,18 +461,28 @@ class Controller(QThread):
 
     async def _group_add(self, address, receiver):
         host = self.speakers[address]
+        if receiver in host.members:
+            self.status.emit('This speaker is already playing in the group.')
+            return
         target = self.speakers.get(receiver)
         if receiver == address or not target or not target.connected:
             raise RuntimeError('Connect the other speaker first, then add it to PartyUp.')
         if not host.features.get('group') or not target.features.get('group'):
             raise RuntimeError('PartyUp is unavailable on one of these speakers.')
-        if target.broadcast:
+        if target.broadcast & 2:
             raise RuntimeError('End the other speaker’s group before adding it here.')
         key = (address, 0x418, receiver)
         future = self.loop.create_future()
         self.group_waiters[key] = future
         try:
             session = self.sessions[address]
+            data=await self._broadcast_config(session)
+            if len(data)!=2 or data[0]>3:raise ProtocolError('Invalid PartyUp mode reading')
+            host.broadcast,host.audio_mode=data
+            # A status update may have confirmed this receiver during the read.
+            if receiver in host.members:
+                self.status.emit('This speaker is already playing in the group.')
+                return
             if not (host.broadcast & 2):
                 await self._busy_request(session, 0x413, b'\x03\x00')
                 data = await self._broadcast_config(session)
@@ -483,7 +493,7 @@ class Controller(QThread):
             await self._busy_request(session, 0x417, bytes.fromhex(receiver.replace(':','')) + b'\x02')
             self.status.emit('Waiting for the speaker to join PartyUp…')
             await asyncio.wait_for(future, 30)
-            await self._read_state(address)
+            self.publish()
             self.status.emit('Speaker joined PartyUp')
         finally:
             self.group_waiters.pop(key, None)
@@ -692,6 +702,11 @@ class Controller(QThread):
             s.members = members
             s.member_info = member_info
             s.group_status_known = True
+            # Some firmware reports membership before (or without) a separate
+            # add completion. Actual playing-this-broadcast status is enough.
+            for receiver in members:
+                future=self.group_waiters.get((address,0x418,receiver))
+                if future and not future.done():future.set_result(True)
             self.publish()
             return True
         return False
