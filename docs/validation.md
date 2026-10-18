@@ -181,3 +181,11 @@ transport in all eight samples over approximately16seconds. Calling the revised
 automatic poll sent zero speaker commands. This checked the live playback gate
 without opening a new speaker control connection or changing audio settings;
 it does not establish absence of audible dropouts over a longer listening session.
+
+Follow-up with the user's old app closed and music playing: the revised controller
+opened a real control connection to the actively streaming UE speaker. Across
+15 samples over30seconds, audio remained active and both the BlueZ link and
+RFCOMM control session remained connected in every sample. Automatic polls sent
+zero commands after initial connection/readback. No audio settings were changed.
+The test closed only its own control socket afterwards. This short observation
+does not replace longer subjective listening.
