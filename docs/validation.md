@@ -376,4 +376,8 @@ The panel was visually checked for readable wrapping and scrolling.
 The build now smoke-tests a separate AppImage file before atomically replacing
 its published path, avoiding Linux's Text-file-busy error when the previous
 AppImage is still running. Shutdown waits for bounded audio-tool operations
-before disposing of the Qt worker. The final regression suite has87passing tests.
+before disposing of the Qt worker. The final regression suite has88passing tests.
+
+Computer mix actions remain available during a Bluetooth-inventory outage, so
+Stop can restore audio without waiting for BlueZ to recover. Native Bluetooth
+actions still require a ready Bluetooth service.

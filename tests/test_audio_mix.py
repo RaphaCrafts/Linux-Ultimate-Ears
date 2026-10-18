@@ -121,3 +121,16 @@ def test_backend_rejects_mix_when_native_group_is_known_active(monkeypatch):
         await c._computer_mix_start(json.dumps([LEFT,RIGHT]))
         assert states and 'End native PartyUp' in states[-1]['error']
     asyncio.run(scenario())
+
+
+def test_mix_stop_remains_available_without_bluetooth_inventory():
+    from speakerstudio.backend import Controller
+    c=Controller();scheduled=[];errors=[];c.error.connect(errors.append)
+    class Loop:
+        def is_running(self):return True
+        def call_soon_threadsafe(self,callback):scheduled.append(callback)
+    c.loop=Loop();c.bluez=None
+    c.submit('computer_mix_stop')
+    assert len(scheduled)==1 and not errors
+    c.submit('connect','speaker')
+    assert len(scheduled)==1 and errors

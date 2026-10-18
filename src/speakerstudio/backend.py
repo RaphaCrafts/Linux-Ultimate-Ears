@@ -92,7 +92,8 @@ class Controller(QThread):
             await asyncio.sleep(3)
 
     def submit(self, action, *args):
-        if not self.loop or not self.bluez or not self.bluez.manager:
+        mix_action=action in ('computer_mix_outputs','computer_mix_start','computer_mix_stop')
+        if not self.loop or not self.loop.is_running() or not mix_action and (not self.bluez or not self.bluez.manager):
             self.error.emit('Bluetooth is still starting. Please try again in a moment.')
             return
         def launch():
