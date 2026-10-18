@@ -29,7 +29,7 @@ X11 window startup and extract-and-run fallback were checked on the build host.
 
 ## Automated checks
 
-59 automated tests passed in the final build.
+64 automated tests passed in the final build.
 
 Protocol tests cover arbitrary stream fragmentation and concatenation, malformed
 lengths and encoding bounds, ACK correlation, unsupported-command errors,
@@ -235,3 +235,53 @@ to write if another app changed it. Tests cover mode prerequisites, successful
 and ignored mode switches, preserved group membership, and UI mode changes.
 Audible effect still requires a listening test; register acceptance alone is not
 reported as confirmation of working acoustic balance.
+
+## Mode buttons, smooth controls and unsolicited updates 0.1.9
+
+Playback mode now uses checked Double Up/Stereo buttons. Unchanged controller
+snapshots are suppressed; sidebar items and PartyUp cards are retained when their
+displayed content is unchanged. Balance remains interactive while its request
+finishes. A450ms trailing debounce combines quick releases/keyboard adjustments;
+only one request is in flight, the latest edit waits for it, and old readbacks
+cannot replace a newer edit. Navigation and loss of group/mode cancel queued edits.
+
+Live40-second playback observations with the old app closed: before the fix,
+three unsolicited0x019c balance readings were unhandled, with17 recognized group
+status messages. After recognizing and acknowledging valid unsolicited balance
+readings, one such reading and15 group messages were all handled. Both checks
+had20/20 active-audio and connected-control samples, zero setting queries after
+setup and only notification ACKs transmitted. Expected query responses continue
+to complete their requests without notification ACKs, as covered by socket tests.
+
+The user still heard stutters during testing and confirmed they continued after
+all apps and the test control connection were closed. Thus the remaining audible
+stutter is not fixed by these UI/control changes. Playback used standard SBC,
+adapter discovery was off and Wi-Fi was on5180MHz. Short PipeWire playback error
+counter checks and recent audio/Bluetooth/adapter logs showed no corresponding
+playback errors. These observations do not locate the remaining wireless/audio fault.
+
+Regression tests cover stable widget identity, quick-edit coalescing, queued edits
+during an in-flight request, stale readbacks, live-mode button state, duplicate
+snapshot suppression, and actual socket ACK versus query-response behavior.
+
+A live PartyUp-off comparison exposed transient Busy replies to configuration
+reads after the mode setter had already succeeded. The pair was restored with
+fresh confirmation of its original0350 configuration,44 balance and09 host
+volume. Configuration reads now retry bounded Busy responses without resending
+the mode setter. A regression test verifies that a transition needing another
+read still sends exactly one setter. This reduces misleading mode failures and
+avoids restarting the same transition; it is not a claim that all wireless
+stuttering has been resolved.
+
+Further listening comparisons: the user reported PURPLE3 alone was smoother,
+while both Stereo and Double Up initially stuttered with the pair. Temporarily
+changing0350 to0250 stopped speaker-side discovery while preserving Stereo,
+balance44 and host volume09. The user initially reported similar stutters, then
+said they may have been brief and requested more assessment time. At their
+explicit request,0250 was reapplied, verified and left in place without a timed
+revert; all test control sockets were closed. Sustained listening confirmation
+is pending. These native search settings are distinct from Linux adapter discovery.
+
+The backend also waits for an already-running control operation rather than
+silently dropping a raced balance request. A regression covers this completion
+path so the UI cannot wait forever for a request the worker discarded.

@@ -34,6 +34,13 @@ audible balance. Primary APK evidence: stereo action
 conditional balance panel
 `ev_fbd8e3e5d66bc907d3fcbed6fa39c6e770b19c7a28a10f683a5d1e77305c01dd`.
 
+Unsolicited0x019c readings were physically observed during idle control playback.
+Version0.1.9 handles their validated one-byte signed value and ACKs them through
+the notification path. Expected0x019c query responses remain on the existing
+non-ACK request path. A40-second before/after observation saw three unhandled
+readings versus one acknowledged reading; this does not prove elimination of
+audible stutters, which the user also observed with all control sessions closed.
+
 Receiver attribute Volume has ID0x001e. Query0x0420 and setter0x0422 return
 queue ACKs; separate notifications0x0421/0x0423 contain MAC6, BE16 attribute,
 delivery boolean, then the query value. Linux correlates host, receiver, event

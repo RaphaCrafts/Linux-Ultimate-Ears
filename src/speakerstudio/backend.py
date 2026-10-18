@@ -29,9 +29,11 @@ class Controller(QThread):
         self.connecting = set()
         self.operations = {}
         self.stopping = False
+        self.last_snapshot = None
 
     def run(self):
         self.stopping = False
+        self.last_snapshot = None
         self.sessions.clear()
         self.group_waiters.clear()
         self.waking.clear()
@@ -89,6 +91,11 @@ class Controller(QThread):
             self.publish()
             return
         if speaker and speaker.busy:
+            if action=='balance':
+                active=self.operations.get(address)
+                if active and active is not asyncio.current_task():
+                    await asyncio.wait({active})
+                    return await self._perform(action,*args)
             return
         if speaker:
             if action=='connect' and speaker.sleeping and speaker.wake_available:action='wake'
@@ -129,7 +136,10 @@ class Controller(QThread):
                 self.publish()
 
     def publish(self):
-        self.changed.emit([asdict(s) for s in self.speakers.values()])
+        snapshot=[asdict(s) for s in self.speakers.values()]
+        if snapshot!=self.last_snapshot:
+            self.last_snapshot=snapshot
+            self.changed.emit(snapshot)
 
     @staticmethod
     def invalidate(speaker):
@@ -280,11 +290,21 @@ class Controller(QThread):
                 self.invalidate(speaker)
             raise
 
+    async def _broadcast_config(self,session):
+        # A mode setter is queued before the speaker finishes reconfiguring.
+        # Retry only the read; resending the setter would restart that transition.
+        for attempt in range(8):
+            try:return await session.request(0x414,0x415)
+            except CommandError as error:
+                if error.status!=9 or attempt==7:raise
+                await asyncio.sleep(.35*(1+min(attempt,2)))
+
     async def _read(self, speaker, command, reply, feature):
         if speaker.features.get(feature) is False:
             return None
         try:
-            payload = await self.sessions[speaker.address].request(command, reply)
+            session=self.sessions[speaker.address]
+            payload = await self._broadcast_config(session) if command==0x414 else await session.request(command, reply)
             speaker.features[feature] = True
             return payload
         except CommandError as error:
@@ -452,7 +472,7 @@ class Controller(QThread):
             session = self.sessions[address]
             if not (host.broadcast & 2):
                 await self._busy_request(session, 0x413, b'\x03\x00')
-                data = await session.request(0x414, 0x415)
+                data = await self._broadcast_config(session)
                 if len(data) >= 2:
                     host.broadcast = data[0]
             await self._busy_request(session, 0x417, bytes.fromhex(receiver.replace(':','')) + b'\x00')
@@ -481,6 +501,7 @@ class Controller(QThread):
 
     async def _ungroup(self, address):
         await self._busy_request(self.sessions[address], 0x413, b'\x00\x00')
+        await self._broadcast_config(self.sessions[address])
         await self._read_state(address)
         self.status.emit('PartyUp ended')
 
@@ -503,7 +524,7 @@ class Controller(QThread):
             raise ValueError('Invalid balance position')
         # The register can echo writes in Double Up without an audible effect.
         # Check the actual channel mode, not just acceptance of the balance byte.
-        configuration=await self.sessions[address].request(0x414,0x415)
+        configuration=await self._broadcast_config(self.sessions[address])
         if len(configuration)!=2 or configuration[0]>3:raise ProtocolError('Invalid PartyUp mode reading')
         s.broadcast,s.audio_mode=configuration
         if not s.broadcast&2 or s.audio_mode!=0x50:
@@ -523,7 +544,7 @@ class Controller(QThread):
         if not s.broadcast&2 or len(s.members)!=1:
             raise RuntimeError('Playback mode requires exactly two speakers in PartyUp.')
         session=self.sessions[address]
-        configuration=await session.request(0x414,0x415)
+        configuration=await self._broadcast_config(session)
         if len(configuration)!=2 or configuration[0]>3:raise ProtocolError('Invalid PartyUp mode reading')
         s.broadcast,s.audio_mode=configuration
         if not s.broadcast&2:
@@ -531,7 +552,7 @@ class Controller(QThread):
             self.publish()
             raise RuntimeError('The PartyUp group is no longer broadcasting.')
         await self._busy_request(session,0x413,bytes([configuration[0],mode]))
-        confirmed=await session.request(0x414,0x415)
+        confirmed=await self._broadcast_config(session)
         if len(confirmed)!=2 or confirmed[0] not in (2,3):raise ProtocolError('Invalid PartyUp mode reading')
         s.broadcast,s.audio_mode=confirmed
         self.publish()
@@ -604,6 +625,13 @@ class Controller(QThread):
             self._lost(address, 'Speaker powered off')
             return True
         payload = message.payload
+        if message.command==0x19c:
+            # The speaker also pushes this reading without a pending query.
+            # Recognize and ACK it so it does not keep retrying the update.
+            if len(payload)!=1:return False
+            s.balance=int.from_bytes(payload,'big',signed=True)
+            self.publish()
+            return True
         if message.command in (0x421,0x423):
             if len(payload)<9 or payload[8] not in (0,1):return False
             receiver=':'.join(f'{v:02X}' for v in payload[:6])

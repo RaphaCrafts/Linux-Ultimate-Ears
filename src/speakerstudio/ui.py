@@ -89,9 +89,16 @@ class Window(QMainWindow):
         self.controller = controller
         self.demo = demo
         self.devices = {}
+        self.last_devices_signature = None
+        self.sidebar_signature = None
         self.selected = None
         self.page = 'speaker'
         self.group_host = None
+        self.balance_request = None
+        self.balance_request_seen = False
+        self.balance_dirty = False
+        self.party_grid_signature = None
+        self.party_card_actions = []
         self.eq_dirty = False
         self.settings = QSettings('RaphaCrafts', 'SpeakerStudio')
         self.catalogue = json.loads((asset_root()/'speakers/manifest.json').read_text())['images']
@@ -208,6 +215,7 @@ QFrame#hero {{background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 {soft},stop:
 QPushButton {{background:{surface};border:1px solid {line};border-radius:8px;padding:9px 12px;}}
 QPushButton:hover {{border-color:#12b5d3;}} QPushButton:checked {{background:{soft};border-color:#12b5d3;}} QPushButton#primary {{background:#12b5d3;color:#102b31;border-color:#12b5d3;font-weight:600;}}
 QPushButton:disabled {{color:{muted};background:{soft};border-color:{line};}}
+QPushButton#playbackMode:checked, QPushButton#playbackMode:checked:disabled {{background:#12b5d3;color:#102b31;border-color:#12b5d3;font-weight:600;}}
 QPushButton:focus {{border:2px solid #12b5d3;}}
 QListWidget {{border:0;background:transparent;outline:none;}} QListWidget::item {{padding:8px 5px;margin-bottom:4px;border-radius:10px;}}
 QListWidget::item:selected {{background:{surface};color:{fg};}}
@@ -388,10 +396,16 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         mode_layout=QHBoxLayout(self.party_mode_row)
         mode_layout.setContentsMargins(0,0,0,0)
         mode_layout.addWidget(text('Playback mode','section'))
-        self.party_mode_select=QComboBox()
-        self.party_mode_select.setAccessibleName('PartyUp playback mode')
-        self.party_mode_select.activated.connect(lambda index:self.party_action('party_mode',self.party_mode_select.itemData(index)))
-        mode_layout.addWidget(self.party_mode_select,1)
+        self.party_mode_buttons={}
+        for mode,label,hint in [(0,'Double Up','Both speakers play the full sound'),(0x50,'Stereo','Host plays left; member plays right')]:
+            option=button(label,lambda checked=False,m=mode:self.choose_party_mode(m))
+            option.setCheckable(True)
+            option.setObjectName('playbackMode')
+            option.setToolTip(hint)
+            option.setAccessibleName(label+' playback mode')
+            self.party_mode_buttons[mode]=option
+            mode_layout.addWidget(option)
+        mode_layout.addStretch()
         layout.addWidget(self.party_mode_row)
         balance_layout=QVBoxLayout(self.balance_panel)
         balance_layout.setContentsMargins(0,0,0,0)
@@ -414,10 +428,11 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.balance_slider.valueChanged.connect(self.describe_balance)
         self.balance_timer=QTimer(self)
         self.balance_timer.setSingleShot(True)
-        self.balance_timer.setInterval(350)
-        self.balance_timer.timeout.connect(lambda:self.party_action('balance',self.balance_slider.value()))
-        self.balance_slider.sliderReleased.connect(self.send_balance)
-        self.balance_slider.actionTriggered.connect(lambda action:self.balance_timer.start() if not self.balance_slider.isSliderDown() else None)
+        self.balance_timer.setInterval(450)
+        self.balance_timer.timeout.connect(self.send_balance)
+        self.balance_slider.sliderPressed.connect(self.balance_timer.stop)
+        self.balance_slider.sliderReleased.connect(self.schedule_balance)
+        self.balance_slider.actionTriggered.connect(lambda action:self.schedule_balance() if not self.balance_slider.isSliderDown() else None)
         balance_row.addWidget(self.balance_slider,1)
         self.balance_centre=button('Centre',lambda:self.centre_balance())
         balance_row.addWidget(self.balance_centre)
@@ -497,7 +512,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
     def navigate(self, page):
         if page!='party':
             self.group_debounce.stop()
-            self.balance_timer.stop()
+            self.cancel_balance()
             for timer in self.member_timers.values():timer.stop()
         self.page = page
         for key,tab in self.tabs.items():tab.setChecked(key==page)
@@ -507,24 +522,43 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         if devices and self.demo != all(d['address'].startswith('demo-') for d in devices):
             return
         devices = [restore_appearance(d,self.settings) for d in devices]
-        self.devices = {d['address']:d for d in devices}
+        updated={d['address']:d for d in devices}
+        signature=json.dumps(updated,sort_keys=True)
+        if signature==self.last_devices_signature:return
+        self.last_devices_signature=signature
+        self.devices = updated
+        if self.balance_request:
+            host=self.devices.get(self.balance_request[0],{})
+            if not host.get('connected') or host.get('audio_mode')!=0x50 or len(host.get('members',[]))!=1:
+                self.cancel_balance()
+            elif host.get('busy') and host.get('operation')=='balance':
+                self.balance_request_seen=True
+            elif self.balance_request_seen and not host.get('busy'):
+                self.balance_request=None
+                self.balance_request_seen=False
+                if self.balance_dirty:self.balance_timer.start()
         selected = self.selected
-        self.list.blockSignals(True)
-        self.list.clear()
+        rows=[]
         for d in devices:
             state = 'Waking…' if d['busy'] and d.get('operation')=='wake' else 'Connecting controls…' if d['busy'] and d.get('operation')=='connect' else 'Controls ready' if d['connected'] else 'Audio linked' if d.get('audio_connected') else 'Bluetooth linked' if d.get('bluez_connected') else 'Sleeping · wake available' if d.get('sleeping') and d.get('wake_available') else 'Saved · disconnected' if d['paired'] else 'Not paired'
-            item = QListWidgetItem(f"{d['name']}\n{state}")
-            item.setToolTip(d['name']+' · '+state)
-            item.setData(Qt.UserRole,d['address'])
-            image = self.image_path(d)
-            if image:item.setIcon(QIcon(str(image)))
-            item.setSizeHint(QSize(150,64))
-            self.list.addItem(item)
-            if d['address']==selected:self.list.setCurrentItem(item)
-        if selected not in self.devices:
-            self.selected = devices[0]['address'] if devices else None
-            if devices:self.list.setCurrentRow(0)
-        self.list.blockSignals(False)
+            rows.append((d,state,self.image_path(d)))
+        sidebar_signature=tuple((d['address'],d['name'],state,str(image)) for d,state,image in rows)
+        if sidebar_signature!=self.sidebar_signature:
+            self.sidebar_signature=sidebar_signature
+            self.list.blockSignals(True)
+            self.list.clear()
+            for d,state,image in rows:
+                item = QListWidgetItem(f"{d['name']}\n{state}")
+                item.setToolTip(d['name']+' · '+state)
+                item.setData(Qt.UserRole,d['address'])
+                if image:item.setIcon(QIcon(str(image)))
+                item.setSizeHint(QSize(150,64))
+                self.list.addItem(item)
+                if d['address']==selected:self.list.setCurrentItem(item)
+            if selected not in self.devices:
+                self.selected = devices[0]['address'] if devices else None
+                if devices:self.list.setCurrentRow(0)
+            self.list.blockSignals(False)
         self.render()
 
     def inferred_model(self, d):
@@ -674,7 +708,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
 
     def choose_host(self,index):
         self.group_debounce.stop()
-        self.balance_timer.stop()
+        self.cancel_balance()
         self.group_host=self.host_select.itemData(index)
         self.render_party()
 
@@ -706,23 +740,43 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
 
     def send_balance(self):
         self.balance_timer.stop()
+        host=self.devices.get(self.group_host,{})
+        if not host.get('connected') or host.get('audio_mode')!=0x50 or len(host.get('members',[]))!=1:
+            self.cancel_balance()
+            return
+        if host.get('busy') or self.balance_request:
+            self.balance_dirty=True
+            self.balance_timer.start()
+            return
+        self.balance_dirty=False
+        if not self.demo:
+            self.balance_request=(self.group_host,self.balance_slider.value())
+            self.balance_request_seen=False
         self.party_action('balance',self.balance_slider.value())
+
+    def schedule_balance(self):
+        self.balance_dirty=True
+        self.balance_timer.start()
+
+    def cancel_balance(self):
+        self.balance_timer.stop()
+        self.balance_dirty=False
+        self.balance_request=None
+        self.balance_request_seen=False
+
+    def choose_party_mode(self,mode):
+        self.cancel_balance()
+        self.party_action('party_mode',mode)
 
     def centre_balance(self):
         self.balance_slider.setValue(128)
-        self.send_balance()
+        self.schedule_balance()
 
     def render_party(self):
         current=self.devices.get(self.group_host)
         signature=(self.group_host,tuple(current.get('members',[]))) if current else None
         if current and current['connected'] and signature==self.mix_signature:
             if any(s.isSliderDown() for s in self.member_sliders.values()) or any(t.isActive() for t in self.member_timers.values()):return
-        self.member_sliders={}
-        self.member_timers={}
-        self.mix_signature=signature
-        while self.party_grid.count():
-            item=self.party_grid.takeAt(0)
-            if item.widget():item.widget().deleteLater()
         connected=[d for d in self.devices.values() if d['connected'] and d['features'].get('group')]
         self.host_select.blockSignals(True)
         self.host_select.clear()
@@ -740,25 +794,18 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         paired_view=bool(host and host.get('broadcast',0)&2 and len(host.get('members',[]))==1)
         self.balance_panel.setVisible(paired_view)
         self.party_mode_row.setVisible(paired_view)
-        self.party_mode_select.blockSignals(True)
-        self.party_mode_select.clear()
-        self.party_mode_select.addItem('Double Up · both speakers play the full sound',0)
-        self.party_mode_select.addItem('Stereo · host left, member right',0x50)
         mode=host.get('audio_mode') if host else None
-        if mode not in (0,0x50):
-            self.party_mode_select.addItem('Current channel layout · select Stereo for balance',mode)
-            self.party_mode_select.model().item(self.party_mode_select.count()-1).setEnabled(False)
-        self.party_mode_select.setCurrentIndex(self.party_mode_select.findData(mode))
-        self.party_mode_select.blockSignals(False)
-        self.party_mode_select.setEnabled(bool(paired_view and not host['busy']))
-        usable=bool(paired_view and host['features'].get('balance') and mode==0x50 and not host['busy'])
+        for value,option in self.party_mode_buttons.items():
+            option.setChecked(mode==value)
+            option.setEnabled(bool(paired_view and not host['busy'] and mode!=value))
+        usable=bool(paired_view and host['features'].get('balance') and mode==0x50 and (not host['busy'] or host.get('operation')=='balance'))
         self.balance_slider.setEnabled(usable)
         self.balance_centre.setEnabled(usable)
         if paired_view:
             member=self.devices.get(host['members'][0],{})
             self.balance_left.setText(host['name'])
             self.balance_right.setText(member.get('name','Group member'))
-            if not self.balance_slider.isSliderDown() and not self.balance_timer.isActive():
+            if not self.balance_slider.isSliderDown() and not self.balance_dirty and not self.balance_request:
                 self.balance_slider.setValue((host.get('balance') or 0)+128)
             if not host['features'].get('balance'):self.balance_readout.setText('Balance unavailable')
             elif mode!=0x50:self.balance_readout.setText('Select Stereo above to use balance')
@@ -769,7 +816,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             self.group_volume.setValue(host['volume'] or 0)
         self.host_select.setEnabled(bool(connected))
         if not host:
-            self.balance_timer.stop()
+            self.cancel_balance()
             self.party_link.set_state('idle','Connect a speaker to start PartyUp',(QPixmap(),QPixmap()))
             self.group_debounce.stop()
             self.group_volume.blockSignals(True)
@@ -778,6 +825,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             self.group_volume_label.setText('—')
             self.party_info.setText('No control connection. Go back to a speaker and reconnect to manage PartyUp.')
             self.group_status.setText('Bluetooth disconnection does not necessarily end the group on the speakers.')
+            self.clear_party_cards()
             return
         members=host.get('members',[])
         active=bool(host.get('broadcast',0)&2)
@@ -791,6 +839,17 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         mode='joining' if joining else 'linked' if members else 'ready' if other else 'idle'
         caption=f"Joining {other['name']}…" if joining else f'{len(displayed)} speakers playing together' if members else f"{other['name']} is ready to join" if other else 'Connect another speaker to play together'
         self.party_link.set_state(mode,caption,images)
+        for action,address in self.party_card_actions:
+            target=self.devices.get(address,{})
+            action.setEnabled(not host['busy'] and not target.get('busy',False))
+        card_busy=host['busy'] and host.get('operation')!='balance'
+        grid_signature=(host['address'],tuple(members),card_busy,
+            tuple((d['address'],d['name'],d['connected'],d['battery'],d['volume'],d['busy'] if d['address']!=host['address'] else card_busy,str(self.image_path(d))) for d in self.devices.values()),
+            json.dumps(host.get('member_info',{}),sort_keys=True))
+        if grid_signature==self.party_grid_signature:return
+        self.clear_party_cards()
+        self.party_grid_signature=grid_signature
+        self.mix_signature=signature
         for i,address in enumerate(displayed):
             d=self.devices.get(address)
             metadata=host.get('member_info',{}).get(address,{})
@@ -833,6 +892,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             else:
                 remove=button('Remove from group',lambda checked=False,a=address:self.party_action('group_remove',a))
                 remove.setEnabled(not host['busy']);box.addWidget(remove)
+                self.party_card_actions.append((remove,address))
             self.party_grid.addWidget(panel(box),i//3,i%3)
         row=(len(displayed)+2)//3
         self.party_grid.addWidget(text('Other speakers','section'),row,0,1,3)
@@ -848,11 +908,21 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             if d['connected'] and d['features'].get('group'):
                 action=button('Add to group',lambda checked=False,a=d['address']:self.party_action('group_add',a),True)
                 action.setEnabled(not host['busy'] and not d['busy'])
+                self.party_card_actions.append((action,d['address']))
             else:
                 action=button('Connect first',lambda checked=False,a=d['address']:self.open_speaker(a))
             box.addWidget(action)
             self.party_grid.addWidget(panel(box),row+1+i//3,i%3)
         self.group_status.setText('Demo group. No real devices are changed.' if self.demo else 'Choose another connected speaker above to play together.')
+
+    def clear_party_cards(self):
+        self.member_sliders={}
+        self.member_timers={}
+        self.party_card_actions=[]
+        self.party_grid_signature=None
+        while self.party_grid.count():
+            item=self.party_grid.takeAt(0)
+            if item.widget():item.widget().deleteLater()
 
     def send_member_level(self,host,address,value):
         if self.group_host==host:self.party_action('member_volume',address,value)
@@ -1028,7 +1098,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.poll.stop()
         self.volume_debounce.stop()
         self.group_debounce.stop()
-        self.balance_timer.stop()
+        self.cancel_balance()
         for timer in self.member_timers.values():timer.stop()
         self.party_link.timer.stop()
         self.tray.hide()

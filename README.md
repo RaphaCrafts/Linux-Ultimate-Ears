@@ -91,12 +91,15 @@ Existing groups may not appear until a speaker sends a group
 update. Alarms and firmware updates are not included yet.
 
 In **PartyUp**, a subtle animation highlights a speaker ready to join and shows
-the connection in progress. With **two speakers**, select **Stereo · host left,
-member right** under **Playback mode**, then drag the **balance** slider toward
+the connection in progress. With **two speakers**, click the **Stereo** button
+under **Playback mode** (host left, member right), then drag the **balance** slider toward
 either speaker to give it more emphasis; **Centre** restores equal emphasis.
-**Double Up** makes both speakers play the full sound and disables stereo balance.
+The **Double Up** button makes both speakers play the full sound and disables stereo balance.
 The app checks that the speaker actually switched mode before enabling balance.
 The group volume control keeps that balance.
+Balance previews move immediately; the app sends your final position after you
+release the slider and pause briefly. Quick adjustments are combined so older
+readings do not interrupt your next adjustment.
 
 With **three or more speakers**, each card has a vertical volume slider. Click
 **Refresh speaker levels** to load levels for receivers without a direct control
