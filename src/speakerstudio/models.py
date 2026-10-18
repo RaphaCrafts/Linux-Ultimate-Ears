@@ -17,6 +17,7 @@ class Speaker:
     connected: bool = False
     bluez_connected: bool = False
     audio_connected: bool = False
+    audio_active: bool = False
     operation: str = ''
     device_name: str = ''
     wake_available: bool = False

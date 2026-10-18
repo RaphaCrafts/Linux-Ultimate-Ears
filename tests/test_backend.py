@@ -6,7 +6,7 @@ from speakerstudio.protocol import CommandError
 
 class FakeSession:
     def __init__(self,unsupported32=False,busy32=False):
-        self.broadcast=0;self.commands=[];self.unsupported32=unsupported32;self.busy32=busy32
+        self.closed=False;self.broadcast=0;self.commands=[];self.unsupported32=unsupported32;self.busy32=busy32
     async def request(self,command,response=0,payload=b''):
         self.commands.append((command,response,payload))
         if command==0x413:self.broadcast=payload[0]
@@ -238,7 +238,7 @@ def test_wake_transition_keeps_busy_state_but_adapter_off_still_invalidates():
 
 def test_connect_detects_sleep_without_prior_search_and_preserves_per_speaker_errors():
     class Discovery:
-        async def scan(self,duration):assert duration==4
+        async def scan(self,duration,le_only=False):assert duration==4 and le_only
     async def scenario():
         c=Controller();c.bluez=Discovery()
         a=Speaker('a','/a','Speaker A',paired=True)
@@ -292,4 +292,48 @@ def test_rename_changes_speaker_then_reads_back_before_alias_sync():
         except ValueError:pass
         else:raise AssertionError('Invalid name was accepted')
         assert not session.commands
+    asyncio.run(scenario())
+
+
+def test_background_poll_is_silent_while_any_bluetooth_audio_is_streaming():
+    class Audio:
+        playing=True
+        async def audio_streaming(self):return self.playing
+    async def scenario():
+        session=FakeSession();c,s=setup(session);c.bluez=Audio()
+        await c._perform('poll','test')
+        assert session.commands==[], 'Even stale UI state must not cause radio queries during music'
+        c.bluez.playing=False
+        await c._perform('poll','test')
+        assert [r[0] for r in session.commands]==[0x175,0x18e]
+        assert s.volume==26
+    asyncio.run(scenario())
+
+
+def test_linked_speaker_connection_does_not_start_discovery():
+    class NoScan:
+        async def scan(self,*args,**kwargs):raise AssertionError('Discovery interrupted an existing link')
+    async def scenario():
+        c=Controller();c.bluez=NoScan();s=Speaker('test','/test','Test',paired=True,bluez_connected=True,audio_connected=False)
+        c.speakers={'test':s};called=[]
+        async def direct(address):called.append(address)
+        c._connect=direct
+        await c._connect_or_wake('test')
+        assert called==['test']
+    asyncio.run(scenario())
+
+
+def test_inventory_failure_does_not_close_healthy_control_session():
+    async def scenario():
+        closed=asyncio.Event()
+        class Inventory:
+            async def devices(self):raise ConnectionError('Temporary D-Bus read failure')
+            async def close(self):closed.set()
+        session=FakeSession();c,s=setup(session);c.bluez=Inventory()
+        task=asyncio.create_task(c._startup())
+        await closed.wait()
+        assert s.connected and c.sessions['test'] is session
+        c.stopping=True;task.cancel()
+        try:await task
+        except asyncio.CancelledError:pass
     asyncio.run(scenario())

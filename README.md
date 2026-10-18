@@ -113,6 +113,18 @@ the error so connecting another speaker does not hide what happened. Close the
 phone’s UE app or another running Speaker studio instance if a control connection
 is occupied.
 
+## Music playback
+
+To reduce Bluetooth interference, Speaker studio pauses automatic speaker
+queries while Linux reports Bluetooth audio streaming. When playback is idle,
+it checks battery and volume at most once a minute. **Refresh** remains available
+when you explicitly want current speaker settings.
+
+Connecting an already-linked speaker uses its control channel directly. Optional
+sleep detection uses BLE-only discovery; Search also avoids Classic inquiry when
+Bluetooth audio is streaming. Failed wake attempts never disconnect all Bluetooth
+profiles. The app does not change your audio codec or Linux sound profile.
+
 ## If something doesn't work
 
 **The AppImage does not open**

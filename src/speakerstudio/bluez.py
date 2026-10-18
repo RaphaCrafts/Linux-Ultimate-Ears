@@ -82,10 +82,26 @@ class BlueZ:
         info = await self.bus.introspect('org.bluez', path)
         return self.bus.get_proxy_object('org.bluez', path, info).get_interface(interface)
 
+    @staticmethod
+    def active_audio_paths(objects):
+        paths=set()
+        for interfaces in objects.values():
+            transport=interfaces.get('org.bluez.MediaTransport1',{})
+            if transport.get('State') and transport['State'].value in ('active','pending','broadcasting') and 'Device' in transport:
+                paths.add(transport['Device'].value)
+        return paths
+
+    async def audio_streaming(self):
+        # Inventory is local D-Bus traffic, not a radio inquiry. On uncertainty,
+        # defer optional background commands rather than risk interrupting audio.
+        try:return bool(self.active_audio_paths(await self.objects()))
+        except Exception:return True
+
     async def devices(self):
         objects = await self.objects()
         devices = []
         adapters = []
+        active_audio_paths=self.active_audio_paths(objects)
         audio_paths={interfaces['org.bluez.MediaTransport1']['Device'].value for interfaces in objects.values() if 'org.bluez.MediaTransport1' in interfaces and 'Device' in interfaces['org.bluez.MediaTransport1']}
         for path, interfaces in objects.items():
             if 'org.bluez.Adapter1' in interfaces:
@@ -101,7 +117,7 @@ class BlueZ:
             if known_name or logitech_spp or p.get('Address') in self.known_models:
                 devices.append({'address': p['Address'], 'path': path, 'name': name,
                                 'paired': p.get('Paired', False), 'bluez_connected': p.get('Connected', False),
-                                'adapter': p.get('Adapter',''), 'audio_connected':path in audio_paths})
+                                'adapter': p.get('Adapter',''), 'audio_connected':path in audio_paths,'audio_active':path in active_audio_paths})
         by_address={d['address']:d for d in devices}
         for path,interfaces in objects.items():
             props=interfaces.get('org.bluez.Device1')
@@ -121,7 +137,7 @@ class BlueZ:
                        advertised_colour=beacon['colour_code'])
         return devices, adapters
 
-    async def scan(self, duration=12):
+    async def scan(self, duration=12, le_only=False):
         if self.scanning:
             await asyncio.wait_for(self.scan_finished.wait(),20)
             return
@@ -130,6 +146,8 @@ class BlueZ:
         started = []
         try:
             _, adapters = await self.devices()
+            # Classic inquiry can compete with A2DP playback on the adapter.
+            transport='le' if le_only or await self.audio_streaming() else 'auto'
             if not adapters:
                 raise RuntimeError('No Bluetooth adapter found. Connect an adapter and try again.')
             for path, props in adapters:
@@ -137,7 +155,7 @@ class BlueZ:
                     properties = await self.interface(path, 'org.freedesktop.DBus.Properties')
                     await properties.call_set('org.bluez.Adapter1', 'Powered', Variant('b', True))
                 adapter = await self.interface(path, 'org.bluez.Adapter1')
-                await adapter.call_set_discovery_filter({'Transport':Variant('s','auto'),'DuplicateData':Variant('b',True)})
+                await adapter.call_set_discovery_filter({'Transport':Variant('s',transport),'DuplicateData':Variant('b',True)})
                 await adapter.call_start_discovery()
                 started.append(adapter)
             await asyncio.sleep(duration)
@@ -164,33 +182,29 @@ class BlueZ:
         if not adapter or not adapter.get('Powered'):
             raise RuntimeError('Turn on Bluetooth before waking the speaker.')
         payload=wake_payload(adapter.get('Address',''))
+        if row.get('sleeping') is not True:
+            # An awake unit needs only its existing Classic control channel.
+            # Device.Connect() can open other profiles and change bearer.
+            return
         path=row['wake_path']
         device=await self.interface(path,'org.bluez.Device1')
-        try:
-            await asyncio.wait_for(device.call_connect(),20)
-            for _ in range(40):
-                objects=await self.objects()
-                for characteristic,interfaces in objects.items():
-                    props=interfaces.get('org.bluez.GattCharacteristic1')
-                    if not props or not characteristic.startswith(path+'/'):continue
-                    p={k:v.value for k,v in props.items()}
-                    if p.get('UUID','').lower()!=WAKE_CHARACTERISTIC:continue
-                    flags=p.get('Flags',[])
-                    kind='request' if 'write' in flags else 'command' if 'write-without-response' in flags else None
-                    if not kind:raise RuntimeError('The speaker’s wake characteristic is not writable.')
-                    proxy=await self.interface(characteristic,'org.bluez.GattCharacteristic1')
-                    await asyncio.wait_for(proxy.call_write_value(payload,{'type':Variant('s',kind)}),5)
-                    self.last_seen.pop(path,None)  # The pre-wake sleep beacon is now stale.
-                    return
-                await asyncio.sleep(.25)
-            raise RuntimeError('The speaker did not expose its BLE wake service. Check Bluetooth Smart in the phone app.')
-        except BaseException:
-            # Cancel only a failed wake connection; after a successful write the
-            # desktop may already have connected audio, which we must preserve.
-            if not row.get('bluez_connected'):
-                try:await asyncio.wait_for(device.call_disconnect(),3)
-                except Exception:pass
-            raise
+        await asyncio.wait_for(device.call_connect(),20)
+        for _ in range(40):
+            objects=await self.objects()
+            for characteristic,interfaces in objects.items():
+                props=interfaces.get('org.bluez.GattCharacteristic1')
+                if not props or not characteristic.startswith(path+'/'):continue
+                p={k:v.value for k,v in props.items()}
+                if p.get('UUID','').lower()!=WAKE_CHARACTERISTIC:continue
+                flags=p.get('Flags',[])
+                kind='request' if 'write' in flags else 'command' if 'write-without-response' in flags else None
+                if not kind:raise RuntimeError('The speaker’s wake characteristic is not writable.')
+                proxy=await self.interface(characteristic,'org.bluez.GattCharacteristic1')
+                await asyncio.wait_for(proxy.call_write_value(payload,{'type':Variant('s',kind)}),5)
+                self.last_seen.pop(path,None)  # The pre-wake sleep beacon is now stale.
+                return
+            await asyncio.sleep(.25)
+        raise RuntimeError('The speaker did not expose its BLE wake service. Check Bluetooth Smart in the phone app.')
 
     async def close(self):
         if self.bus:

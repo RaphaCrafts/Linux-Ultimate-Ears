@@ -29,7 +29,7 @@ X11 window startup and extract-and-run fallback were checked on the build host.
 
 ## Automated checks
 
-49 automated tests passed in the final build.
+54 automated tests passed in the final build.
 
 Protocol tests cover arbitrary stream fragmentation and concatenation, malformed
 lengths and encoding bounds, ACK correlation, unsupported-command errors,
@@ -150,3 +150,34 @@ responses and post-readback alias synchronization are also tested offline.
 The rebuilt AppImage passed normal startup/image checks and a real-speaker
 read-only diagnostic. Native screenshots show both control connections active
 with the compact tile, actual detected artwork and Rename action.
+
+## Playback stability update 0.1.6
+
+Found application behaviors capable of disrupting playback: full setting queries
+every15seconds; automatic Classic inquiry when a speaker had a Bluetooth link
+but no audio transport; and Device.Disconnect on a failed wake, which can tear
+down an audio connection established by another client. These observations do not
+prove which one caused every reported audible dropout. Host journals also record
+WirePlumber codec/profile switching errors, without packet-level correlation.
+
+The update defers automatic speaker queries while any local BlueZ media transport
+is active, pending or broadcasting, including unrelated audio devices. Unknown
+D-Bus audio state also defers them. Idle automatic refresh is limited to battery
+and volume once a minute. Manual controls and Refresh remain explicit actions.
+Already-linked devices bypass discovery. Automatic sleep searches use LE only;
+manual Search uses LE while Bluetooth audio is active. Wake no longer invokes
+Device.Disconnect on failures, and awake units do not receive generic
+Device.Connect or wake writes. A temporary local inventory failure preserves
+healthy RFCOMM sessions until an actual socket or link loss is observed.
+
+Regression tests cover silent background polls during streaming, reduced idle
+queries, active/idle transport detection, LE scan filtering, absence of generic
+profile connects for awake speakers, no failed-wake disconnect, and preservation
+of healthy sessions after local inventory errors. Subjective listening and longer
+hardware stability remain separate from these deterministic checks.
+
+A passive check on the user's Linux host observed an active Bluetooth audio
+transport in all eight samples over approximately16seconds. Calling the revised
+automatic poll sent zero speaker commands. This checked the live playback gate
+without opening a new speaker control connection or changing audio settings;
+it does not establish absence of audible dropouts over a longer listening session.

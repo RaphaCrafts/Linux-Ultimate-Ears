@@ -66,7 +66,7 @@ def test_wake_writes_only_target_characteristic_and_keeps_successful_connection(
         async def call_write_value(self,data,options):self.writes.append((data,options['type'].value))
     class Wake(BlueZ):
         def __init__(self,flags):super().__init__();self.device=Device();self.characteristic=Characteristic();self.characteristic.writes=[];self.flags=flags
-        async def devices(self):return ([{'address':ADDRESS,'paired':True,'wake_path':PATH,'adapter':ADAPTER,'bluez_connected':False}],[(ADAPTER,{'Powered':True,'Address':HOST})])
+        async def devices(self):return ([{'address':ADDRESS,'paired':True,'wake_path':PATH,'adapter':ADAPTER,'bluez_connected':False,'sleeping':True}],[(ADAPTER,{'Powered':True,'Address':HOST})])
         async def interface(self,path,kind):return self.device if kind=='org.bluez.Device1' else self.characteristic
         async def objects(self):
             fields={'UUID':Variant('s',WAKE_CHARACTERISTIC),'Flags':Variant('as',self.flags)}
@@ -79,7 +79,7 @@ def test_wake_writes_only_target_characteristic_and_keeps_successful_connection(
         assert b.characteristic.writes==[(wake_payload(HOST),'command')]
         b=Wake(['read'])
         with pytest.raises(RuntimeError):await b.wake(ADDRESS)
-        assert not b.characteristic.writes and b.device.disconnected
+        assert not b.characteristic.writes and not b.device.disconnected
     asyncio.run(scenario())
 
 
@@ -93,3 +93,37 @@ def test_renamed_known_model_still_has_sleep_discovery():
         rows,_=await b.devices()
         assert len(rows)==1 and rows[0]['name']=='Garden' and rows[0]['wake_path']==PATH
     asyncio.run(scenario())
+
+
+def test_audio_state_detection_and_scan_preserves_active_audio():
+    class Adapter:
+        filter=None;started=False;stopped=False
+        async def call_set_discovery_filter(self,filters):self.filter=filters
+        async def call_start_discovery(self):self.started=True
+        async def call_stop_discovery(self):self.stopped=True
+    class Audio(BlueZ):
+        async def objects(self):return self.data
+        async def interface(self,path,kind):return self.adapter
+    async def scenario():
+        b=Audio();b.data=objects(False);b.adapter=Adapter()
+        transport={'Device':Variant('o',PATH),'State':Variant('s','active')}
+        b.data[PATH+'/fd0']={'org.bluez.MediaTransport1':transport}
+        rows,_=await b.devices();assert rows[0]['audio_active']
+        assert await b.audio_streaming()
+        await b.scan(0)
+        assert b.adapter.filter['Transport'].value=='le'
+        assert b.adapter.started and b.adapter.stopped
+        transport['State']=Variant('s','idle')
+        assert not await b.audio_streaming()
+        await b.scan(0);assert b.adapter.filter['Transport'].value=='auto'
+        await b.scan(0,le_only=True);assert b.adapter.filter['Transport'].value=='le'
+        async def failed():raise RuntimeError('D-Bus unavailable')
+        b.objects=failed;assert await b.audio_streaming(),'Unknown state must defer optional radio work'
+    asyncio.run(scenario())
+
+
+def test_awake_speaker_wake_never_opens_other_bluetooth_profiles():
+    class Awake(BlueZ):
+        async def devices(self):return ([{'address':ADDRESS,'paired':True,'wake_path':PATH,'adapter':ADAPTER,'bluez_connected':True,'sleeping':False}],[(ADAPTER,{'Powered':True,'Address':HOST})])
+        async def interface(self,*args):raise AssertionError('Awake device must not receive Device.Connect or GATT writes')
+    asyncio.run(Awake().wake(ADDRESS))

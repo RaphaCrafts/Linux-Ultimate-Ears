@@ -92,3 +92,16 @@ REA static evidence:
 Hardware validation reapplied the current name and verified actual readback,
 preserving the user's speaker name. A changed Unicode name is covered by the
 protocol-level fake peer, not claimed as a live hardware rename.
+
+## Playback-safe polling (0.1.6)
+
+BlueZ MediaTransport1.State active/pending/broadcasting is treated as streaming.
+The app reads this locally over D-Bus; it does not acquire/release a transport or
+change codecs. Optional remote battery/volume polls pause while any Bluetooth
+media transport streams and resume once per minute at idle. Full state queries
+remain on explicit Refresh/setting actions and initial connection. Classic
+inquiry is avoided during streaming; wake failure never calls Device.Disconnect,
+which affects all profiles rather than only the app's control socket.
+
+References: [BlueZ MediaTransport API](https://github.com/bluez/bluez/blob/master/doc/org.bluez.MediaTransport.rst),
+[BlueZ Device API](https://github.com/bluez/bluez/blob/master/doc/org.bluez.Device.rst).

@@ -182,7 +182,7 @@ class Window(QMainWindow):
         self.set_theme(self.settings.value('theme','system'))
         self.navigate('speaker')
         self.poll = QTimer(self)
-        self.poll.setInterval(15000)
+        self.poll.setInterval(60000)
         self.poll.timeout.connect(self.refresh_quietly)
         if demo:
             QTimer.singleShot(0,self.load_demo)
@@ -553,7 +553,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.volume.setEnabled(active and d['volume'] is not None)
         self.identify_button.setEnabled(active)
         self.power_button.setText('Power off' if d['connected'] else 'Turn on')
-        self.power_button.setEnabled(active and d['features'].get('power',False) or not d['connected'] and not d['busy'] and d.get('wake_available',False))
+        self.power_button.setEnabled(active and d['features'].get('power',False) or not d['connected'] and not d['busy'] and d.get('wake_available',False) and d.get('sleeping') is True)
         self.power_button.setToolTip('Wake over Bluetooth Low Energy' if not d['connected'] and d.get('wake_available') else 'Search for nearby sleeping speakers first' if not d['connected'] else 'Turn off this speaker')
         variants = self.artwork_variants(d)
         self.colour_select.blockSignals(True)
@@ -786,8 +786,9 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
 
     def refresh_quietly(self):
         if self.demo:return
+        if any(d.get('audio_active') for d in self.devices.values()):return
         for d in self.devices.values():
-            if d['connected'] and not d['busy']:self.controller.submit('refresh',d['address'])
+            if d['connected'] and not d['busy']:self.controller.submit('poll',d['address'])
 
     def choose_colour(self,colour):
         if self.selected and colour:

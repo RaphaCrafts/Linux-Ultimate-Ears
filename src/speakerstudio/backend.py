@@ -61,9 +61,9 @@ class Controller(QThread):
             except asyncio.CancelledError:
                 return
             except Exception as e:
-                for address,s in list(self.speakers.items()):
-                    if s.connected or s.busy or address in self.sessions:
-                        self._lost(address,'Bluetooth became unavailable')
+                # A failed local inventory read is not evidence that a healthy
+                # RFCOMM socket or audio link disappeared. The socket reader and
+                # confirmed BlueZ state changes handle actual disconnections.
                 message = f'Bluetooth is unavailable. Check that Bluetooth is enabled. {e}'
                 if message!=last_error:self.error.emit(message)
                 last_error = message
@@ -163,6 +163,7 @@ class Controller(QThread):
             s.paired, s.name, s.path = row['paired'], s.device_name or row['name'], row['path']
             s.bluez_connected = linked
             s.audio_connected = row.get('audio_connected',False)
+            s.audio_active = row.get('audio_active',False)
             s.wake_available = bool(row.get('wake_path'))
             s.sleeping = False if s.connected else row.get('sleeping')
             if lost and (s.connected or address in self.sessions or s.busy):
@@ -172,6 +173,7 @@ class Controller(QThread):
                 s.paired = False
                 s.bluez_connected = False
                 s.audio_connected = False
+                s.audio_active = False
                 s.wake_available = False
                 s.sleeping = None
                 if s.connected or address in self.sessions or s.busy:
@@ -221,9 +223,9 @@ class Controller(QThread):
 
     async def _connect_or_wake(self,address):
         s=self.speakers[address]
-        if not s.bluez_connected or not s.audio_connected:
+        if not s.bluez_connected and s.sleeping is None:
             self.status.emit('Checking for a sleeping-speaker signal from '+s.name+'…')
-            await self.bluez.scan(4)
+            await self.bluez.scan(4,le_only=True)
             await self.refresh_devices()
         if s.sleeping and s.wake_available:
             s.operation='wake'
@@ -306,22 +308,7 @@ class Controller(QThread):
                     s.features['colour'] = False
                     s.colour_code = None
                     s.colour = ''
-        data = await self._read(s, 0x175, 0x176, 'battery')
-        if data is not None:
-            if len(data) < 12:
-                raise ProtocolError('Incomplete battery reading')
-            s.battery = battery_percent(data[4])
-        try:
-            data = await self.sessions[address].request(0x18e, 0x18f)
-            s.volume_steps = 31
-        except CommandError as error:
-            if error.status != 1:
-                raise
-            data = await self.sessions[address].request(0x191, 0x192)
-            s.volume_steps = 15
-        if len(data) != 1 or data[0] > s.volume_steps:
-            raise ProtocolError('Invalid speaker volume reading')
-        s.volume = round(data[0] * 100 / s.volume_steps)
+        await self._read_levels(address)
         data = await self._read(s, 0x177, 0x178, 'eq')
         if data is not None:
             if len(data) != 1:
@@ -343,6 +330,30 @@ class Controller(QThread):
                 s.broadcast = data[0]
                 if s.broadcast == 0:
                     s.members = []
+        self.publish()
+
+    async def _read_levels(self,address):
+        s=self.speakers[address]
+        data = await self._read(s, 0x175, 0x176, 'battery')
+        if data is not None:
+            if len(data) < 12:
+                raise ProtocolError('Incomplete battery reading')
+            s.battery = battery_percent(data[4])
+        try:
+            data = await self.sessions[address].request(0x18e, 0x18f)
+            s.volume_steps = 31
+        except CommandError as error:
+            if error.status != 1:
+                raise
+            data = await self.sessions[address].request(0x191, 0x192)
+            s.volume_steps = 15
+        if len(data) != 1 or data[0] > s.volume_steps:
+            raise ProtocolError('Invalid speaker volume reading')
+        s.volume = round(data[0] * 100 / s.volume_steps)
+
+    async def _poll(self,address):
+        if await self.bluez.audio_streaming():return
+        await self._read_levels(address)
         self.publish()
 
     async def _refresh(self, address):
@@ -370,7 +381,8 @@ class Controller(QThread):
         s = self.speakers[address]
         raw = round(max(0, min(100, int(percent))) * s.volume_steps / 100)
         await self.sessions[address].request(0x18d if s.volume_steps == 31 else 0x190, payload=bytes([raw]))
-        await self._read_state(address)
+        await self._read_levels(address)
+        self.publish()
         self.status.emit('Volume updated')
 
     async def _eq(self, address, code):
