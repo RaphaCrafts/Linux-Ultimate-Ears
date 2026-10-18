@@ -29,7 +29,7 @@ X11 window startup and extract-and-run fallback were checked on the build host.
 
 ## Automated checks
 
-34 automated tests passed in the final build.
+42 automated tests passed in the final build.
 
 Protocol tests cover arbitrary stream fragmentation and concatenation, malformed
 lengths and encoding bounds, ACK correlation, unsupported-command errors,
@@ -95,3 +95,29 @@ do not establish tray rendering on every Linux desktop.
 The final AppImage repeated the real-speaker colour diagnostic successfully.
 A normal packaged launch using a temporary XDG data directory created a valid
 persistent launcher and published the matching X11 app identity and icon pixels.
+
+## Bluetooth, PartyUp and wake update 0.1.4
+
+Regression tests cover real BlueZ link-loss transitions, adapter power-off,
+unpairing/removal, pending PartyUp completion cancellation, explicit disconnect
+while busy, and a stale initial profile snapshot. Speaker clicks and the always
+available Back to speaker action leave PartyUp. Disconnected group UI clears
+volume/debounce state and distinguishes saved pairing from a live connection.
+The Bluetooth worker retries after service failures rather than silently stopping.
+
+BLE tests reject unknown/truncated packets, invalid identities, stale beacons and
+name-only association. They check the host-address payload, target characteristic
+scope, advertised GATT write flags and cleanup on failures. UI tests cover the
+sleeping-speaker Turn on action and expiry of wake availability.
+
+Live 2026-10-18: two paired MEGABOOM 3 beacons were observed. The user turned off
+the Ultraviolet purple unit, its Connected property changed to false, and its
+manufacturer power byte changed20 to00. The implementation found exactly one
+sleeping validated radio, wrote the legacy wake command and connected through
+Classic control. Readback confirmed HUMBOLDT, firmware1.6.45, Ultraviolet purple,
+battery100 and connected/awake state. The other (Unicorn pink) speaker was not
+sent a power command. No live new PartyUp group was created for this update;
+group-disconnect behavior is covered by deterministic tests.
+
+The final AppImage passed normal startup/offline image checks and a read-only
+diagnostic of the woken purple speaker through its bundled transport runtime.

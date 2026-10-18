@@ -15,6 +15,9 @@ class Speaker:
     identity: str = ''
     paired: bool = False
     connected: bool = False
+    bluez_connected: bool = False
+    wake_available: bool = False
+    sleeping: bool | None = None
     busy: bool = False
     battery: int | None = None
     volume: int | None = None

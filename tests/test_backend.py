@@ -168,3 +168,69 @@ def test_unknown_or_unsupported_colour_does_not_prevent_controls():
             await c._read_state('test')
             assert s.colour=='' and s.volume==26
     asyncio.run(scenario())
+
+
+def test_bluez_link_loss_clears_group_and_releases_pending_actions():
+    class ClosableSession(FakeSession):
+        closed=False
+        def close(self):self.closed=True
+    class Devices:
+        async def devices(self):
+            return ([{'address':'test','path':'/test','name':'MEGABOOM 3','paired':True,
+                      'bluez_connected':False,'adapter':'/adapter'}],[('/adapter',{'Powered':True})])
+    async def scenario():
+        session=ClosableSession();c,s=setup(session)
+        s.bluez_connected=True;s.busy=True;s.broadcast=3;s.members=['other']
+        c.bluez=Devices()
+        waiter=asyncio.get_running_loop().create_future();c.group_waiters[('test',0x418,'other')]=waiter
+        await c.refresh_devices()
+        assert not s.connected and not s.busy and not s.members and s.broadcast==0
+        assert s.paired, 'A disconnect must not pretend to remove a Linux pairing'
+        assert session.closed and 'test' not in c.sessions and not c.group_waiters
+        try:await waiter
+        except ConnectionError:pass
+        else:raise AssertionError('PartyUp operation was left waiting')
+    asyncio.run(scenario())
+
+
+def test_adapter_off_unpair_and_removed_device_invalidate_controls():
+    class ClosableSession(FakeSession):
+        closed=False
+        def close(self):self.closed=True
+    class Devices:
+        def __init__(self,rows,power=True):self.rows=rows;self.power=power
+        async def devices(self):return self.rows,[('/adapter',{'Powered':self.power})]
+    async def scenario():
+        row={'address':'test','path':'/test','name':'Speaker','paired':True,'bluez_connected':False,'adapter':'/adapter'}
+        for rows,power in [([row],False),([dict(row,paired=False)],True),([],True)]:
+            session=ClosableSession();c,s=setup(session);c.bluez=Devices(rows,power)
+            await c.refresh_devices()
+            assert not s.connected and session.closed
+            if not rows or not rows[0]['paired']:assert not s.paired
+        session=ClosableSession();c,s=setup(session);c.bluez=Devices([row])
+        await c.refresh_devices()
+        assert s.connected and not session.closed,'Initial Connected=False may be a stale profile snapshot'
+        s.busy=True
+        await c._perform('disconnect','test')
+        assert not s.connected and not s.busy and session.closed
+    asyncio.run(scenario())
+
+
+def test_wake_transition_keeps_busy_state_but_adapter_off_still_invalidates():
+    class ClosableSession(FakeSession):
+        closed=False
+        def close(self):self.closed=True
+    class Devices:
+        power=True
+        async def devices(self):
+            return ([{'address':'test','path':'/test','name':'MEGABOOM 3','paired':True,
+                      'bluez_connected':False,'adapter':'/adapter'}],[('/adapter',{'Powered':self.power})])
+    async def scenario():
+        session=ClosableSession();c,s=setup(session);c.bluez=Devices()
+        c.waking.add('test');s.busy=True;s.bluez_connected=True
+        await c.refresh_devices()
+        assert s.busy and s.connected and not session.closed
+        c.bluez.power=False
+        await c.refresh_devices()
+        assert not s.busy and not s.connected and session.closed
+    asyncio.run(scenario())

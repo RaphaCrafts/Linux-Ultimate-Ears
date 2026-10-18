@@ -23,12 +23,14 @@ class Controller(QThread):
         self.sessions = {}
         self.tasks = set()
         self.group_waiters = {}
+        self.waking = set()
         self.stopping = False
 
     def run(self):
         self.stopping = False
         self.sessions.clear()
         self.group_waiters.clear()
+        self.waking.clear()
         self.speakers.clear()
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
@@ -42,16 +44,26 @@ class Controller(QThread):
         self.loop.close()
 
     async def _startup(self):
-        self.bluez = BlueZ()
-        try:
-            await self.bluez.start()
-            while not self.stopping:
+        last_error = ''
+        while not self.stopping:
+            try:
+                if not self.bluez:
+                    self.bluez = BlueZ()
+                    await asyncio.wait_for(self.bluez.start(),10)
                 await self.refresh_devices()
-                await asyncio.sleep(3)
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            self.error.emit(f'Bluetooth is unavailable. Check that Bluetooth is enabled. {e}')
+                last_error = ''
+            except asyncio.CancelledError:
+                return
+            except Exception as e:
+                for address,s in list(self.speakers.items()):
+                    if s.connected or s.busy or address in self.sessions:
+                        self._lost(address,'Bluetooth became unavailable')
+                message = f'Bluetooth is unavailable. Check that Bluetooth is enabled. {e}'
+                if message!=last_error:self.error.emit(message)
+                last_error = message
+                if self.bluez:await self.bluez.close()
+                self.bluez = None
+            await asyncio.sleep(3)
 
     def submit(self, action, *args):
         if not self.loop or not self.bluez or not self.bluez.manager:
@@ -66,6 +78,10 @@ class Controller(QThread):
     async def _perform(self, action, *args):
         address = args[0] if args and args[0] in self.speakers else None
         speaker = self.speakers.get(address)
+        if action=='disconnect' and speaker:
+            await self._disconnect(address)
+            self.publish()
+            return
         if speaker and speaker.busy:
             return
         if speaker:
@@ -73,12 +89,12 @@ class Controller(QThread):
             self.publish()
         try:
             if action == 'scan':
-                self.status.emit('Looking for speakers…')
+                self.status.emit('Looking for nearby and sleeping speakers…')
                 await self.bluez.scan()
                 await self.refresh_devices()
-                self.status.emit('Search complete. Select a speaker to connect.')
+                self.status.emit('Search complete. Select a speaker to connect or turn on.')
             else:
-                if speaker and not speaker.connected and action not in ('connect','disconnect'):
+                if speaker and not speaker.connected and action not in ('connect','disconnect','wake'):
                     raise ConnectionError('Connect the speaker before changing its settings.')
                 await getattr(self, '_' + action)(*args)
         except CommandError as e:
@@ -112,21 +128,74 @@ class Controller(QThread):
 
     async def refresh_devices(self):
         rows, adapters = await self.bluez.devices()
+        powered = {path:props.get('Powered',False) for path,props in adapters}
+        present = set()
         for row in rows:
             address = row['address']
+            present.add(address)
             if address not in self.speakers:
                 self.speakers[address] = Speaker(address, row['path'], row['name'], paired=row['paired'])
-            else:
-                s = self.speakers[address]
-                s.paired, s.name = row['paired'], row['name']
+            s = self.speakers[address]
+            linked = row.get('bluez_connected',False)
+            # Raw RFCOMM ownership is not identical to a desktop audio profile.
+            # Observe an actual BlueZ link-loss transition, unpairing or adapter
+            # power-off; do not discard a new control connection from a stale
+            # initial Connected=False snapshot.
+            lost = (s.bluez_connected and not linked and address not in self.waking or not row['paired'] or
+                    row.get('adapter') in powered and not powered[row['adapter']])
+            s.paired, s.name, s.path = row['paired'], row['name'], row['path']
+            s.bluez_connected = linked
+            s.wake_available = bool(row.get('wake_path'))
+            s.sleeping = row.get('sleeping')
+            if lost and (s.connected or address in self.sessions or s.busy):
+                self._lost(address,'Bluetooth disconnected')
+        for address,s in self.speakers.items():
+            if address not in present:
+                s.paired = False
+                s.bluez_connected = False
+                s.wake_available = False
+                s.sleeping = None
+                if s.connected or address in self.sessions or s.busy:
+                    self._lost(address,'Speaker is no longer available in Bluetooth')
         self.publish()
 
     def _lost(self, address, reason):
+        session = self.sessions.pop(address,None)
+        if session:session.close()
+        for key,future in list(self.group_waiters.items()):
+            if key[0]==address:
+                if not future.done():future.set_exception(ConnectionError('Bluetooth disconnected. Reconnect to manage PartyUp.'))
+                self.group_waiters.pop(key,None)
         speaker = self.speakers.get(address)
         if speaker:
             self.invalidate(speaker)
-            speaker.error = 'Connection lost. Turn on the speaker and reconnect.'
+            speaker.busy = False
+            speaker.error = 'Bluetooth disconnected. Reconnect to read the speaker and manage PartyUp.'
             self.publish()
+
+    async def _wake(self, address):
+        self.waking.add(address)
+        try:
+            s=self.speakers[address]
+            if not s.paired or not s.wake_available:
+                raise RuntimeError('Search for speakers to find a recent sleeping-speaker signal first.')
+            self.status.emit('Waking '+s.name+'…')
+            await self.bluez.wake(address)
+            # A successful GATT write is only a request. Establish and identify the
+            # Classic control connection before reporting that the speaker is awake.
+            last_error=None
+            for _ in range(4):
+                await asyncio.sleep(1)
+                try:
+                    await self._connect(address)
+                    s.sleeping=False
+                    self.status.emit(s.name+' is on and connected')
+                    return
+                except (ConnectionError,TimeoutError) as error:last_error=error
+            raise ConnectionError('The wake request was sent, but the speaker did not become reachable. Try its power button or check Bluetooth Smart in the phone app.') from last_error
+
+        finally:
+            self.waking.discard(address)
 
     async def _connect(self, address):
         speaker = self.speakers[address]
@@ -261,14 +330,11 @@ class Controller(QThread):
     async def _power(self, address):
         await self.sessions[address].request(0x1b6)
         await self._disconnect(address)
-        self.status.emit('Speaker powered off. Use its power button to turn it on again.')
+        self.status.emit('Speaker powered off. Search for speakers to find its remote wake signal.')
 
     async def _disconnect(self, address):
-        session = self.sessions.pop(address, None)
-        if session:
-            session.close()
-        self.invalidate(self.speakers[address])
-        self.status.emit('Disconnected from speaker controls')
+        self._lost(address,'Disconnected from speaker controls')
+        self.status.emit('Disconnected from speaker controls. Pairing is still saved in Linux.')
 
     async def _busy_request(self, session, command, payload):
         for attempt in range(3):

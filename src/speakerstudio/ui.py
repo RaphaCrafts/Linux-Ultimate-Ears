@@ -134,6 +134,7 @@ class Window(QMainWindow):
         self.list = QListWidget()
         self.list.setIconSize(QSize(28,54))
         self.list.currentItemChanged.connect(self.select)
+        self.list.itemClicked.connect(lambda item:self.open_speaker(item.data(Qt.UserRole)))
         side.addWidget(self.list)
         side.addWidget(button('Search for speakers', self.scan, True))
         side.addWidget(button('Bluetooth settings', self.bluetooth_settings))
@@ -337,7 +338,10 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(0,20,0,0)
-        layout.addWidget(text('PartyUp','title'))
+        party_heading = QHBoxLayout()
+        party_heading.addWidget(text('PartyUp','title'),1)
+        party_heading.addWidget(button('Back to speaker',lambda:self.navigate('speaker')))
+        layout.addLayout(party_heading)
         self.party_info = text('Connect a supported speaker to manage its group.','muted')
         layout.addWidget(self.party_info)
         controls = QHBoxLayout()
@@ -425,11 +429,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.curve.update()
 
     def select(self, current, previous):
-        if current:
-            self.selected = current.data(Qt.UserRole)
-            self.eq_dirty = False
-            self.volume_debounce.stop()
-            self.render()
+        if current:self.open_speaker(current.data(Qt.UserRole))
 
     def navigate(self, page):
         self.page = page
@@ -444,7 +444,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.list.blockSignals(True)
         self.list.clear()
         for d in devices:
-            state = 'Connected' if d['connected'] else 'Paired' if d['paired'] else 'Pair in Bluetooth settings'
+            state = 'Connected' if d['connected'] else 'Sleeping · wake available' if d.get('sleeping') and d.get('wake_available') else 'Saved · disconnected' if d['paired'] else 'Not paired'
             item = QListWidgetItem(f"{d['name']}\n{state}")
             item.setData(Qt.UserRole,d['address'])
             image = self.image_path(d)
@@ -452,9 +452,9 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             item.setSizeHint(QSize(170,70))
             self.list.addItem(item)
             if d['address']==selected:self.list.setCurrentItem(item)
-        if selected not in self.devices and devices:
-            self.selected = devices[0]['address']
-            self.list.setCurrentRow(0)
+        if selected not in self.devices:
+            self.selected = devices[0]['address'] if devices else None
+            if devices:self.list.setCurrentRow(0)
         self.list.blockSignals(False)
         self.render()
 
@@ -505,7 +505,8 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.stack.setCurrentWidget(self.eq_page if self.page=='eq' else self.speaker_page)
         self.model_label.setText(d.get('model','').upper().replace('-',' ') or 'ULTIMATE EARS')
         self.name_label.setText(d['name'])
-        status = 'Connecting…' if d['busy'] and not d['connected'] else 'Connected' if d['connected'] else 'Ready to connect' if d['paired'] else 'Pair in Bluetooth settings first'
+        status = 'Connecting…' if d['busy'] and not d['connected'] else 'Connected' if d['connected'] else 'Disconnected · pairing saved in Linux' if d['paired'] else 'Pair in Bluetooth settings first'
+        if not d['connected'] and d.get('sleeping') and d.get('wake_available'):status='Sleeping nearby · ready to turn on'
         if d.get('firmware') and d['connected']:status+=' · Firmware '+d['firmware']
         self.connection_label.setText(status)
         self.connect_button.setText('Disconnect' if d['connected'] else 'Connect')
@@ -523,7 +524,9 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             self.volume_label.setText(f"{d['volume']}%" if d['volume'] is not None else '—')
         self.volume.setEnabled(active and d['volume'] is not None)
         self.identify_button.setEnabled(active)
-        self.power_button.setEnabled(active and d['features'].get('power',False))
+        self.power_button.setText('Power off' if d['connected'] else 'Turn on')
+        self.power_button.setEnabled(active and d['features'].get('power',False) or not d['connected'] and not d['busy'] and d.get('wake_available',False))
+        self.power_button.setToolTip('Wake over Bluetooth Low Energy' if not d['connected'] and d.get('wake_available') else 'Search for nearby sleeping speakers first' if not d['connected'] else 'Turn off this speaker')
         variants = self.artwork_variants(d)
         self.colour_select.blockSignals(True)
         self.colour_select.clear()
@@ -621,9 +624,15 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.group_volume.setEnabled(bool(host and host.get('broadcast',0)&2 and not host['busy']))
         if host and not self.group_volume.isSliderDown():
             self.group_volume.setValue(host['volume'] or 0)
+        self.host_select.setEnabled(bool(connected))
         if not host:
-            self.party_info.setText('Connect a supported speaker from the Speaker page to begin.')
-            self.group_status.setText('Only speakers that support PartyUp can host a group.')
+            self.group_debounce.stop()
+            self.group_volume.blockSignals(True)
+            self.group_volume.setValue(0)
+            self.group_volume.blockSignals(False)
+            self.group_volume_label.setText('—')
+            self.party_info.setText('No control connection. Go back to a speaker and reconnect to manage PartyUp.')
+            self.group_status.setText('Bluetooth disconnection does not necessarily end the group on the speakers.')
             return
         members=host.get('members',[])
         active=bool(host.get('broadcast',0)&2)
@@ -666,6 +675,13 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
     def open_speaker(self,address):
         self.selected=address
         self.eq_dirty=False
+        self.volume_debounce.stop()
+        self.group_debounce.stop()
+        self.list.blockSignals(True)
+        for i in range(self.list.count()):
+            item=self.list.item(i)
+            if item.data(Qt.UserRole)==address:self.list.setCurrentItem(item);break
+        self.list.blockSignals(False)
         self.navigate('speaker')
 
     def command(self,action,*args):
@@ -717,7 +733,11 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.command('custom_eq',values)
 
     def power_off(self):
-        reply=QMessageBox.question(self,'Power off speaker','Turn off this speaker? Use its power button to turn it on again.')
+        if not self.selected:return
+        if not self.devices[self.selected]['connected']:
+            self.command('wake')
+            return
+        reply=QMessageBox.question(self,'Power off speaker','Turn off this speaker? If Bluetooth Smart is enabled, search for speakers to wake it again.')
         if reply==QMessageBox.Yes:
             if self.demo:self.devices[self.selected]['connected']=False;self.render();return
             self.command('power')

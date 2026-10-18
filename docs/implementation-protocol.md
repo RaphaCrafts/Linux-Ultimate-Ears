@@ -18,7 +18,7 @@ Full selectors and evidence IDs are in [evidence-index.json](evidence-index.json
 
 Group status records include nearby devices as well as members. Only status8 (playing this broadcast) is treated as confirmed membership from a broadcast-status record. Add/remove completion notifications are correlated by host and receiver MAC, with status0 required and a 30-second timeout.
 
-The Qt view uses relative signed levels for custom EQ. It does not claim calibrated dB units or reproduce every mobile preset. Remote wake and CPP remain outside this build.
+The Qt view uses relative signed levels for custom EQ. It does not claim calibrated dB units or reproduce every mobile preset. Legacy BLE wake is implemented for validated paired beacons; CPP remains outside this build.
 
 ## Finish detection
 
@@ -41,3 +41,33 @@ Its finish was identified from the user's supplied phone-app screenshot and
 matched to the official Unicorn packshot. This mapping is recorded separately
 from enum-derived mappings. Broader limited-edition mappings remain unknown;
 commercial SKU identity is not claimed.
+
+## BLE sleeping-speaker discovery and wake (0.1.4)
+
+Search requests BlueZ interleaved `Transport=auto` discovery with duplicate
+manufacturer updates. The app tracks fresh ManufacturerData signals, not cached
+UUIDs or names, and expires wake availability after 45 seconds without a fresh
+advertisement. Wake only targets a radio whose advertised Classic address exactly
+matches a saved Linux pairing. No name-based radio association is used.
+
+The physically observed MEGABOOM 3 packet has FE61, manufacturer company 3,
+19 manufacturer bytes and a final 0x22 discriminator (semantic meaning unknown).
+Colour is BE16 at0, battery/charging at2, volume at3, sleeping when byte4&e0 is0,
+and Classic address at12..17. This layout and address relationship were checked
+against two physical speakers; one was observed powered on and then switched
+off by the user. Other layouts are rejected. The manufacturer MAC offset is
+physical evidence, not a translated full-scan offset from the Android parser.
+
+The Android legacy parser independently uses the same power mask on full-scan
+byte18 (REA `ev_fd0f68847b9ef59f7e70417fb3644d0f53409c8a8e67fd7e937bc8d8af1bdefe`).
+The ADK3 fallback does not decode the manufacturer layout
+(`ev_3e9571529afa0c65718ee4bb171f732918a3a70c0f92e036d850e82c95fcfe2e`).
+Do not substitute the distinct Wasp layout or apply full-scan MAC offsets.
+
+Wake writes the Linux adapter's six address bytes in displayed order plus01 to
+`c6d6dc0d-07f5-47ef-9b59-630622b01fd3`. The live characteristic advertised `write`,
+so a request write was used. Production code checks the flags and only uses a
+command write if write-without-response is advertised instead. Connect, discovery
+and write waits are bounded. A successful write is followed by a real identified
+Classic control connection before the UI reports success. Existing audio links
+are not deliberately disconnected after a successful wake.

@@ -37,12 +37,32 @@ Zorin OS 18, or newer** as the baseline. ARM computers are not supported yet.
 - Use the blue icon in your taskbar and system tray.
 - Adjust speaker volume without reaching for your phone.
 - Choose a sound profile or adjust five custom EQ bands.
-- Power off the speaker from the app; turn it back on using its power button.
+- Power off the speaker, then find and wake compatible sleeping speakers over BLE.
 - Find your speaker by asking it to announce its battery level.
 - Choose from 39 official speaker colour images, or use a neutral **Generic**
   illustration if your finish isn’t listed.
 - Keep several connected speakers visible in one app.
 - Use the **PartyUp preview** to add or remove compatible connected speakers.
+
+## Sleeping speakers and PartyUp
+
+**Search for speakers** scans for both regular Bluetooth devices and low-energy
+signals from sleeping speakers. For a compatible paired speaker nearby, select
+it and click **Turn on**. The app verifies that the speaker responds before
+reporting that it is on. Remote wake was tested with a real MEGABOOM 3.
+
+Bluetooth Smart / remote power must be enabled on the speaker (use the phone app
+if necessary), Bluetooth must be on, and the speaker must have battery power.
+Deep sleep, disabled BLE, unsupported models or an unrecognized advertisement
+cannot be woken. If Turn on is unavailable, search again or use its power button.
+Search does not automatically turn on every speaker it finds.
+
+Clicking a speaker always returns to its main controls. **Back to speaker** also
+leaves the PartyUp page, even with Bluetooth disconnected. Losing the connection
+clears stale group controls and cancels pending group actions. A group can keep
+playing on the speakers after your computer disconnects; reconnect to use
+**End group**. “Saved · disconnected” means Linux remembers the pairing, not that
+the speaker is connected or still in a PartyUp group.
 
 ## Colours and the system tray
 
@@ -63,7 +83,7 @@ MEGABOOM 3 has been tested with a real speaker. Other models and every firmware
 version have not been tested. **PartyUp is experimental:** its join/remove
 logic is implemented and automatically tested, but still needs a real test
 with two speakers. Existing groups may not appear until a speaker sends a group
-update. Remote wake, alarms and firmware updates are not included yet.
+update. Alarms and firmware updates are not included yet.
 
 BOOM 4, MEGABOOM 4, EVERBOOM, EPICBOOM, HYPERBOOM and
 WONDERBOOM are not supported for control in this release, even though their

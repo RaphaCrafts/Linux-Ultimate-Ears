@@ -133,3 +133,38 @@ def test_tray_hide_restore_and_no_tray_fallback(tmp_path,monkeypatch):
     w.hide_to_tray();assert not w.isVisible()
     w.restore_window();assert w.isVisible()
     w.close();assert not w.tray.isVisible()
+
+
+def test_partyup_always_allows_return_and_discards_stale_group_view(tmp_path,monkeypatch):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QPushButton
+    monkeypatch.setenv('XDG_CONFIG_HOME',str(tmp_path))
+    app=QApplication.instance() or QApplication([])
+    w=Window(Controller(),demo=True);app.processEvents();w.navigate('party')
+    item=w.list.currentItem()
+    w.list.itemClicked.emit(item)
+    assert w.page=='speaker' and w.selected==item.data(Qt.UserRole)
+    w.navigate('party')
+    for d in w.devices.values():d.update(connected=False,busy=False,members=[],broadcast=0)
+    w.group_debounce.start();w.update_devices(list(w.devices.values()))
+    assert w.group_host is None and not w.ungroup_button.isEnabled()
+    assert not w.group_debounce.isActive() and w.group_volume_label.text()=='—'
+    assert all('Saved · disconnected' in w.list.item(i).text() for i in range(w.list.count()))
+    back=next(b for b in w.findChildren(QPushButton) if b.text()=='Back to speaker')
+    assert back.isEnabled();back.click();assert w.page=='speaker'
+    w.close()
+
+
+def test_sleeping_speaker_has_turn_on_control(tmp_path,monkeypatch):
+    from dataclasses import asdict
+    from speakerstudio.models import Speaker
+    monkeypatch.setenv('XDG_CONFIG_HOME',str(tmp_path))
+    app=QApplication.instance() or QApplication([])
+    w=Window(Controller(),demo=True);app.processEvents()
+    row=asdict(Speaker('demo-sleep','','MEGABOOM 3',paired=True,wake_available=True,sleeping=True))
+    w.update_devices([row])
+    assert w.power_button.text()=='Turn on' and w.power_button.isEnabled()
+    assert 'Sleeping' in w.list.item(0).text()
+    row['wake_available']=False;row['sleeping']=None;w.update_devices([row])
+    assert not w.power_button.isEnabled()
+    w.close()
