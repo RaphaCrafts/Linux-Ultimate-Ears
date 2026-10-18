@@ -155,3 +155,26 @@ which affects all profiles rather than only the app's control socket.
 
 References: [BlueZ MediaTransport API](https://github.com/bluez/bluez/blob/master/doc/org.bluez.MediaTransport.rst),
 [BlueZ Device API](https://github.com/bluez/bluez/blob/master/doc/org.bluez.Device.rst).
+
+
+## Receiver channel and existing groups (0.1.10)
+
+Android PartyUpPresenter.executeAddReceiverCommand explicitly passes RIGHT.
+XupController.addToGroup maps this through GroupingUtilsKt.toXupMode to the
+legacy BroadcastAudioMode.RIGHT value2. Linux previously passed UNKNOWN0 and
+now sends MAC6+02 on0x0417. Primary static evidence:
+`ev_a4c9b194599828721f1c9adac97dc7440204e6f5a6d124b18e59f96c1b2c8582`,
+`ev_a530194639bc4731e9fc80f0c580ab2168296a256a04fd508fb712d8930e4ab9`,
+`ev_d2bc05afcc2cfbdb2346455d4056c9c8988fecb89e7c0bfba1935d1061291ddb`.
+
+A broadcast configuration is not a member inventory. A new connection knows
+that the host broadcasts without necessarily knowing its receivers. The view
+keeps End group available and labels member details pending until0x0416 arrives.
+Scan-only state1 clears previous members just as disabled state0 does.
+Read existing group explicitly reconnects to the Linux audio host; it does not
+start native discovery, regroup speakers or require a separate receiver socket.
+
+Hardware test on2026-10-18: explicit RIGHT join completed with status0. The
+host confirmed broadcast-only Stereo0250, then its control socket was closed
+for listening. The user still heard stuttering. Thus the corrected assignment
+is protocol alignment, not evidence of an audible synchronization repair.

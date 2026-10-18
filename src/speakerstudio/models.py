@@ -34,6 +34,7 @@ class Speaker:
     colour_code: int | None = None
     features: dict = field(default_factory=dict)
     members: list = field(default_factory=list)
+    group_status_known: bool = False
     bands: list | None = None
     broadcast: int = 0
     audio_mode: int | None = None

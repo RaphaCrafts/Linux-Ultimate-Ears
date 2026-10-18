@@ -205,3 +205,37 @@ def test_bluetooth_link_is_not_presented_as_fully_disconnected(tmp_path,monkeypa
     w.update_devices([row]);assert w.device_error.text()=='The speaker did not reply'
     assert w.photo.height()==240
     w.close()
+
+
+def test_active_group_without_inventory_is_not_shown_as_empty(tmp_path,monkeypatch):
+    monkeypatch.setenv('XDG_CONFIG_HOME',str(tmp_path))
+    app=QApplication.instance() or QApplication([])
+    w=Window(Controller(),demo=True);app.processEvents()
+    w.navigate('party')
+    host=w.devices[w.group_host]
+    host.update(broadcast=2,members=[],group_status_known=False)
+    w.demo=False
+    w.render()
+    assert 'waiting for member details' in w.party_info.text()
+    assert w.ungroup_button.isEnabled()
+    assert 'End group' in w.group_status.text()
+    host['group_status_known']=True
+    w.render()
+    assert '0 group members' in w.party_info.text()
+    w.close()
+
+
+def test_read_existing_group_connects_audio_host_not_selected_receiver(tmp_path,monkeypatch):
+    monkeypatch.setenv('XDG_CONFIG_HOME',str(tmp_path))
+    app=QApplication.instance() or QApplication([])
+    controller=Controller();w=Window(controller,demo=True);app.processEvents()
+    host=next(iter(w.devices));receiver=next(a for a in w.devices if a!=host)
+    w.devices[host].update(audio_connected=True,audio_active=True,paired=True,connected=False)
+    w.selected=receiver;w.demo=False
+    sent=[];monkeypatch.setattr(controller,'submit',lambda *args:sent.append(args))
+    w.read_existing_group()
+    assert sent==[('connect',host)] and w.group_host==host
+    w.devices[host]['connected']=True
+    w.read_existing_group()
+    assert sent[-1]==('refresh',host)
+    w.close()

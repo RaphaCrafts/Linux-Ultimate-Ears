@@ -285,3 +285,19 @@ is pending. These native search settings are distinct from Linux adapter discove
 The backend also waits for an already-running control operation rather than
 silently dropping a raced balance request. A regression covers this completion
 path so the UI cannot wait forever for a request the worker discarded.
+
+## Existing group status and receiver channel 0.1.10
+
+- Android static analysis traced PartyUp's explicit RIGHT receiver assignment
+  through the legacy mapper. Join payload now uses channel2 rather than UNKNOWN0.
+- Live MEGABOOM3 pair: RIGHT join completed successfully, broadcast-only Stereo
+  confirmed0250, then controls closed for40seconds. User still heard stuttering.
+  Finally restored and verified original0050 (PURPLE3 alone), without a volume
+  setter. No audible fix claimed. No member-status notifications arrived during
+  this short test, so reconnecting cannot assume an empty group from silence.
+- Active broadcasts without inventory now say member details are pending;
+  End group stays usable. Scan-only configuration clears stale memberships.
+- Read existing group reconnects the Linux audio host, independent of the
+  selected receiver, with no automatic search or regroup command.
+- Regression coverage includes unknown versus confirmed-empty inventory,
+  scan-only invalidation and audio-host reconnection selection.

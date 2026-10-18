@@ -87,8 +87,15 @@ MEGABOOM 3 has been tested with a real speaker. Other models and every firmware
 version have not been tested. **PartyUp is experimental:** its join/remove
 logic is implemented and automatically tested. Balance commands have been
 read back on a real MEGABOOM 3 pair; that alone does not confirm an audible change.
-Existing groups may not appear until a speaker sends a group
-update. Alarms and firmware updates are not included yet.
+Use **Read existing group** in PartyUp to reconnect controls to the speaker
+playing audio from Linux. You do not need a separate control connection to its
+group receiver. Member details may remain pending until the host sends an update;
+the app distinguishes this from a confirmed empty group. Alarms and firmware updates are not included yet.
+
+PartyUp runs on the speakers and continues after quitting Speaker studio. Use
+**End group** to stop it. In listening tests, one MEGABOOM 3 played smoothly while
+the pair stuttered even with all control apps closed. This remains unresolved;
+the corrected receiver channel in this release is not a confirmed audio fix.
 
 In **PartyUp**, a subtle animation highlights a speaker ready to join and shows
 the connection in progress. With **two speakers**, click the **Stereo** button

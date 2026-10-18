@@ -149,6 +149,7 @@ class Controller(QThread):
         speaker.volume = None
         speaker.eq = None
         speaker.members = []
+        speaker.group_status_known = False
         speaker.bands = None
         speaker.broadcast = 0
         speaker.audio_mode = None
@@ -354,8 +355,10 @@ class Controller(QThread):
             else:
                 s.broadcast = data[0]
                 s.audio_mode = data[1]
-                if s.broadcast == 0:
+                if not (s.broadcast & 2):
                     s.members = []
+                    s.member_info = {}
+                    s.group_status_known = False
         if s.broadcast & 2:
             data = await self._read(s,0x19b,0x19c,'balance')
             if data is not None:
@@ -475,7 +478,9 @@ class Controller(QThread):
                 data = await self._broadcast_config(session)
                 if len(data) >= 2:
                     host.broadcast = data[0]
-            await self._busy_request(session, 0x417, bytes.fromhex(receiver.replace(':','')) + b'\x00')
+            # Android assigns the receiver RIGHT, including in Double Up.
+            # UNKNOWN is not the channel requested by its PartyUp presenter.
+            await self._busy_request(session, 0x417, bytes.fromhex(receiver.replace(':','')) + b'\x02')
             self.status.emit('Waiting for the speaker to join PartyUp…')
             await asyncio.wait_for(future, 30)
             await self._read_state(address)
@@ -686,6 +691,7 @@ class Controller(QThread):
                     member_info[mac].pop('level_error',None)
             s.members = members
             s.member_info = member_info
+            s.group_status_known = True
             self.publish()
             return True
         return False

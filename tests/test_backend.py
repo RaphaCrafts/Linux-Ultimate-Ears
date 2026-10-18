@@ -70,7 +70,7 @@ def test_group_add_requires_matching_completion_not_only_ack():
         await asyncio.sleep(.01)
         assert not task.done(), 'Initial ACK must not mark the receiver joined'
         assert controller.speakers[host].members==[]
-        assert (0x417,0,bytes.fromhex('001122334466')+b'\0') in session.commands
+        assert (0x417,0,bytes.fromhex('001122334466')+b'\x02') in session.commands
         controller._notification(host,Message(0x418,bytes.fromhex('001122334466')+b'\0'))
         await task
         assert target in controller.speakers[host].members
@@ -336,4 +336,30 @@ def test_inventory_failure_does_not_close_healthy_control_session():
         c.stopping=True;task.cancel()
         try:await task
         except asyncio.CancelledError:pass
+    asyncio.run(scenario())
+
+
+def test_scanning_without_broadcast_clears_old_group():
+    async def scenario():
+        session=FakeSession();session.broadcast=1
+        c,s=setup(session)
+        s.broadcast=3;s.members=['old'];s.member_info={'old':{'battery':70}}
+        s.group_status_known=True
+        await c._read_state('test')
+        assert s.broadcast==1 and s.members==[] and s.member_info=={}
+        assert not s.group_status_known
+    asyncio.run(scenario())
+
+
+def test_group_inventory_is_unknown_until_status_arrives():
+    from speakerstudio.protocol import Message
+    async def scenario():
+        session=FakeSession();session.broadcast=2
+        c,s=setup(session)
+        await c._read_state('test')
+        assert s.broadcast==2 and not s.group_status_known
+        assert c._notification('test',Message(0x416,b'\x00'))
+        assert s.group_status_known and s.members==[]
+        c.invalidate(s)
+        assert not s.group_status_known
     asyncio.run(scenario())

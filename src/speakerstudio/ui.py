@@ -360,6 +360,8 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         layout.setContentsMargins(0,20,0,0)
         party_heading = QHBoxLayout()
         party_heading.addWidget(text('PartyUp','title'),1)
+        self.read_group_button=button('Read existing group',self.read_existing_group)
+        party_heading.addWidget(self.read_group_button)
         party_heading.addWidget(button('Back to speaker',lambda:self.navigate('speaker')))
         layout.addLayout(party_heading)
         self.party_info = text('Connect a supported speaker to manage its group.','muted')
@@ -712,6 +714,15 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.group_host=self.host_select.itemData(index)
         self.render_party()
 
+    def read_existing_group(self):
+        candidates=[d for d in self.devices.values() if d.get('audio_connected') and d.get('paired') and not d.get('busy')]
+        candidates.sort(key=lambda d:not d.get('audio_active'))
+        if not candidates:return
+        host=candidates[0]
+        self.group_host=host['address']
+        if self.demo:self.render_party();return
+        self.controller.submit('refresh' if host['connected'] else 'connect',host['address'])
+
     def party_action(self,action,*args):
         if not self.group_host:return
         if self.demo:
@@ -773,6 +784,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.schedule_balance()
 
     def render_party(self):
+        self.read_group_button.setEnabled(any(d.get('audio_connected') and d.get('paired') and not d.get('busy') for d in self.devices.values()))
         current=self.devices.get(self.group_host)
         signature=(self.group_host,tuple(current.get('members',[]))) if current else None
         if current and current['connected'] and signature==self.mix_signature:
@@ -829,7 +841,9 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             return
         members=host.get('members',[])
         active=bool(host.get('broadcast',0)&2)
-        self.party_info.setText(f"Host: {host['name']} · {len(members)} group members" if active else 'Choose a host, then add another connected speaker.')
+        awaiting_members=active and not members and not host.get('group_status_known',False)
+        self.group_status.setText('Demo group. No real devices are changed.' if self.demo else 'PartyUp continues when you quit the app. Use End group to stop it.' if active else 'Choose another connected speaker above to play together.')
+        self.party_info.setText(f"Host: {host['name']} · PartyUp active · waiting for member details" if awaiting_members else f"Host: {host['name']} · {len(members)} group members" if active else 'Choose a host, then add another connected speaker.')
         displayed=[host['address']]+members
         available=[d for d in self.devices.values() if d['address'] not in displayed]
         target=self.devices.get(host.get('group_target'))
@@ -838,6 +852,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         images=tuple(QPixmap(str(self.image_path(d))) if d else QPixmap() for d in (host,other))
         mode='joining' if joining else 'linked' if members else 'ready' if other else 'idle'
         caption=f"Joining {other['name']}…" if joining else f'{len(displayed)} speakers playing together' if members else f"{other['name']} is ready to join" if other else 'Connect another speaker to play together'
+        if awaiting_members and not joining:caption='PartyUp is active on the speaker; member details have not arrived yet'
         self.party_link.set_state(mode,caption,images)
         for action,address in self.party_card_actions:
             target=self.devices.get(address,{})
@@ -913,7 +928,6 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
                 action=button('Connect first',lambda checked=False,a=d['address']:self.open_speaker(a))
             box.addWidget(action)
             self.party_grid.addWidget(panel(box),row+1+i//3,i%3)
-        self.group_status.setText('Demo group. No real devices are changed.' if self.demo else 'Choose another connected speaker above to play together.')
 
     def clear_party_cards(self):
         self.member_sliders={}
