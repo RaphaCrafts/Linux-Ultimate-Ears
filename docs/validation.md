@@ -29,7 +29,7 @@ X11 window startup and extract-and-run fallback were checked on the build host.
 
 ## Automated checks
 
-58 automated tests passed in the final build.
+59 automated tests passed in the final build.
 
 Protocol tests cover arbitrary stream fragmentation and concatenation, malformed
 lengths and encoding bounds, ACK correlation, unsupported-command errors,
@@ -217,3 +217,21 @@ Tests cover native balance encoding/endpoints, exactly-two membership validation
 receiver ACK versus delivery/readback, unmatched notifications, malformed levels,
 blocked writes without a reading, group loss, two/three-speaker layouts, dragging
 through background updates, and animation states/timer suspension when hidden.
+
+## Stereo balance prerequisite update 0.1.8
+
+User reported that balance produced no audible change. The previous hardware
+test established only register write/readback, not sound attenuation. Static
+inspection now confirms that the Android view only shows its balance panel in
+stereo mode, and its Stereo action sets BroadcastAudioOptions.STEREO_LEFT0x50.
+Linux previously always created Double Up groups with audio option00 and did not
+retain or expose this second broadcast-configuration byte.
+
+The app now stores and displays the actual playback mode, provides explicit
+Double Up/Stereo selection for a pair, preserves the current broadcast-state
+byte when switching, and requires a fresh matching mode readback. Balance is
+disabled in Double Up. Every balance action rechecks the actual mode and refuses
+to write if another app changed it. Tests cover mode prerequisites, successful
+and ignored mode switches, preserved group membership, and UI mode changes.
+Audible effect still requires a listening test; register acceptance alone is not
+reported as confirmation of working acoustic balance.

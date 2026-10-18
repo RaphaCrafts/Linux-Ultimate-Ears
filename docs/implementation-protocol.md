@@ -23,6 +23,17 @@ byte. Centre is00, left endpoint80, right endpoint7f. The phone slider maps
 confirmed receiver and performs a fresh balance query after each change.
 Group volume synchronization reapplies the cached native balance for a pair.
 
+Correction0.1.8: the balance register can accept/read back settings independently
+of the channel mode. Android only exposes balance while in Stereo. Its Stereo
+action sends the existing broadcast state with audio option0x50 (host left).
+Linux now requires that confirmed mode for balance and offers an explicit mode
+selector. Config query0x0414 →0x0415 returns state byte followed by audio option;
+setter0x0413 writes both bytes. A register echo in Double Up is not evidence of
+audible balance. Primary APK evidence: stereo action
+`ev_4b81a34632779b18a63f7c47d4697980d7490a5a453610166afe16536f5fdbf6`,
+conditional balance panel
+`ev_fbd8e3e5d66bc907d3fcbed6fa39c6e770b19c7a28a10f683a5d1e77305c01dd`.
+
 Receiver attribute Volume has ID0x001e. Query0x0420 and setter0x0422 return
 queue ACKs; separate notifications0x0421/0x0423 contain MAC6, BE16 attribute,
 delivery boolean, then the query value. Linux correlates host, receiver, event

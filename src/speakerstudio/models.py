@@ -36,6 +36,7 @@ class Speaker:
     members: list = field(default_factory=list)
     bands: list | None = None
     broadcast: int = 0
+    audio_mode: int | None = None
     balance: int | None = None
     member_info: dict = field(default_factory=dict)
 

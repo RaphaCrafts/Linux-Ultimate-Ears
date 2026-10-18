@@ -12,7 +12,7 @@ MEMBER='00:11:22:33:44:66'
 
 def controller():
     c=Controller()
-    s=Speaker(HOST,'/host','Host',connected=True,broadcast=3,members=[MEMBER],features={'balance':True})
+    s=Speaker(HOST,'/host','Host',connected=True,broadcast=3,audio_mode=0x50,members=[MEMBER],features={'balance':True})
     c.speakers[HOST]=s
     return c,s
 
@@ -21,8 +21,9 @@ def test_native_balance_endpoints_centre_and_confirmed_readback():
     async def scenario():
         c,s=controller()
         class Session:
-            def __init__(self):self.value=0;self.writes=[]
+            def __init__(self):self.value=0;self.writes=[];self.mode=0x50
             async def request(self,command,response=0,payload=b''):
+                if command==0x414:return bytes([3,self.mode])
                 if command==0x19d:self.value=payload[0];self.writes.append(payload)
                 else:return bytes([self.value])
         session=Session();c.sessions[HOST]=session
@@ -30,9 +31,34 @@ def test_native_balance_endpoints_centre_and_confirmed_readback():
             await c._balance(HOST,position)
             assert s.balance==expected
         assert session.writes==[b'\x80',b'\0',b'\x7f']
+        session.mode=0
+        with pytest.raises(RuntimeError,match='Select Stereo'):await c._balance(HOST,0)
+        assert s.audio_mode==0 and len(session.writes)==3
         s.members.append('third')
         with pytest.raises(RuntimeError):await c._balance(HOST,128)
         assert len(session.writes)==3
+    asyncio.run(scenario())
+
+
+def test_stereo_mode_preserves_group_state_and_requires_fresh_confirmation():
+    async def scenario():
+        c,s=controller();s.audio_mode=0
+        class Session:
+            def __init__(self):self.mode=0;self.apply=True;self.writes=[]
+            async def request(self,command,response=0,payload=b''):
+                if command==0x414:return bytes([2,self.mode])
+                if command==0x413:
+                    self.writes.append(payload)
+                    if self.apply:self.mode=payload[1]
+        session=Session();c.sessions[HOST]=session
+        await c._party_mode(HOST,0x50)
+        assert session.writes==[b'\x02\x50'] and s.audio_mode==0x50
+        assert s.members==[MEMBER] and s.broadcast==2
+        await c._party_mode(HOST,0)
+        assert s.audio_mode==0
+        session.apply=False
+        with pytest.raises(RuntimeError,match='did not switch'):await c._party_mode(HOST,0x50)
+        assert s.audio_mode==0,'An ACK alone must not enable balance'
     asyncio.run(scenario())
 
 
@@ -85,6 +111,10 @@ def test_party_balance_large_group_levels_and_animation_states(tmp_path,monkeypa
     w=Window(Controller(),demo=True);w.show();w.navigate('party');app.processEvents()
     host=w.devices[w.group_host]
     assert not w.balance_panel.isHidden() and w.balance_slider.isEnabled()
+    w.party_action('party_mode',0)
+    assert not w.balance_slider.isEnabled() and 'Select Stereo' in w.balance_readout.text()
+    w.party_action('party_mode',0x50)
+    assert w.balance_slider.isEnabled()
     w.balance_slider.setValue(0);w.send_balance()
     assert host['balance']==-128
     w.centre_balance();assert host['balance']==0

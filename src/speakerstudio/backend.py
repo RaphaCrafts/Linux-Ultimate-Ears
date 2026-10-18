@@ -141,6 +141,7 @@ class Controller(QThread):
         speaker.members = []
         speaker.bands = None
         speaker.broadcast = 0
+        speaker.audio_mode = None
         speaker.balance = None
         speaker.member_info = {}
 
@@ -332,6 +333,7 @@ class Controller(QThread):
                 s.features['group'] = False
             else:
                 s.broadcast = data[0]
+                s.audio_mode = data[1]
                 if s.broadcast == 0:
                     s.members = []
         if s.broadcast & 2:
@@ -487,7 +489,7 @@ class Controller(QThread):
         await self.sessions[address].request(0x41b)
         s=self.speakers[address]
         for metadata in s.member_info.values():metadata.pop('volume',None)
-        if len(s.members)==1 and s.balance is not None:
+        if len(s.members)==1 and s.audio_mode==0x50 and s.balance is not None:
             await self.sessions[address].request(0x19d,payload=bytes([s.balance&255]))
         self.status.emit('Group volume synchronized')
 
@@ -499,12 +501,43 @@ class Controller(QThread):
             raise RuntimeError('This speaker does not support balance control.')
         if not isinstance(position,int) or not 0<=position<=255:
             raise ValueError('Invalid balance position')
+        # The register can echo writes in Double Up without an audible effect.
+        # Check the actual channel mode, not just acceptance of the balance byte.
+        configuration=await self.sessions[address].request(0x414,0x415)
+        if len(configuration)!=2 or configuration[0]>3:raise ProtocolError('Invalid PartyUp mode reading')
+        s.broadcast,s.audio_mode=configuration
+        if not s.broadcast&2 or s.audio_mode!=0x50:
+            if not s.broadcast&2:s.members=[]
+            self.publish()
+            raise RuntimeError('Select Stereo (host left, member right) before adjusting balance.')
         await self.sessions[address].request(0x19d,payload=bytes([(position-128)&255]))
         data=await self.sessions[address].request(0x19b,0x19c)
         if len(data)!=1:raise ProtocolError('Invalid balance reading')
         s.balance=int.from_bytes(data,'big',signed=True)
         self.publish()
         self.status.emit('Speaker balance updated')
+
+    async def _party_mode(self,address,mode):
+        s=self.speakers[address]
+        if mode not in (0,0x50):raise ValueError('Unsupported PartyUp playback mode')
+        if not s.broadcast&2 or len(s.members)!=1:
+            raise RuntimeError('Playback mode requires exactly two speakers in PartyUp.')
+        session=self.sessions[address]
+        configuration=await session.request(0x414,0x415)
+        if len(configuration)!=2 or configuration[0]>3:raise ProtocolError('Invalid PartyUp mode reading')
+        s.broadcast,s.audio_mode=configuration
+        if not s.broadcast&2:
+            s.members=[]
+            self.publish()
+            raise RuntimeError('The PartyUp group is no longer broadcasting.')
+        await self._busy_request(session,0x413,bytes([configuration[0],mode]))
+        confirmed=await session.request(0x414,0x415)
+        if len(confirmed)!=2 or confirmed[0] not in (2,3):raise ProtocolError('Invalid PartyUp mode reading')
+        s.broadcast,s.audio_mode=confirmed
+        self.publish()
+        if s.audio_mode!=mode:
+            raise RuntimeError('The speaker did not switch playback mode. Keep the matching pair connected and try again.')
+        self.status.emit('Stereo enabled: host plays left, member plays right. Balance is available.' if mode else 'Double Up enabled: both speakers play the full sound.')
 
     async def _receiver_attribute(self,address,receiver,write=None):
         """An ACK means queued, not delivered. Correlate the receiver result."""

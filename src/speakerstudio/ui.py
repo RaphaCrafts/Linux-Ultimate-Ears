@@ -384,6 +384,15 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.party_link=PartyLink()
         layout.addWidget(self.party_link)
         self.balance_panel=QWidget()
+        self.party_mode_row=QWidget()
+        mode_layout=QHBoxLayout(self.party_mode_row)
+        mode_layout.setContentsMargins(0,0,0,0)
+        mode_layout.addWidget(text('Playback mode','section'))
+        self.party_mode_select=QComboBox()
+        self.party_mode_select.setAccessibleName('PartyUp playback mode')
+        self.party_mode_select.activated.connect(lambda index:self.party_action('party_mode',self.party_mode_select.itemData(index)))
+        mode_layout.addWidget(self.party_mode_select,1)
+        layout.addWidget(self.party_mode_row)
         balance_layout=QVBoxLayout(self.balance_panel)
         balance_layout.setContentsMargins(0,0,0,0)
         balance_layout.addWidget(text('Speaker balance','section'))
@@ -410,7 +419,8 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.balance_slider.sliderReleased.connect(self.send_balance)
         self.balance_slider.actionTriggered.connect(lambda action:self.balance_timer.start() if not self.balance_slider.isSliderDown() else None)
         balance_row.addWidget(self.balance_slider,1)
-        balance_row.addWidget(button('Centre',lambda:self.centre_balance()))
+        self.balance_centre=button('Centre',lambda:self.centre_balance())
+        balance_row.addWidget(self.balance_centre)
         balance_layout.addLayout(balance_row)
         layout.addWidget(self.balance_panel)
         levels_row=QHBoxLayout()
@@ -678,6 +688,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             elif action=='ungroup':host['members']=[];host['broadcast']=0
             elif action=='group_volume':host['volume']=args[0]
             elif action=='balance':host['balance']=args[0]-128
+            elif action=='party_mode':host['audio_mode']=args[0]
             elif action=='member_volume':
                 if args[0]==self.group_host:host['volume']=args[1]
                 else:host.setdefault('member_info',{}).setdefault(args[0],{})['volume']=args[1]
@@ -728,7 +739,21 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.levels_hint.setText('Individual volumes · changing group volume synchronizes all speakers')
         paired_view=bool(host and host.get('broadcast',0)&2 and len(host.get('members',[]))==1)
         self.balance_panel.setVisible(paired_view)
-        self.balance_panel.setEnabled(bool(paired_view and host['features'].get('balance') and not host['busy']))
+        self.party_mode_row.setVisible(paired_view)
+        self.party_mode_select.blockSignals(True)
+        self.party_mode_select.clear()
+        self.party_mode_select.addItem('Double Up · both speakers play the full sound',0)
+        self.party_mode_select.addItem('Stereo · host left, member right',0x50)
+        mode=host.get('audio_mode') if host else None
+        if mode not in (0,0x50):
+            self.party_mode_select.addItem('Current channel layout · select Stereo for balance',mode)
+            self.party_mode_select.model().item(self.party_mode_select.count()-1).setEnabled(False)
+        self.party_mode_select.setCurrentIndex(self.party_mode_select.findData(mode))
+        self.party_mode_select.blockSignals(False)
+        self.party_mode_select.setEnabled(bool(paired_view and not host['busy']))
+        usable=bool(paired_view and host['features'].get('balance') and mode==0x50 and not host['busy'])
+        self.balance_slider.setEnabled(usable)
+        self.balance_centre.setEnabled(usable)
         if paired_view:
             member=self.devices.get(host['members'][0],{})
             self.balance_left.setText(host['name'])
@@ -736,6 +761,8 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             if not self.balance_slider.isSliderDown() and not self.balance_timer.isActive():
                 self.balance_slider.setValue((host.get('balance') or 0)+128)
             if not host['features'].get('balance'):self.balance_readout.setText('Balance unavailable')
+            elif mode!=0x50:self.balance_readout.setText('Select Stereo above to use balance')
+            else:self.describe_balance(self.balance_slider.value())
         self.ungroup_button.setEnabled(bool(host and host.get('broadcast',0)&2 and not host['busy']))
         self.group_volume.setEnabled(bool(host and host.get('broadcast',0)&2 and not host['busy']))
         if host and not self.group_volume.isSliderDown():
@@ -771,6 +798,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             box.addWidget(text('Host' if i==0 else 'Group member','eyebrow'))
             box.addWidget(text(d['name'] if d else 'Speaker in group','section'))
             photo=QLabel();photo.setAlignment(Qt.AlignCenter)
+            photo.setFixedHeight(135)
             image=self.image_path(d) if d else self.generic_path('')
             if image:photo.setPixmap(QPixmap(str(image)).scaled(100,135,Qt.KeepAspectRatio,Qt.SmoothTransformation))
             if multiple:
@@ -961,6 +989,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         data[0]['members']=['demo-1'];data[0]['broadcast']=3
         for d in data:d['features'].update(group=True,balance=True)
         data[0]['balance']=0
+        data[0]['audio_mode']=0x50
         self.update_devices(data)
         self.show_status('Demo mode. All readings and controls are simulated.')
 
