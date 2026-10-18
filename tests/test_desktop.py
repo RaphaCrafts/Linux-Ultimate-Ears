@@ -13,6 +13,7 @@ def test_launcher_uses_persistent_appimage_and_survives_move(tmp_path):
     assert f'Exec=/bin/sh "{data}/speaker-studio/launch"' in content
     assert str(image) in (data/'speaker-studio/launch').read_text()
     assert 'StartupWMClass=speaker-studio' in content
+    assert f'Icon={data}/icons/hicolor/512x512/apps/speaker-studio.png' in content
     assert (data/'icons/hicolor/512x512/apps/speaker-studio.png').read_bytes()==b'icon'
     moved=tmp_path/'moved.AppImage';image.rename(moved);env['APPIMAGE']=str(moved)
     register_appimage(icon,env)

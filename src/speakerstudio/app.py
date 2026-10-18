@@ -1,5 +1,6 @@
 """Desktop entry point and offline packaging checks."""
 import argparse
+import os
 import sys
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer
@@ -21,6 +22,15 @@ def main():
         from .diagnostics import check_speaker
         application=QCoreApplication(sys.argv[:1])
         return check_speaker(args.check_speaker)
+    desktop_error = ''
+    if not (args.demo or args.smoke_test or args.screenshot):
+        from .desktop import register_appimage
+        try:
+            launcher=register_appimage(asset_root()/'speaker-studio.png')
+            if launcher:
+                os.environ['BAMF_DESKTOP_FILE_HINT']=str(launcher)
+                os.environ['GIO_LAUNCHED_DESKTOP_FILE']=str(launcher)
+        except (OSError,ValueError) as error:desktop_error = str(error)
     app=QApplication(['speaker-studio'])
     app.setApplicationName('speaker-studio')
     app.setApplicationDisplayName('Speaker studio')
@@ -28,11 +38,6 @@ def main():
     app.setDesktopFileName('speaker-studio')
     app.setOrganizationName('RaphaCrafts')
     app.setStyle('Fusion')
-    desktop_error = ''
-    if not (args.demo or args.smoke_test or args.screenshot):
-        from .desktop import register_appimage
-        try:register_appimage(asset_root()/'speaker-studio.png')
-        except (OSError,ValueError) as error:desktop_error = str(error)
     window=Window(Controller(),demo=args.demo or args.smoke_test)
     if desktop_error:window.show_status('Could not add the app-menu shortcut: '+desktop_error)
     available=app.primaryScreen().availableGeometry()

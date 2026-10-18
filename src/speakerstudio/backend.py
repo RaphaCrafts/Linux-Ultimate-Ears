@@ -94,6 +94,7 @@ class Controller(QThread):
             if action=='connect' and speaker.sleeping and speaker.wake_available:action='wake'
             speaker.busy = True
             speaker.operation = action
+            speaker.group_target = args[1] if action=='group_add' and len(args)>1 else ''
             speaker.error = ''
             self.operations[address] = asyncio.current_task()
             self.publish()
@@ -120,6 +121,7 @@ class Controller(QThread):
                     self.operations.pop(address,None)
                     speaker.busy = False
                     speaker.operation = ''
+                    speaker.group_target = ''
                 session = self.sessions.get(address)
                 if session and session.closed:
                     self.sessions.pop(address, None)
@@ -131,6 +133,7 @@ class Controller(QThread):
 
     @staticmethod
     def invalidate(speaker):
+        speaker.group_target = ''
         speaker.connected = False
         speaker.battery = None
         speaker.volume = None
@@ -138,6 +141,7 @@ class Controller(QThread):
         speaker.members = []
         speaker.bands = None
         speaker.broadcast = 0
+        speaker.balance = None
         speaker.member_info = {}
 
     async def refresh_devices(self):
@@ -330,6 +334,13 @@ class Controller(QThread):
                 s.broadcast = data[0]
                 if s.broadcast == 0:
                     s.members = []
+        if s.broadcast & 2:
+            data = await self._read(s,0x19b,0x19c,'balance')
+            if data is not None:
+                if len(data)!=1:
+                    s.features['balance']=False
+                    s.balance=None
+                else:s.balance=int.from_bytes(data,'big',signed=True)
         self.publish()
 
     async def _read_levels(self,address):
@@ -474,7 +485,83 @@ class Controller(QThread):
     async def _group_volume(self, address, percent):
         await self._volume(address, percent)
         await self.sessions[address].request(0x41b)
+        s=self.speakers[address]
+        for metadata in s.member_info.values():metadata.pop('volume',None)
+        if len(s.members)==1 and s.balance is not None:
+            await self.sessions[address].request(0x19d,payload=bytes([s.balance&255]))
         self.status.emit('Group volume synchronized')
+
+    async def _balance(self,address,position):
+        s=self.speakers[address]
+        if not s.broadcast&2 or len(s.members)!=1:
+            raise RuntimeError('Balance requires exactly two speakers in PartyUp.')
+        if not s.features.get('balance'):
+            raise RuntimeError('This speaker does not support balance control.')
+        if not isinstance(position,int) or not 0<=position<=255:
+            raise ValueError('Invalid balance position')
+        await self.sessions[address].request(0x19d,payload=bytes([(position-128)&255]))
+        data=await self.sessions[address].request(0x19b,0x19c)
+        if len(data)!=1:raise ProtocolError('Invalid balance reading')
+        s.balance=int.from_bytes(data,'big',signed=True)
+        self.publish()
+        self.status.emit('Speaker balance updated')
+
+    async def _receiver_attribute(self,address,receiver,write=None):
+        """An ACK means queued, not delivered. Correlate the receiver result."""
+        host=self.speakers[address]
+        if not host.broadcast&2 or receiver not in host.members:
+            raise RuntimeError('This speaker is no longer in the PartyUp group.')
+        event=0x421 if write is None else 0x423
+        key=(address,event,receiver,0x1e)
+        future=asyncio.get_running_loop().create_future()
+        self.group_waiters[key]=future
+        payload=bytes.fromhex(receiver.replace(':',''))+b'\x00\x1e'
+        if write is not None:payload+=bytes([write])
+        try:
+            await self.sessions[address].request(0x420 if write is None else 0x422,payload=payload)
+            try:return await asyncio.wait_for(future,8)
+            except TimeoutError:
+                raise RuntimeError('This speaker did not confirm its individual level. Group volume and two-speaker balance remain available.') from None
+        finally:
+            self.group_waiters.pop(key,None)
+            if not future.done():future.cancel()
+
+    async def _group_levels(self,address):
+        host=self.speakers[address]
+        await self._read_levels(address)
+        failures=[]
+        for receiver in list(host.members):
+            target=self.speakers.get(receiver)
+            try:
+                if target and target.connected and receiver in self.sessions:
+                    await self._read_levels(receiver)
+                    host.member_info.setdefault(receiver,{})['volume']=target.volume
+                else:await self._receiver_attribute(address,receiver)
+            except (RuntimeError,CommandError) as error:
+                metadata=host.member_info.setdefault(receiver,{})
+                metadata.pop('volume',None)
+                metadata['level_error']=str(error)
+                failures.append(error)
+            self.publish()
+        self.status.emit('Individual levels refreshed' if not failures else 'Some speakers do not expose an individual level. Use group volume or balance for those speakers.')
+
+    async def _member_volume(self,address,receiver,percent):
+        host=self.speakers[address]
+        if not host.broadcast&2 or receiver not in [address]+host.members:
+            raise RuntimeError('This speaker is no longer in the PartyUp group.')
+        if not isinstance(percent,int) or not 0<=percent<=100:raise ValueError('Invalid speaker level')
+        target=self.speakers.get(receiver)
+        if target and target.connected and receiver in self.sessions:
+            await self._volume(receiver,percent)
+            if receiver!=address:host.member_info.setdefault(receiver,{})['volume']=target.volume
+        else:
+            # Require a real level before enabling writes on the proxy path.
+            if host.member_info.get(receiver,{}).get('volume') is None:
+                raise RuntimeError('Refresh speaker levels before adjusting this speaker.')
+            await self._receiver_attribute(address,receiver,round(percent*31/100))
+            await self._receiver_attribute(address,receiver)
+        self.publish()
+        self.status.emit('Individual speaker level updated')
 
     def _notification(self, address, message):
         s = self.speakers.get(address)
@@ -484,6 +571,24 @@ class Controller(QThread):
             self._lost(address, 'Speaker powered off')
             return True
         payload = message.payload
+        if message.command in (0x421,0x423):
+            if len(payload)<9 or payload[8] not in (0,1):return False
+            receiver=':'.join(f'{v:02X}' for v in payload[:6])
+            attribute=int.from_bytes(payload[6:8],'big')
+            key=(address,message.command,receiver,attribute)
+            future=self.group_waiters.get(key)
+            if not future or future.done():return False
+            if not payload[8]:future.set_exception(RuntimeError('The receiver rejected its individual level command.'))
+            elif message.command==0x421:
+                if len(payload)!=10 or payload[9]>31:
+                    future.set_exception(ProtocolError('Unsupported receiver volume reading'))
+                else:
+                    s.member_info.setdefault(receiver,{})['volume']=round(payload[9]*100/31)
+                    s.member_info[receiver].pop('level_error',None)
+                    future.set_result(payload[9])
+            else:future.set_result(True)
+            self.publish()
+            return True
         if message.command in (0x418, 0x41a):
             if len(payload) < 7:
                 return False
@@ -514,7 +619,10 @@ class Controller(QThread):
                 if (packed & 15) == 8:
                     members.append(mac)
                 raw_battery = (packed >> 8) & 127
-                member_info[mac] = {'battery': battery_percent(raw_battery) if raw_battery <= 100 else None}
+                member_info[mac] = {**s.member_info.get(mac,{}),'battery': battery_percent(raw_battery) if raw_battery <= 100 else None}
+                if mac not in s.members or (packed&15)!=8:
+                    member_info[mac].pop('volume',None)
+                    member_info[mac].pop('level_error',None)
             s.members = members
             s.member_info = member_info
             self.publish()

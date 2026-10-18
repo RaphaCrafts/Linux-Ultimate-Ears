@@ -2,6 +2,8 @@
 
 Static JADX/REA observations only. No speaker interaction was performed by this worker.
 
+Later sections explicitly identify additional hardware observations.
+
 Legacy presets: Out Loud0; Vocal1; Intimate2; Bass Boost3; Custom4. Other EQSetting enum names are not supported by legacy mapper.
 Volume32 uses raw0..31; Volume16 raw0..15. Application seek bar uses raw levels; percent scaling is a Linux UI choice.
 PowerOff sets MasterRemoteOff and expects ACK without command payload.
@@ -12,6 +14,36 @@ Broadcast mode payload: state0 disabled,1 scan,2 broadcast,3 both; audio options
 Group add/remove result event: six MAC bytes followed by status. Add status0 delivered,1 failed,3 double press needed,4 power on needed. Remove delivered iff status0.
 Group status event: unsigned count then count10-byte records. Each: six MAC, big-endian16-bit packed state, big-endian16-bit colour. Packed: bit15 nonzero volume offset; bits14..8 battery; bits7..4 name revision; bits3..0 device status.
 NotificationMask enum only exposes track-length bit1; no grouping-enable bit observed. Setter packs32-bit integer big-endian.
+
+## PartyUp mixing (0.1.7)
+
+Native two-speaker balance: query0x019b →0x019c, setter0x019d with one signed
+byte. Centre is00, left endpoint80, right endpoint7f. The phone slider maps
+0..255 to signed -128..127. Linux uses this native control only for exactly one
+confirmed receiver and performs a fresh balance query after each change.
+Group volume synchronization reapplies the cached native balance for a pair.
+
+Receiver attribute Volume has ID0x001e. Query0x0420 and setter0x0422 return
+queue ACKs; separate notifications0x0421/0x0423 contain MAC6, BE16 attribute,
+delivery boolean, then the query value. Linux correlates host, receiver, event
+and attribute, requires successful delivery and a bounded one-byte0..31 query
+value before enabling writes, and reads back after a delivered write. Direct
+control sessions use their existing validated16/32-step volume path instead.
+Receiver controls are explicit user actions; automatic audio-time queries remain
+disabled. Group volume synchronization invalidates cached receiver levels.
+
+Static evidence IDs: balance setter
+`ev_2f74072de10fc2abbde20c39b9cfd5d77476a6871cf9a27d126534064135d910`,
+slider mapping `ev_14f6a63b5d233babddfd60aec0704c12660b632f1fd2e355247263f2d78df119`,
+attribute enum `ev_845ee516a44ca8d45f28f1c0fe5f04c92ab9e08ba27fdf8de8637d00efb30651`,
+query decoder `ev_2eb5ce0d4bd1ca48e246bb47eb9d3fc500bffc376bfd6149f5904a9419aa0e01`,
+setter result decoder `ev_b608886515843087aeeaa0f8539e7c0050432b8fc65761844c673020ae0d1f8e`.
+
+Hardware on2026-10-18: the MEGABOOM3 host confirmed balance00 →fe →00.
+It rejected the static APK's one-byte attribute request format, accepted the
+two-byte attribute query format but emitted no receiver-level completion.
+Receiver proxy volume writing and three-speaker operation remain unverified;
+the UI keeps unavailable receiver controls disabled rather than trusting an ACK.
 
 
 Full selectors and evidence IDs are in [evidence-index.json](evidence-index.json), under `impl-` records.

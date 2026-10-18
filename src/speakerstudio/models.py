@@ -19,6 +19,7 @@ class Speaker:
     audio_connected: bool = False
     audio_active: bool = False
     operation: str = ''
+    group_target: str = ''
     device_name: str = ''
     wake_available: bool = False
     sleeping: bool | None = None
@@ -35,6 +36,7 @@ class Speaker:
     members: list = field(default_factory=list)
     bands: list | None = None
     broadcast: int = 0
+    balance: int | None = None
     member_info: dict = field(default_factory=dict)
 
     @property

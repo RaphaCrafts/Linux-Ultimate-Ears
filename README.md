@@ -85,9 +85,25 @@ app minimized in the taskbar instead.
 This is the **first preview release**, focused on **MEGABOOM 3 and BOOM 3**.
 MEGABOOM 3 has been tested with a real speaker. Other models and every firmware
 version have not been tested. **PartyUp is experimental:** its join/remove
-logic is implemented and automatically tested, but still needs a real test
-with two speakers. Existing groups may not appear until a speaker sends a group
+logic is implemented and automatically tested. Two-speaker balance has been
+checked on a real MEGABOOM 3 pair. Existing groups may not appear until a speaker sends a group
 update. Alarms and firmware updates are not included yet.
+
+In **PartyUp**, a subtle animation highlights a speaker ready to join and shows
+the connection in progress. With **two speakers**, drag the **balance** slider
+toward either speaker to give it more emphasis; **Centre** restores equal emphasis.
+The group volume control keeps that balance.
+
+With **three or more speakers**, each card has a vertical volume slider. Click
+**Refresh speaker levels** to load levels for receivers without a direct control
+connection. A slider becomes available only after the speaker confirms its level.
+Some firmware versions do not expose individual receiver levels; those sliders
+stay unavailable, while group volume remains usable. Changing group volume
+synchronizes the speakers' volumes. Larger groups have not been hardware tested.
+
+The launcher uses the blue Speaker studio icon directly, including on desktops
+with an outdated icon cache. Launch this updated AppImage once to update its
+app-menu shortcut, then use that shortcut to pin it to the taskbar.
 
 BOOM 4, MEGABOOM 4, EVERBOOM, EPICBOOM, HYPERBOOM and
 WONDERBOOM are not supported for control in this release, even though their

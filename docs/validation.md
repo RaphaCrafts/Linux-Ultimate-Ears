@@ -29,7 +29,7 @@ X11 window startup and extract-and-run fallback were checked on the build host.
 
 ## Automated checks
 
-54 automated tests passed in the final build.
+58 automated tests passed in the final build.
 
 Protocol tests cover arbitrary stream fragmentation and concatenation, malformed
 lengths and encoding bounds, ACK correlation, unsupported-command errors,
@@ -189,3 +189,31 @@ RFCOMM control session remained connected in every sample. Automatic polls sent
 zero commands after initial connection/readback. No audio settings were changed.
 The test closed only its own control socket afterwards. This short observation
 does not replace longer subjective listening.
+
+## PartyUp balance and desktop icon update 0.1.7
+
+The running X11 window advertised WM_CLASS speaker-studio and the correct
+multi-size window icon. The user's hicolor icon cache predated the installed
+packshot icon. The managed desktop entry now references a stable absolute icon
+path, bypassing that cache, and launcher identity hints are set before Qt starts.
+Normal AppImage startup updated the user's managed launcher. Gio resolved its
+icon as a FileIcon at the installed PNG path, and a live taskbar capture visually
+confirmed the blue speaker icon instead of the generic gear. Only the temporary
+test instance was closed. Both two- and three-speaker preview screenshots were
+rendered and visually inspected; they are explicitly marked as simulated data.
+
+Live MEGABOOM 3 pair: the purple host was broadcasting to the pink receiver.
+Native balance query returned00, a small SetTWSBalance change read backfe, and
+restoration read back the exact original00. Host volume remained29percent.
+A separate Classic control connection to the receiving pink speaker was not
+reachable while grouped. Its proxy level query accepted a two-byte attribute ID
+but did not emit a confirmed level, so no proxy volume write was attempted.
+The shorter attribute format from static Android setter code was rejected with
+an unexpected-size error. That firmware cannot be claimed to support the proxy
+level path. Larger-group layout and correlation/error handling are tested offline;
+three-speaker operation and receiver proxy volume writes are not hardware verified.
+
+Tests cover native balance encoding/endpoints, exactly-two membership validation,
+receiver ACK versus delivery/readback, unmatched notifications, malformed levels,
+blocked writes without a reading, group loss, two/three-speaker layouts, dragging
+through background updates, and animation states/timer suspension when hidden.

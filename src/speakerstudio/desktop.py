@@ -42,10 +42,12 @@ def register_appimage(icon_path, environ=None):
     wrapper = data/APP_ID/'launch'
     launch_script = '#!/bin/sh\nexec '+shlex.quote(str(image))+' "$@"\n'
     icon_data = Path(icon_path).read_bytes()
-    # Use the icon theme name so the entry also survives a moved AppImage.
+    # A pre-existing hicolor cache can hide newly installed icons from GNOME's
+    # dock. This stable, per-user absolute path bypasses that stale cache.
+    icon = icons/(APP_ID+'.png')
     entry = ('[Desktop Entry]\nType=Application\nName=Speaker studio\n'
              'Comment=Control your Ultimate Ears speakers\n'
-             f'Exec=/bin/sh {quote_exec(wrapper)}\nIcon={APP_ID}\n'
+             f'Exec=/bin/sh {quote_exec(wrapper)}\nIcon={icon}\n'
              'Categories=AudioVideo;Audio;Utility;\nTerminal=false\n'
              f'StartupWMClass={APP_ID}\nX-SpeakerStudio-Managed=true\n')
     wrapper.parent.mkdir(parents=True, exist_ok=True)
@@ -53,7 +55,6 @@ def register_appimage(icon_path, environ=None):
     wrapper.chmod(0o700)
     icons.mkdir(parents=True, exist_ok=True)
     apps.mkdir(parents=True, exist_ok=True)
-    icon = icons/(APP_ID+'.png')
     launcher = apps/(APP_ID+'.desktop')
     if not icon.exists() or icon.read_bytes()!=icon_data:
         icon.write_bytes(icon_data)

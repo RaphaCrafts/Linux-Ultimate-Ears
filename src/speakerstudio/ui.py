@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QLabel, QPushButton, QVBoxL
 from PySide6.QtCore import QProcess, QProcessEnvironment
 from . import __version__
 from .preferences import restore_appearance
+from .party_visual import PartyLink
 
 
 def asset_root():
@@ -380,6 +381,47 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         group_vol.addWidget(self.group_volume,1)
         group_vol.addWidget(self.group_volume_label)
         layout.addLayout(group_vol)
+        self.party_link=PartyLink()
+        layout.addWidget(self.party_link)
+        self.balance_panel=QWidget()
+        balance_layout=QVBoxLayout(self.balance_panel)
+        balance_layout.setContentsMargins(0,0,0,0)
+        balance_layout.addWidget(text('Speaker balance','section'))
+        labels=QHBoxLayout()
+        self.balance_left=text('Host','muted')
+        self.balance_readout=text('Equal emphasis','muted')
+        self.balance_readout.setAlignment(Qt.AlignCenter)
+        self.balance_right=text('Other speaker','muted')
+        self.balance_right.setAlignment(Qt.AlignRight)
+        labels.addWidget(self.balance_left,1)
+        labels.addWidget(self.balance_readout,1)
+        labels.addWidget(self.balance_right,1)
+        balance_layout.addLayout(labels)
+        balance_row=QHBoxLayout()
+        self.balance_slider=QSlider(Qt.Horizontal)
+        self.balance_slider.setRange(0,255)
+        self.balance_slider.setValue(128)
+        self.balance_slider.setAccessibleName('Balance between the two PartyUp speakers')
+        self.balance_slider.valueChanged.connect(self.describe_balance)
+        self.balance_timer=QTimer(self)
+        self.balance_timer.setSingleShot(True)
+        self.balance_timer.setInterval(350)
+        self.balance_timer.timeout.connect(lambda:self.party_action('balance',self.balance_slider.value()))
+        self.balance_slider.sliderReleased.connect(self.send_balance)
+        self.balance_slider.actionTriggered.connect(lambda action:self.balance_timer.start() if not self.balance_slider.isSliderDown() else None)
+        balance_row.addWidget(self.balance_slider,1)
+        balance_row.addWidget(button('Centre',lambda:self.centre_balance()))
+        balance_layout.addLayout(balance_row)
+        layout.addWidget(self.balance_panel)
+        levels_row=QHBoxLayout()
+        self.levels_hint=text('Individual speaker volumes','muted')
+        self.levels_refresh=button('Refresh speaker levels',lambda:self.party_action('group_levels'))
+        levels_row.addWidget(self.levels_hint,1)
+        levels_row.addWidget(self.levels_refresh)
+        layout.addLayout(levels_row)
+        self.member_sliders={}
+        self.member_timers={}
+        self.mix_signature=None
         self.party_grid = QGridLayout()
         layout.addLayout(self.party_grid)
         self.group_status = text('','muted')
@@ -443,6 +485,10 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         if current:self.open_speaker(current.data(Qt.UserRole))
 
     def navigate(self, page):
+        if page!='party':
+            self.group_debounce.stop()
+            self.balance_timer.stop()
+            for timer in self.member_timers.values():timer.stop()
         self.page = page
         for key,tab in self.tabs.items():tab.setChecked(key==page)
         self.render()
@@ -618,6 +664,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
 
     def choose_host(self,index):
         self.group_debounce.stop()
+        self.balance_timer.stop()
         self.group_host=self.host_select.itemData(index)
         self.render_party()
 
@@ -630,12 +677,38 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             elif action=='group_remove':host['members']=[m for m in host['members'] if m!=args[0]]
             elif action=='ungroup':host['members']=[];host['broadcast']=0
             elif action=='group_volume':host['volume']=args[0]
+            elif action=='balance':host['balance']=args[0]-128
+            elif action=='member_volume':
+                if args[0]==self.group_host:host['volume']=args[1]
+                else:host.setdefault('member_info',{}).setdefault(args[0],{})['volume']=args[1]
+            elif action=='group_levels':
+                for address in host['members']:
+                    host.setdefault('member_info',{}).setdefault(address,{})['volume']=self.devices.get(address,{}).get('volume',0)
             self.render_party()
             self.show_status('Demo group updated. No Bluetooth commands sent.')
         else:
             self.controller.submit(action,self.group_host,*args)
 
+    def describe_balance(self,value):
+        amount=round(abs(value-128)*100/(128 if value<128 else 127))
+        self.balance_readout.setText('Equal emphasis' if not amount else f'{amount}% toward '+(self.balance_left.text() if value<128 else self.balance_right.text()))
+
+    def send_balance(self):
+        self.balance_timer.stop()
+        self.party_action('balance',self.balance_slider.value())
+
+    def centre_balance(self):
+        self.balance_slider.setValue(128)
+        self.send_balance()
+
     def render_party(self):
+        current=self.devices.get(self.group_host)
+        signature=(self.group_host,tuple(current.get('members',[]))) if current else None
+        if current and current['connected'] and signature==self.mix_signature:
+            if any(s.isSliderDown() for s in self.member_sliders.values()) or any(t.isActive() for t in self.member_timers.values()):return
+        self.member_sliders={}
+        self.member_timers={}
+        self.mix_signature=signature
         while self.party_grid.count():
             item=self.party_grid.takeAt(0)
             if item.widget():item.widget().deleteLater()
@@ -648,12 +721,29 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         if self.group_host:self.host_select.setCurrentIndex(self.host_select.findData(self.group_host))
         self.host_select.blockSignals(False)
         host=self.devices.get(self.group_host)
+        multiple=bool(host and host.get('broadcast',0)&2 and len(host.get('members',[]))>=2)
+        self.levels_hint.setVisible(multiple)
+        self.levels_refresh.setVisible(multiple)
+        self.levels_refresh.setEnabled(bool(host and not host['busy']))
+        self.levels_hint.setText('Individual volumes · changing group volume synchronizes all speakers')
+        paired_view=bool(host and host.get('broadcast',0)&2 and len(host.get('members',[]))==1)
+        self.balance_panel.setVisible(paired_view)
+        self.balance_panel.setEnabled(bool(paired_view and host['features'].get('balance') and not host['busy']))
+        if paired_view:
+            member=self.devices.get(host['members'][0],{})
+            self.balance_left.setText(host['name'])
+            self.balance_right.setText(member.get('name','Group member'))
+            if not self.balance_slider.isSliderDown() and not self.balance_timer.isActive():
+                self.balance_slider.setValue((host.get('balance') or 0)+128)
+            if not host['features'].get('balance'):self.balance_readout.setText('Balance unavailable')
         self.ungroup_button.setEnabled(bool(host and host.get('broadcast',0)&2 and not host['busy']))
         self.group_volume.setEnabled(bool(host and host.get('broadcast',0)&2 and not host['busy']))
         if host and not self.group_volume.isSliderDown():
             self.group_volume.setValue(host['volume'] or 0)
         self.host_select.setEnabled(bool(connected))
         if not host:
+            self.balance_timer.stop()
+            self.party_link.set_state('idle','Connect a speaker to start PartyUp',(QPixmap(),QPixmap()))
             self.group_debounce.stop()
             self.group_volume.blockSignals(True)
             self.group_volume.setValue(0)
@@ -666,6 +756,14 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         active=bool(host.get('broadcast',0)&2)
         self.party_info.setText(f"Host: {host['name']} · {len(members)} group members" if active else 'Choose a host, then add another connected speaker.')
         displayed=[host['address']]+members
+        available=[d for d in self.devices.values() if d['address'] not in displayed]
+        target=self.devices.get(host.get('group_target'))
+        joining=bool(target and host['busy'] and host.get('operation')=='group_add')
+        other=target if joining else self.devices.get(members[0]) if members else next((d for d in available if d['connected'] and d['features'].get('group')),None)
+        images=tuple(QPixmap(str(self.image_path(d))) if d else QPixmap() for d in (host,other))
+        mode='joining' if joining else 'linked' if members else 'ready' if other else 'idle'
+        caption=f"Joining {other['name']}…" if joining else f'{len(displayed)} speakers playing together' if members else f"{other['name']} is ready to join" if other else 'Connect another speaker to play together'
+        self.party_link.set_state(mode,caption,images)
         for i,address in enumerate(displayed):
             d=self.devices.get(address)
             metadata=host.get('member_info',{}).get(address,{})
@@ -675,7 +773,30 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             photo=QLabel();photo.setAlignment(Qt.AlignCenter)
             image=self.image_path(d) if d else self.generic_path('')
             if image:photo.setPixmap(QPixmap(str(image)).scaled(100,135,Qt.KeepAspectRatio,Qt.SmoothTransformation))
-            box.addWidget(photo)
+            if multiple:
+                level_row=QHBoxLayout()
+                level_row.addWidget(photo,1)
+                slider=QSlider(Qt.Vertical)
+                slider.setRange(0,100)
+                slider.setFixedHeight(120)
+                slider.setAccessibleName('Volume for '+(d['name'] if d else 'group member'))
+                level=d.get('volume') if i==0 or d and d['connected'] else metadata.get('volume')
+                slider.setValue(level if level is not None else 0)
+                slider.setEnabled(level is not None and not host['busy'])
+                self.member_sliders[address]=slider
+                level_row.addWidget(slider)
+                box.addLayout(level_row)
+                output=text(f'Volume {level}%' if level is not None else 'Refresh levels to adjust','muted')
+                slider.valueChanged.connect(lambda v,label=output:label.setText(f'Volume {v}%'))
+                box.addWidget(output)
+                if metadata.get('level_error'):output.setText('Individual level unavailable')
+                timer=QTimer(slider)
+                timer.setSingleShot(True);timer.setInterval(350)
+                self.member_timers[address]=timer
+                timer.timeout.connect(lambda a=address,s=slider,h=self.group_host:self.send_member_level(h,a,s.value()))
+                slider.sliderReleased.connect(lambda a=address,s=slider,t=timer,h=self.group_host:(t.stop(),self.send_member_level(h,a,s.value())))
+                slider.actionTriggered.connect(lambda action,s=slider,t=timer:t.start() if not s.isSliderDown() else None)
+            else:box.addWidget(photo)
             battery=metadata.get('battery',d.get('battery') if d else None)
             if battery is None and d:battery=d.get('battery')
             box.addWidget(text(f'Battery {battery}%' if battery is not None else 'Battery —','muted'))
@@ -687,10 +808,15 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             self.party_grid.addWidget(panel(box),i//3,i%3)
         row=(len(displayed)+2)//3
         self.party_grid.addWidget(text('Other speakers','section'),row,0,1,3)
-        available=[d for d in self.devices.values() if d['address'] not in displayed]
         for i,d in enumerate(available):
             box=QVBoxLayout();box.setContentsMargins(13,13,13,13)
             box.addWidget(text(d['name'],'section'))
+            image=self.image_path(d)
+            if image:
+                thumb=QLabel()
+                thumb.setPixmap(QPixmap(str(image)).scaled(38,62,Qt.KeepAspectRatio,Qt.SmoothTransformation))
+                thumb.setAlignment(Qt.AlignCenter)
+                box.addWidget(thumb)
             if d['connected'] and d['features'].get('group'):
                 action=button('Add to group',lambda checked=False,a=d['address']:self.party_action('group_add',a),True)
                 action.setEnabled(not host['busy'] and not d['busy'])
@@ -700,11 +826,15 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             self.party_grid.addWidget(panel(box),row+1+i//3,i%3)
         self.group_status.setText('Demo group. No real devices are changed.' if self.demo else 'Choose another connected speaker above to play together.')
 
+    def send_member_level(self,host,address,value):
+        if self.group_host==host:self.party_action('member_volume',address,value)
+
     def open_speaker(self,address):
         self.selected=address
         self.eq_dirty=False
         self.volume_debounce.stop()
         self.group_debounce.stop()
+        self.balance_timer.stop()
         self.list.blockSignals(True)
         for i in range(self.list.count()):
             item=self.list.item(i)
@@ -829,7 +959,8 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             s=Speaker(f'demo-{i}','',name,model=model,paired=True,connected=True,battery=battery,volume=volume,eq=0,bands=[0]*5,firmware='Demo',features={'eq_write':True,'custom_eq':True,'power':True})
             data.append(asdict(s))
         data[0]['members']=['demo-1'];data[0]['broadcast']=3
-        for d in data:d['features']['group']=True
+        for d in data:d['features'].update(group=True,balance=True)
+        data[0]['balance']=0
         self.update_devices(data)
         self.show_status('Demo mode. All readings and controls are simulated.')
 
@@ -866,6 +997,11 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
 
     def cleanup(self):
         self.poll.stop()
+        self.volume_debounce.stop()
+        self.group_debounce.stop()
+        self.balance_timer.stop()
+        for timer in self.member_timers.values():timer.stop()
+        self.party_link.timer.stop()
         self.tray.hide()
         if self.controller.isRunning():self.controller.shutdown()
 
