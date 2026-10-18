@@ -396,6 +396,14 @@ class Controller(QThread):
         await self._read_state(address)
         self.status.emit('Speaker readings refreshed')
 
+    async def _firmware(self,address):
+        speaker=self.speakers[address]
+        data=await self._read(speaker,3,4,'firmware')
+        if not data:raise ProtocolError('The speaker did not provide its firmware version.')
+        speaker.firmware='.'.join(str(n) for n in data)
+        self.publish()
+        self.status.emit('Installed firmware version read. Check update availability in the official UE app.')
+
     async def _rename(self,address,name):
         s=self.speakers[address]
         payload=encode_name(name)

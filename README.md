@@ -90,7 +90,7 @@ read back on a real MEGABOOM 3 pair; that alone does not confirm an audible chan
 Use **Read existing group** in PartyUp to reconnect controls to the speaker
 playing audio from Linux. You do not need a separate control connection to its
 group receiver. Member details may remain pending until the host sends an update;
-the app distinguishes this from a confirmed empty group. Alarms and firmware updates are not included yet.
+the app distinguishes this from a confirmed empty group. Alarms and direct firmware installation are not included yet.
 
 PartyUp runs on the speakers and continues after quitting Speaker studio. Use
 **End group** to stop it. In listening tests, one MEGABOOM 3 played smoothly while
@@ -215,3 +215,20 @@ and [image sources](assets/speakers/README.md) are included.
 
 Protocol research is available in [the research notes](docs/protocol-research.md).
 Extracted APKs and decompiled vendor code are kept out of this repository.
+
+## Speaker firmware
+
+Click **Firmware** beside your speaker’s name to see its installed version.
+**Read installed version** checks the speaker again without installing anything.
+If controls are disconnected, a previously read version is labelled **Last read**.
+Speaker studio cannot determine whether that version is the latest available.
+
+For updates, use **Open official UE app page** to find the Android or iPhone app.
+Finish listening and end PartyUp, then use **Release app controls** before
+connecting with the phone app. Releasing app controls does not stop music or
+end PartyUp by itself. Follow UE’s update instructions and keep the speaker
+powered throughout. Reconnect to Speaker studio afterward to read its version.
+
+Firmware updates cannot be guaranteed risk-free or guaranteed to cure stuttering.
+Speaker studio does not flash firmware or install downloaded firmware files.
+UE documents updates through its [official phone app](https://support.logi.com/hc/en-in/articles/22067951753751-Getting-Started-UE-EVERBOOM).

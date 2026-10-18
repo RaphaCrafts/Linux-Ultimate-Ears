@@ -331,3 +331,18 @@ independently of the receiver's own Classic control availability.
   button dispatch, stale-host rejection and asynchronous membership completion
   are covered by automated regression tests. No live regroup was performed;
   audio stuttering is not claimed fixed.
+
+
+## Firmware information and official update guidance 0.1.12
+
+The per-speaker Firmware dialog displays installed, last-read or unknown version
+state without claiming an online update check. Manual reading sends only the
+existing firmware query3/response4, with no setter or group change. The official
+UE app link and update instructions follow Logitech’s documented mobile update
+path; no supported Linux flashing interface was established. No firmware files,
+version catalogue, downgrade controls or installation commands are included.
+Release app controls uses the existing control-only disconnect; its label states
+that audio and native PartyUp can continue. Demo controls never send commands.
+Automated checks verify exact query traffic, group preservation, cached/unknown
+labels, button dispatch and disabled disconnected/busy/demo actions. No hardware
+firmware installation or new speaker-setting change was performed.

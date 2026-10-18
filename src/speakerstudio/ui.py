@@ -14,6 +14,7 @@ from PySide6.QtCore import QProcess, QProcessEnvironment
 from . import __version__
 from .preferences import restore_appearance
 from .party_visual import PartyLink, PartyPlayArea, SpeakerDragCard
+from .firmware import FirmwareDialog
 
 
 def asset_root():
@@ -205,6 +206,7 @@ class Window(QMainWindow):
         self.setStyleSheet(f'''
 QWidget {{font-family: sans-serif; font-size:14px; color:{fg};}}
 QMainWindow, QScrollArea, QScrollArea>QWidget>QWidget {{background:{bg};}}
+QDialog#firmwareDialog {{background:{bg};}}
 QLabel {{background:transparent;}} QLabel#brand {{font-size:19px;font-weight:600;}}
 QLabel#title {{font-size:29px;font-weight:600;}} QLabel#section {{font-size:17px;font-weight:600;}}
 QLabel#muted {{color:{muted};font-size:12px;}} QLabel#eyebrow {{color:{muted};font-size:11px;}}
@@ -261,6 +263,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.connection_label = text('','muted')
         for label in [self.model_label,self.name_label,self.connection_label]:names.addWidget(label)
         heading.addLayout(names,1)
+        heading.addWidget(button('Firmware',self.show_firmware))
         self.rename_button = button('Rename',self.rename_speaker)
         heading.addWidget(self.rename_button)
         self.connect_button = button('Connect',self.connect,True)
@@ -547,6 +550,11 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         if signature==self.last_devices_signature:return
         self.last_devices_signature=signature
         self.devices = updated
+        firmware_dialog=getattr(self,'firmware_dialog',None)
+        if firmware_dialog:
+            speaker=updated.get(firmware_dialog.address)
+            if speaker:firmware_dialog.update_speaker(speaker)
+            else:firmware_dialog.update_speaker({'name':'Speaker unavailable','connected':False})
         if self.balance_request:
             host=self.devices.get(self.balance_request[0],{})
             if not host.get('connected') or host.get('audio_mode')!=0x50 or len(host.get('members',[]))!=1:
@@ -1095,6 +1103,16 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
 
     def show_status(self,message):
         self.notice.setText(message)
+
+    def show_firmware(self):
+        speaker=self.devices.get(self.selected)
+        if not speaker:return
+        previous=getattr(self,'firmware_dialog',None)
+        if previous:
+            previous.close()
+            previous.deleteLater()
+        self.firmware_dialog=FirmwareDialog(speaker,self.controller,self,self.demo)
+        self.firmware_dialog.show()
 
     def show_error(self,message):
         self.notice.setText(message)
