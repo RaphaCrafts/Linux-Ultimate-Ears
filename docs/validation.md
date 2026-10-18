@@ -346,3 +346,34 @@ that audio and native PartyUp can continue. Demo controls never send commands.
 Automated checks verify exact query traffic, group preservation, cached/unknown
 labels, button dispatch and disabled disconnected/busy/demo actions. No hardware
 firmware installation or new speaker-setting change was performed.
+
+
+## Independent Computer mix playback 0.1.13
+
+The approved live trial bypassed native PartyUp and routed Spotify to two real
+Linux A2DP speaker outputs. Both outputs and the combine sink were observed
+running. The user reported smooth, well-synchronised sound. The trial ended
+early because pw-dump appended a JSON change array; the supervisor verified
+removal of the temporary output and restoration of the original configured
+output. Native PartyUp remained off. This was a short listening check, not proof
+of long-duration synchronization or support across hardware and distributions.
+
+The shared reader handles appended change arrays. The app now offers an explicit
+Computer mix panel, requires two separate Linux outputs and acknowledgement
+that native PartyUp is off, and guards against simultaneous native grouping.
+The process-owned mix is stopped on Quit, output disappearance or process loss.
+On uncertain local inventory errors it leaves healthy playback alone. Restoration
+respects an output manually selected by the user while the mix was running.
+The GUI remains on the Qt thread; PipeWire work runs in the backend worker.
+System tools receive the original library environment when packaged.
+
+Integrated-core validation with silent virtual sinks verified two target routes
+and cleanup, deliberately skipping default selection so current music continued.
+Automated checks cover snapshot parsing, start/stop restoration, user output
+changes, failed restoration cleanup, native-mode guards and dialog dispatch.
+The panel was visually checked for readable wrapping and scrolling.
+
+The build now smoke-tests a separate AppImage file before atomically replacing
+its published path, avoiding Linux's Text-file-busy error when the previous
+AppImage is still running. Shutdown waits for bounded audio-tool operations
+before disposing of the Qt worker. The final regression suite has87passing tests.

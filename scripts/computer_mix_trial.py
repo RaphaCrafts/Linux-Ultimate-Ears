@@ -14,41 +14,10 @@ import time
 import uuid
 
 
-def snapshot():
-    return json.loads(subprocess.check_output(['pw-dump'],text=True,timeout=8))
-
-
-def speaker_sinks(objects):
-    result={}
-    for obj in objects:
-        props=obj.get('info',{}).get('props',{})
-        name=props.get('node.name','')
-        if (obj.get('type')=='PipeWire:Interface:Node' and props.get('media.class')=='Audio/Sink'
-                and re.fullmatch(r'bluez_output\.[0-9A-Fa-f_.:]+',name)):
-            result[name]=props.get('node.description',name)
-    return result
-
-
-def configuration(names,node_name):
-    if len(names)!=2 or len(set(names))!=2:raise ValueError('Choose two different speaker outputs.')
-    if any(not re.fullmatch(r'bluez_output\.[0-9A-Fa-f_.:]+',name) for name in names):
-        raise ValueError('This experiment accepts only exact Bluetooth output names.')
-    return {
-        'combine.mode':'sink','node.name':node_name,
-        'node.description':'Speaker studio · Computer mix trial',
-        'combine.latency-compensate':True,
-        'combine.props':{'audio.position':['FL','FR'],'node.virtual':True,'priority.session':0},
-        'stream.props':{'node.passive':True},
-        'stream.rules':[{'matches':[{'media.class':'Audio/Sink','node.name':name}],
-                         'actions':{'create-stream':{}}} for name in names],
-    }
-
-
-def stop(process):
-    if process.poll() is None:
-        process.terminate()
-        try:process.wait(timeout=5)
-        except subprocess.TimeoutExpired:process.kill();process.wait(timeout=5)
+import sys
+from pathlib import Path
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
+from speakerstudio.audio_mix import snapshot, speaker_sinks, configuration, stop
 
 
 def run(names,duration):

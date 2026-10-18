@@ -216,6 +216,33 @@ and [image sources](assets/speakers/README.md) are included.
 Protocol research is available in [the research notes](docs/protocol-research.md).
 Extracted APKs and decompiled vendor code are kept out of this repository.
 
+## Play together without PartyUp
+
+If native PartyUp stutters, try **PartyUp → Computer mix · experimental**.
+Linux sends the same stereo audio independently to both speakers, bypassing
+UE’s speaker-to-speaker PartyUp link. You need a Linux desktop using PipeWire
+with its command-line tools and WirePlumber (`wpctl`).
+
+1. End native PartyUp in the UE app or Speaker studio.
+2. Connect both speakers separately in Linux Bluetooth settings. For comparison,
+   keep the phone’s Bluetooth off.
+3. Open **Computer mix**, click **Refresh outputs**, and choose the two speakers.
+4. Confirm **Native PartyUp is off**, then click **Start Computer mix**.
+5. Play music from Linux. **Stop and restore output** returns to your previous
+   output, unless you selected a different one yourself.
+
+Closing the panel or hiding the window keeps Computer mix running. Quitting
+Speaker studio stops it. If a speaker output disconnects, the app stops the mix.
+A single temporary virtual output is used; no permanent audio configuration or
+firmware is installed. Native PartyUp controls are blocked while it is running.
+This plays the full stereo mix through each speaker; it is not native left/right
+Stereo mode. Use Linux sound controls for individual levels.
+
+A short real-speaker test sounded smooth and well synchronised to the listener,
+where native PartyUp had stuttered. This is still experimental: longer playback
+may reveal timing drift, echo or interruptions. It plays audio from Linux,
+not from the phone. [Experiment details](docs/computer-mix-experiment.md)
+
 ## Speaker firmware
 
 Click **Firmware** beside your speaker’s name to see its installed version.

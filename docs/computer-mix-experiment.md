@@ -30,8 +30,10 @@ For a supervised listening test:
    or let it expire. The helper does not restore PartyUp; no group was changed
    by the helper in the first place.
 
-No user-facing app switch or new AppImage has been released for this experiment.
-Integrate it only after actual two-speaker playback and cleanup have been tested.
+Version0.1.13 adds a user-facing Computer mix panel. It selects the temporary
+output on Start and restores the prior configured output on Stop or Quit, unless
+the user has selected a different output meanwhile. The source helper remains
+available for bounded developer trials and does not select an output itself.
 
 Validation on 2026-10-18: installed PipeWire 1.0.5 contains the combine-stream
 module. A silent runtime test created two virtual sinks and the combined sink,
@@ -43,3 +45,24 @@ Primary references:
 
 - [PipeWire combine-stream and latency compensation](https://docs.pipewire.org/page_module_combine_stream.html)
 - [pw-cli process-local module ownership](https://docs.pipewire.org/page_man_pw-cli_1.html)
+
+
+Live trial on2026-10-18: PINK3 was still hosting native Stereo PartyUp0350.
+For the approved independent-playback comparison it was disabled to0050, then
+both physical speakers obtained separate Linux A2DP outputs. The temporary mix
+and both Bluetooth outputs reached running state with Spotify playing. PINK used
+SBC and PURPLE used SBC-XQ. The user reported **smooth and well synchronised**.
+The trial ended early when PipeWire appended a change array to its initial JSON
+dump; a strict single-document parser rejected it. Cleanup removed the mix and
+restored the saved configured output, verified from PipeWire metadata. Native
+PartyUp remained off. The listened duration was shorter than the planned three
+minutes; long-duration acoustic stability is not established.
+
+The shared inventory reader now accepts the initial complete JSON array and
+ignores appended delta arrays; each subsequent poll reads a fresh inventory.
+Regression coverage includes the actual concatenated-document failure shape.
+An integrated-core silent test subsequently verified both target routes,
+monitoring and cleanup without selecting an output or interrupting real music.
+Output selection/restoration is covered by automated lifecycle tests, including
+preserving a manually changed output. AppImage launches system audio tools with
+the original system library environment, excluding bundled Qt plugin paths.

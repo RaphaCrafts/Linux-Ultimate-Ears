@@ -39,8 +39,12 @@ Path('build/SpeakerStudio.AppDir/usr/lib/speaker-studio/_internal/licences/BUILD
 PY
 QT_QPA_PLATFORM=offscreen "$appdir/AppRun" --smoke-test
 ARCH=x86_64 "$appimage_tool" --appimage-extract-and-run --runtime-file "$runtime" \
-  "$appdir" "$project_root/downloads/Speaker-Studio-x86_64.AppImage"
-chmod +x downloads/Speaker-Studio-x86_64.AppImage
+  "$appdir" "$project_root/downloads/.Speaker-Studio-x86_64.AppImage.$$.tmp"
+staged_image="$project_root/downloads/.Speaker-Studio-x86_64.AppImage.$$.tmp"
+trap 'rm -f -- "$staged_image"' EXIT
+chmod +x "$staged_image"
+QT_QPA_PLATFORM=offscreen "$staged_image" --appimage-extract-and-run --smoke-test
+# Replace the directory entry rather than truncating a possibly running image.
+mv -f -- "$staged_image" "$project_root/downloads/Speaker-Studio-x86_64.AppImage"
 (cd downloads && sha256sum Speaker-Studio-x86_64.AppImage > SHA256SUMS)
-QT_QPA_PLATFORM=offscreen downloads/Speaker-Studio-x86_64.AppImage --appimage-extract-and-run --smoke-test
 ls -lh downloads/Speaker-Studio-x86_64.AppImage

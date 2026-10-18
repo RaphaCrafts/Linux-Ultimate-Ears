@@ -15,6 +15,7 @@ from . import __version__
 from .preferences import restore_appearance
 from .party_visual import PartyLink, PartyPlayArea, SpeakerDragCard
 from .firmware import FirmwareDialog
+from .computer_mix_ui import ComputerMixDialog
 
 
 def asset_root():
@@ -188,6 +189,8 @@ class Window(QMainWindow):
         controller.changed.connect(self.update_devices)
         controller.status.connect(self.show_status)
         controller.error.connect(self.show_error)
+        self.computer_mix_state={'running':False,'outputs':[],'error':''}
+        controller.computer_mix_changed.connect(self.update_computer_mix)
         self.set_theme(self.settings.value('theme','system'))
         self.navigate('speaker')
         self.poll = QTimer(self)
@@ -207,6 +210,7 @@ class Window(QMainWindow):
 QWidget {{font-family: sans-serif; font-size:14px; color:{fg};}}
 QMainWindow, QScrollArea, QScrollArea>QWidget>QWidget {{background:{bg};}}
 QDialog#firmwareDialog {{background:{bg};}}
+QDialog#computerMixDialog {{background:{bg};}}
 QLabel {{background:transparent;}} QLabel#brand {{font-size:19px;font-weight:600;}}
 QLabel#title {{font-size:29px;font-weight:600;}} QLabel#section {{font-size:17px;font-weight:600;}}
 QLabel#muted {{color:{muted};font-size:12px;}} QLabel#eyebrow {{color:{muted};font-size:11px;}}
@@ -367,6 +371,16 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         party_heading.addWidget(self.read_group_button)
         party_heading.addWidget(button('Back to speaker',lambda:self.navigate('speaker')))
         layout.addLayout(party_heading)
+        alternative=QHBoxLayout()
+        self.computer_mix_hint=text('Alternative: send audio directly from Linux to two speakers.','muted')
+        alternative.addWidget(self.computer_mix_hint,1)
+        alternative.addWidget(button('Computer mix · experimental',self.show_computer_mix))
+        layout.addLayout(alternative)
+        self.native_party_controls=QWidget()
+        layout.addWidget(self.native_party_controls)
+        layout.addStretch()
+        layout=QVBoxLayout(self.native_party_controls)
+        layout.setContentsMargins(0,0,0,0)
         self.party_info = text('Connect a supported speaker to manage its group.','muted')
         layout.addWidget(self.party_info)
         self.party_error=text('','muted')
@@ -752,6 +766,9 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.controller.submit('refresh' if host['connected'] else 'connect',host['address'])
 
     def party_action(self,action,*args):
+        if getattr(self,'computer_mix_state',{}).get('running'):
+            self.show_status('Stop Computer mix before using native PartyUp controls.')
+            return
         if not self.group_host:return
         if self.demo:
             host=self.devices[self.group_host]
@@ -825,6 +842,12 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.schedule_balance()
 
     def render_party(self):
+        computer_mix_active=getattr(self,'computer_mix_state',{}).get('running',False)
+        self.native_party_controls.setVisible(not computer_mix_active)
+        if computer_mix_active:
+            self.cancel_balance();self.group_debounce.stop()
+            self.party_link.timer.stop()
+            return
         self.read_group_button.setEnabled(any(d.get('audio_connected') and d.get('paired') and not d.get('busy') for d in self.devices.values()))
         current=self.devices.get(self.group_host)
         signature=(self.group_host,tuple(current.get('members',[]))) if current else None
@@ -1113,6 +1136,19 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             previous.deleteLater()
         self.firmware_dialog=FirmwareDialog(speaker,self.controller,self,self.demo)
         self.firmware_dialog.show()
+
+    def update_computer_mix(self,state):
+        self.computer_mix_state=state
+        self.computer_mix_hint.setText('Computer mix is on · native PartyUp is bypassed.' if state['running'] else state.get('error') or 'Alternative: send audio directly from Linux to two speakers.')
+        if state.get('error'):self.show_error(state['error'])
+        self.render_party()
+
+    def show_computer_mix(self):
+        previous=getattr(self,'computer_mix_dialog',None)
+        if previous:
+            previous.close();previous.deleteLater()
+        self.computer_mix_dialog=ComputerMixDialog(self.controller,self,self.demo,self.computer_mix_state)
+        self.computer_mix_dialog.show()
 
     def show_error(self,message):
         self.notice.setText(message)

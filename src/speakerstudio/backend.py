@@ -2,6 +2,8 @@
 import asyncio
 from dataclasses import asdict
 import socket
+import json
+import subprocess
 from PySide6.QtCore import QThread, Signal
 from .bluez import BlueZ, rfcomm_channel
 from .models import Speaker, LEGACY_MODELS
@@ -9,6 +11,7 @@ from .colours import finish_name
 from .naming import encode_name, decode_name
 from .preferences import remembered_model, remembered_models
 from .protocol import LegacySession, open_rfcomm, CommandError, ProtocolError, battery_percent
+from .audio_mix import ComputerMix, snapshot as audio_snapshot, speaker_sinks
 
 
 class Controller(QThread):
@@ -16,6 +19,7 @@ class Controller(QThread):
     status = Signal(str)
     error = Signal(str)
     ready = Signal()
+    computer_mix_changed = Signal(object)
 
     def __init__(self):
         super().__init__()
@@ -30,6 +34,8 @@ class Controller(QThread):
         self.operations = {}
         self.stopping = False
         self.last_snapshot = None
+        self.computer_mix=ComputerMix()
+        self.mix_outputs=[]
 
     def run(self):
         self.stopping = False
@@ -44,7 +50,10 @@ class Controller(QThread):
         asyncio.set_event_loop(self.loop)
         self.loop.create_task(self._startup())
         self.ready.emit()
-        self.loop.run_forever()
+        try:self.loop.run_forever()
+        finally:
+            try:self.computer_mix.stop()
+            except Exception as error:self.error.emit(str(error))
         tasks = asyncio.all_tasks(self.loop)
         for task in tasks:
             task.cancel()
@@ -71,6 +80,15 @@ class Controller(QThread):
                 last_error = message
                 if self.bluez:await self.bluez.close()
                 self.bluez = None
+            if self.computer_mix.active:
+                try:self.computer_mix.check()
+                except (OSError,ValueError,subprocess.SubprocessError):
+                    # An uncertain local inventory must not interrupt audio.
+                    pass
+                except RuntimeError as error:
+                    try:self.computer_mix.stop()
+                    except Exception as restore_error:error=restore_error
+                    self.publish_computer_mix(str(error))
             await asyncio.sleep(3)
 
     def submit(self, action, *args):
@@ -106,6 +124,8 @@ class Controller(QThread):
             self.operations[address] = asyncio.current_task()
             self.publish()
         try:
+            if self.computer_mix.active and action in ('group_add','party_mode','balance','group_volume'):
+                raise RuntimeError('Stop Computer mix before using native PartyUp controls.')
             if action == 'scan':
                 self.status.emit('Looking for nearby and sleeping speakers…')
                 await self.bluez.scan()
@@ -403,6 +423,39 @@ class Controller(QThread):
         speaker.firmware='.'.join(str(n) for n in data)
         self.publish()
         self.status.emit('Installed firmware version read. Check update availability in the official UE app.')
+
+    def publish_computer_mix(self,error=''):
+        self.computer_mix_changed.emit({'running':self.computer_mix.active,'outputs':self.mix_outputs,'error':error})
+
+    async def _computer_mix_outputs(self):
+        try:
+            sinks=speaker_sinks(audio_snapshot())
+            self.mix_outputs=[]
+            for name,label in sinks.items():
+                speaker=next((s for s in self.speakers.values() if name.upper().startswith('BLUEZ_OUTPUT.'+s.address.replace(':','_')+'.')),None)
+                self.mix_outputs.append({'name':name,'label':speaker.name if speaker else label})
+            self.publish_computer_mix()
+        except Exception:
+            self.publish_computer_mix('Could not read Linux audio outputs. PipeWire tools pw-cli, pw-dump and wpctl are required.')
+
+    async def _computer_mix_start(self,names_json):
+        try:
+            names=json.loads(names_json)
+            if not isinstance(names,list) or any(not isinstance(n,str) for n in names):raise ValueError('Choose two speaker outputs.')
+            for s in self.speakers.values():
+                if s.broadcast&2 and any(n.upper().startswith('BLUEZ_OUTPUT.'+s.address.replace(':','_')+'.') for n in names):
+                    raise RuntimeError('End native PartyUp before starting Computer mix.')
+            self.computer_mix.start(names)
+            self.publish_computer_mix()
+            self.status.emit('Computer mix is on. Linux is sending audio directly to both speakers.')
+        except Exception as error:self.publish_computer_mix(str(error))
+
+    async def _computer_mix_stop(self):
+        try:
+            self.computer_mix.stop()
+            self.publish_computer_mix()
+            self.status.emit('Computer mix stopped. The previous output was restored unless you selected a different one.')
+        except Exception as error:self.publish_computer_mix(str(error))
 
     async def _rename(self,address,name):
         s=self.speakers[address]
@@ -723,6 +776,8 @@ class Controller(QThread):
         self.stopping = True
         if self.loop and self.loop.is_running():
             async def finish():
+                try:self.computer_mix.stop()
+                except Exception as error:self.error.emit(str(error))
                 for session in self.sessions.values():
                     session.close()
                 for task in list(self.tasks):
@@ -731,4 +786,6 @@ class Controller(QThread):
                     await self.bluez.close()
                 self.loop.stop()
             asyncio.run_coroutine_threadsafe(finish(), self.loop)
-        self.wait(5000)
+        # Allow the bounded PipeWire startup/read timeouts to finish before
+        # cleanup, rather than destroying a running Qt worker during app exit.
+        self.wait(15000)
