@@ -29,7 +29,7 @@ X11 window startup and extract-and-run fallback were checked on the build host.
 
 ## Automated checks
 
-42 automated tests passed in the final build.
+49 automated tests passed in the final build.
 
 Protocol tests cover arbitrary stream fragmentation and concatenation, malformed
 lengths and encoding bounds, ACK correlation, unsupported-command errors,
@@ -121,3 +121,32 @@ group-disconnect behavior is covered by deterministic tests.
 
 The final AppImage passed normal startup/offline image checks and a read-only
 diagnostic of the woken purple speaker through its bundled transport runtime.
+
+## Appearance, rename and connection update 0.1.5
+
+Per-speaker detected colour/model storage survives an app restart and keeps
+manual overrides separate. Tests cover renamed/offline speakers retaining the
+correct packshot, Bluetooth audio links without control sockets, error retention,
+cancelled connections and a smaller240px speaker image. Cached verified models
+also keep discovery and wake available after a device is renamed.
+
+Connect performs a short shared BLE discovery when needed before deciding
+between direct control connection and targeted wake. Concurrent requests share
+one scan rather than returning prematurely from an in-progress search. Completed
+wake requests discard the pre-wake beacon; a verified control connection cannot
+be labelled asleep. Transient connection setup is protected from stale BlueZ
+link transitions, while unpairing/adapter power-off still invalidate controls.
+
+Live test: purple was directly reachable; pink initially failed Classic service
+discovery. The revised Connect path detected the sleeping pink speaker and woke
+it. Both control connections then succeeded concurrently in the same controller.
+Purple also had an audio transport; pink had a Bluetooth link and app controls
+without an audio transport, now explicitly distinguished in the UI.
+
+The real pink speaker accepted a same-current-name SetName and fresh readback,
+with its original name preserved. UTF-8 payloads, trimming, limits, malformed
+responses and post-readback alias synchronization are also tested offline.
+
+The rebuilt AppImage passed normal startup/image checks and a real-speaker
+read-only diagnostic. Native screenshots show both control connections active
+with the compact tile, actual detected artwork and Rename action.

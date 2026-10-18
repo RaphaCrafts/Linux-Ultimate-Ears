@@ -168,3 +168,40 @@ def test_sleeping_speaker_has_turn_on_control(tmp_path,monkeypatch):
     row['wake_available']=False;row['sleeping']=None;w.update_devices([row])
     assert not w.power_button.isEnabled()
     w.close()
+
+
+def test_detected_finish_and_model_survive_app_restart(tmp_path,monkeypatch):
+    from dataclasses import asdict
+    from speakerstudio.models import Speaker
+    monkeypatch.setenv('XDG_CONFIG_HOME',str(tmp_path))
+    app=QApplication.instance() or QApplication([])
+    first=Window(Controller(),demo=True);app.processEvents()
+    known=asdict(Speaker('demo-remember','','Living room',model='megaboom-3',colour='Unicorn pink',colour_code=0x431))
+    first.update_devices([known]);first.close()
+    second=Window(Controller(),demo=True);app.processEvents()
+    offline=asdict(Speaker('demo-remember','','Living room',paired=True))
+    second.update_devices([offline])
+    assert second.devices['demo-remember']['model']=='megaboom-3'
+    assert second.image_path(second.devices['demo-remember']).name=='megaboom-3-unicorn-pink.webp'
+    assert second.finish_hint.text().startswith('Remembered: Unicorn pink')
+    assert not offline['model'] and not offline['colour'],'Snapshots must not be mutated'
+    second.colour_select.setCurrentText('Generic MEGABOOM 3')
+    second.update_devices([offline]);assert second.image_path(second.devices['demo-remember']).name=='megaboom.svg'
+    second.close()
+
+
+def test_bluetooth_link_is_not_presented_as_fully_disconnected(tmp_path,monkeypatch):
+    from dataclasses import asdict
+    from speakerstudio.models import Speaker
+    monkeypatch.setenv('XDG_CONFIG_HOME',str(tmp_path))
+    app=QApplication.instance() or QApplication([])
+    w=Window(Controller(),demo=True);app.processEvents()
+    row=asdict(Speaker('demo-status','','MEGABOOM 3',paired=True,bluez_connected=True,audio_connected=True))
+    w.update_devices([row]);assert 'Bluetooth audio connected' in w.connection_label.text()
+    assert 'Disconnected' not in w.connection_label.text()
+    row.update(busy=True,operation='wake');w.update_devices([row])
+    assert w.connect_button.text()=='Cancel' and w.connect_button.isEnabled()
+    row.update(busy=False,operation='',error='The speaker did not reply')
+    w.update_devices([row]);assert w.device_error.text()=='The speaker did not reply'
+    assert w.photo.height()==240
+    w.close()

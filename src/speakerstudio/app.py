@@ -36,7 +36,7 @@ def main():
     window=Window(Controller(),demo=args.demo or args.smoke_test)
     if desktop_error:window.show_status('Could not add the app-menu shortcut: '+desktop_error)
     available=app.primaryScreen().availableGeometry()
-    window.resize(min(1080,available.width()-40),min(810,available.height()-60))
+    window.resize(min(1000,available.width()-40),min(760,available.height()-60))
     window.show()
     if args.smoke_test or args.screenshot:
         def check():

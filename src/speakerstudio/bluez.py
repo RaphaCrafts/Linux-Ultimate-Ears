@@ -51,7 +51,10 @@ class BlueZ:
         self.bus = None
         self.manager = None
         self.scanning = False
+        self.scan_finished = asyncio.Event()
+        self.scan_finished.set()
         self.last_seen = {}
+        self.known_models = {}
 
     async def start(self):
         self.bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
@@ -83,6 +86,7 @@ class BlueZ:
         objects = await self.objects()
         devices = []
         adapters = []
+        audio_paths={interfaces['org.bluez.MediaTransport1']['Device'].value for interfaces in objects.values() if 'org.bluez.MediaTransport1' in interfaces and 'Device' in interfaces['org.bluez.MediaTransport1']}
         for path, interfaces in objects.items():
             if 'org.bluez.Adapter1' in interfaces:
                 adapters.append((path, {k: v.value for k, v in interfaces['org.bluez.Adapter1'].items()}))
@@ -94,10 +98,10 @@ class BlueZ:
             uuids = p.get('UUIDs', [])
             known_name = any(n in (name+' '+p.get('Name','')).upper() for n in ('BOOM', 'ULTIMATE EARS'))
             logitech_spp = SPP_UUID in uuids and 'v000A' in p.get('Modalias', '')
-            if known_name or logitech_spp:
+            if known_name or logitech_spp or p.get('Address') in self.known_models:
                 devices.append({'address': p['Address'], 'path': path, 'name': name,
                                 'paired': p.get('Paired', False), 'bluez_connected': p.get('Connected', False),
-                                'adapter': p.get('Adapter','')})
+                                'adapter': p.get('Adapter',''), 'audio_connected':path in audio_paths})
         by_address={d['address']:d for d in devices}
         for path,interfaces in objects.items():
             props=interfaces.get('org.bluez.Device1')
@@ -110,7 +114,7 @@ class BlueZ:
             # associate two radios using a similar name or a guessed MAC.
             if not row or not row['paired']:continue
             name=(row['name']+' '+p.get('Name','')).upper().replace(' ','').replace('-','')
-            supported=any(m in name for m in ('MEGABOOM3','BOOM3','BOOM2')) and 'BOOM4' not in name
+            supported=(self.known_models.get(row['address']) in ('megaboom-3','boom-3','boom-2') or any(m in name for m in ('MEGABOOM3','BOOM3','BOOM2'))) and 'BOOM4' not in name
             fresh=time.monotonic()-self.last_seen.get(path,float('-inf'))<45
             row.update(wake_path=path if fresh and supported else '',
                        sleeping=beacon['sleeping'] if fresh else None,
@@ -119,8 +123,10 @@ class BlueZ:
 
     async def scan(self, duration=12):
         if self.scanning:
+            await asyncio.wait_for(self.scan_finished.wait(),20)
             return
         self.scanning = True
+        self.scan_finished.clear()
         started = []
         try:
             _, adapters = await self.devices()
@@ -142,6 +148,11 @@ class BlueZ:
                 except Exception:
                     pass
             self.scanning = False
+            self.scan_finished.set()
+
+    async def set_alias(self,path,name):
+        properties=await self.interface(path,'org.freedesktop.DBus.Properties')
+        await asyncio.wait_for(properties.call_set('org.bluez.Device1','Alias',Variant('s',name)),5)
 
     async def wake(self, classic_address):
         # Refresh first: cached manufacturer bytes are not proof of proximity.
@@ -169,6 +180,7 @@ class BlueZ:
                     if not kind:raise RuntimeError('The speaker’s wake characteristic is not writable.')
                     proxy=await self.interface(characteristic,'org.bluez.GattCharacteristic1')
                     await asyncio.wait_for(proxy.call_write_value(payload,{'type':Variant('s',kind)}),5)
+                    self.last_seen.pop(path,None)  # The pre-wake sleep beacon is now stale.
                     return
                 await asyncio.sleep(.25)
             raise RuntimeError('The speaker did not expose its BLE wake service. Check Bluetooth Smart in the phone app.')

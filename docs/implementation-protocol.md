@@ -71,3 +71,24 @@ command write if write-without-response is advertised instead. Connect, discover
 and write waits are bounded. A successful write is followed by a real identified
 Classic control connection before the UI reports success. Existing audio links
 are not deliberately disconnected after a successful wake.
+
+## Actual speaker renaming (0.1.5)
+
+Query Bluetooth name0x016d →0x016e; Set Bluetooth name0x016f expects ACK. The
+payload is trimmed UTF-8 followed by one NUL byte. Phone validation allows1–30
+UTF-8 bytes excluding the terminator. The implementation rejects empty/control
+characters, uses a bounded NUL decoder and performs a fresh query after the write.
+Only after hardware readback is confirmed does it synchronize the selected
+BlueZ Device1 Alias. A local alias failure is reported separately. An Alias write
+alone is never considered a successful speaker rename.
+
+REA static evidence:
+
+- Setter `ev_628789b603f270153c7fa26f0cc784d03b594ab2d42bd44afb6377255de7544a`.
+- UTF-8/NUL packing `ev_9e999ecb182f69564e964897f982566bfd814a59b9061bf689ffbe9a7798616f`.
+- 30-byte validation `ev_669c6e938e15b88c76402034b272fa9b4d64751b81d90e960416241357388e2f`.
+- Name parser `ev_5304cafa9276d86aabd601635e2013eaf32bfa15f70adc2f59c01a9396d4f7d2`.
+
+Hardware validation reapplied the current name and verified actual readback,
+preserving the user's speaker name. A changed Unicode name is covered by the
+protocol-level fake peer, not claimed as a live hardware rename.

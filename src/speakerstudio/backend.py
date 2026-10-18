@@ -6,6 +6,8 @@ from PySide6.QtCore import QThread, Signal
 from .bluez import BlueZ, rfcomm_channel
 from .models import Speaker, LEGACY_MODELS
 from .colours import finish_name
+from .naming import encode_name, decode_name
+from .preferences import remembered_model, remembered_models
 from .protocol import LegacySession, open_rfcomm, CommandError, ProtocolError, battery_percent
 
 
@@ -24,6 +26,8 @@ class Controller(QThread):
         self.tasks = set()
         self.group_waiters = {}
         self.waking = set()
+        self.connecting = set()
+        self.operations = {}
         self.stopping = False
 
     def run(self):
@@ -31,6 +35,8 @@ class Controller(QThread):
         self.sessions.clear()
         self.group_waiters.clear()
         self.waking.clear()
+        self.connecting.clear()
+        self.operations.clear()
         self.speakers.clear()
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
@@ -85,7 +91,11 @@ class Controller(QThread):
         if speaker and speaker.busy:
             return
         if speaker:
+            if action=='connect' and speaker.sleeping and speaker.wake_available:action='wake'
             speaker.busy = True
+            speaker.operation = action
+            speaker.error = ''
+            self.operations[address] = asyncio.current_task()
             self.publish()
         try:
             if action == 'scan':
@@ -96,16 +106,20 @@ class Controller(QThread):
             else:
                 if speaker and not speaker.connected and action not in ('connect','disconnect','wake'):
                     raise ConnectionError('Connect the speaker before changing its settings.')
-                await getattr(self, '_' + action)(*args)
-        except CommandError as e:
-            self.error.emit(str(e))
-        except TimeoutError:
-            self.error.emit('The speaker did not reply. Turn it on and reconnect.')
+                if action=='connect':await self._connect_or_wake(*args)
+                else:await getattr(self, '_' + action)(*args)
         except Exception as e:
-            self.error.emit(str(e) or 'Could not communicate with the speaker.')
+            message = str(e) or 'Could not communicate with the speaker.'
+            if isinstance(e,TimeoutError):
+                message = 'Speaker controls did not reply. Close other UE apps, keep the speaker nearby and try again.'
+            if speaker:speaker.error=message
+            self.error.emit((speaker.name+': ' if speaker else '')+message)
         finally:
             if speaker:
-                speaker.busy = False
+                if self.operations.get(address) is asyncio.current_task():
+                    self.operations.pop(address,None)
+                    speaker.busy = False
+                    speaker.operation = ''
                 session = self.sessions.get(address)
                 if session and session.closed:
                     self.sessions.pop(address, None)
@@ -127,6 +141,9 @@ class Controller(QThread):
         speaker.member_info = {}
 
     async def refresh_devices(self):
+        if hasattr(self.bluez,'known_models'):
+            self.bluez.known_models.update(remembered_models())
+            self.bluez.known_models.update({a:s.model for a,s in self.speakers.items() if s.model})
         rows, adapters = await self.bluez.devices()
         powered = {path:props.get('Powered',False) for path,props in adapters}
         present = set()
@@ -134,25 +151,27 @@ class Controller(QThread):
             address = row['address']
             present.add(address)
             if address not in self.speakers:
-                self.speakers[address] = Speaker(address, row['path'], row['name'], paired=row['paired'])
+                self.speakers[address] = Speaker(address, row['path'], row['name'], paired=row['paired'],model=remembered_model(address))
             s = self.speakers[address]
             linked = row.get('bluez_connected',False)
             # Raw RFCOMM ownership is not identical to a desktop audio profile.
             # Observe an actual BlueZ link-loss transition, unpairing or adapter
             # power-off; do not discard a new control connection from a stale
             # initial Connected=False snapshot.
-            lost = (s.bluez_connected and not linked and address not in self.waking or not row['paired'] or
+            lost = (s.bluez_connected and not linked and address not in self.waking and address not in self.connecting or not row['paired'] or
                     row.get('adapter') in powered and not powered[row['adapter']])
-            s.paired, s.name, s.path = row['paired'], row['name'], row['path']
+            s.paired, s.name, s.path = row['paired'], s.device_name or row['name'], row['path']
             s.bluez_connected = linked
+            s.audio_connected = row.get('audio_connected',False)
             s.wake_available = bool(row.get('wake_path'))
-            s.sleeping = row.get('sleeping')
+            s.sleeping = False if s.connected else row.get('sleeping')
             if lost and (s.connected or address in self.sessions or s.busy):
                 self._lost(address,'Bluetooth disconnected')
         for address,s in self.speakers.items():
             if address not in present:
                 s.paired = False
                 s.bluez_connected = False
+                s.audio_connected = False
                 s.wake_available = False
                 s.sleeping = None
                 if s.connected or address in self.sessions or s.busy:
@@ -160,6 +179,8 @@ class Controller(QThread):
         self.publish()
 
     def _lost(self, address, reason):
+        task=self.operations.pop(address,None)
+        if task and task is not asyncio.current_task() and not task.done():task.cancel()
         session = self.sessions.pop(address,None)
         if session:session.close()
         for key,future in list(self.group_waiters.items()):
@@ -170,7 +191,8 @@ class Controller(QThread):
         if speaker:
             self.invalidate(speaker)
             speaker.busy = False
-            speaker.error = 'Bluetooth disconnected. Reconnect to read the speaker and manage PartyUp.'
+            speaker.operation = ''
+            speaker.error = 'Speaker controls disconnected. Reconnect to read the speaker and manage PartyUp.'
             self.publish()
 
     async def _wake(self, address):
@@ -197,7 +219,27 @@ class Controller(QThread):
         finally:
             self.waking.discard(address)
 
+    async def _connect_or_wake(self,address):
+        s=self.speakers[address]
+        if not s.bluez_connected or not s.audio_connected:
+            self.status.emit('Checking for a sleeping-speaker signal from '+s.name+'…')
+            await self.bluez.scan(4)
+            await self.refresh_devices()
+        if s.sleeping and s.wake_available:
+            s.operation='wake'
+            self.publish()
+            await self._wake(address)
+        else:
+            await self._connect(address)
+
     async def _connect(self, address):
+        self.connecting.add(address)
+        try:
+            await self._connect_controls(address)
+        finally:
+            self.connecting.discard(address)
+
+    async def _connect_controls(self, address):
         speaker = self.speakers[address]
         name = speaker.name.upper().replace(' ', '').replace('-', '')
         if any(model in name for model in ('BOOM4','EPICBOOM','EVERBOOM','HYPERBOOM','WONDERBOOM')):
@@ -226,8 +268,9 @@ class Controller(QThread):
             self.status.emit(f'Connected to {speaker.name}')
         except BaseException:
             session.close()
-            self.sessions.pop(address, None)
-            self.invalidate(speaker)
+            if self.sessions.get(address) is session:
+                self.sessions.pop(address, None)
+                self.invalidate(speaker)
             raise
 
     async def _read(self, speaker, command, reply, feature):
@@ -245,6 +288,11 @@ class Controller(QThread):
 
     async def _read_state(self, address):
         s = self.speakers[address]
+        if 'rename' not in s.features:
+            data = await self._read(s, 0x16d, 0x16e, 'rename')
+            if data is not None:
+                try:s.device_name = s.name = decode_name(data)
+                except ProtocolError:s.features['rename']=False
         data = await self._read(s, 3, 4, 'firmware')
         if data:
             s.firmware = '.'.join(str(n) for n in data)
@@ -301,6 +349,23 @@ class Controller(QThread):
         await self._read_state(address)
         self.status.emit('Speaker readings refreshed')
 
+    async def _rename(self,address,name):
+        s=self.speakers[address]
+        payload=encode_name(name)
+        if not s.features.get('rename'):
+            raise RuntimeError('This speaker did not provide a valid name. Reconnect and try again.')
+        session=self.sessions[address]
+        await session.request(0x16f,payload=payload)
+        actual=decode_name(await session.request(0x16d,0x16e))
+        s.device_name=s.name=actual
+        if actual!=name.strip():
+            raise RuntimeError('The speaker stored the name as '+actual+'. Check the name and try again.')
+        try:await self.bluez.set_alias(s.path,actual)
+        except Exception:
+            s.error='The speaker was renamed. Linux’s Bluetooth label may update after reconnecting.'
+        self.status.emit('Speaker renamed to '+actual)
+        self.publish()
+
     async def _volume(self, address, percent):
         s = self.speakers[address]
         raw = round(max(0, min(100, int(percent))) * s.volume_steps / 100)
@@ -334,6 +399,7 @@ class Controller(QThread):
 
     async def _disconnect(self, address):
         self._lost(address,'Disconnected from speaker controls')
+        self.speakers[address].error = ''
         self.status.emit('Disconnected from speaker controls. Pairing is still saved in Linux.')
 
     async def _busy_request(self, session, command, payload):

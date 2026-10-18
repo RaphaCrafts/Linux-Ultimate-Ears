@@ -234,3 +234,62 @@ def test_wake_transition_keeps_busy_state_but_adapter_off_still_invalidates():
         await c.refresh_devices()
         assert not s.busy and not s.connected and session.closed
     asyncio.run(scenario())
+
+
+def test_connect_detects_sleep_without_prior_search_and_preserves_per_speaker_errors():
+    class Discovery:
+        async def scan(self,duration):assert duration==4
+    async def scenario():
+        c=Controller();c.bluez=Discovery()
+        a=Speaker('a','/a','Speaker A',paired=True)
+        b=Speaker('b','/b','Speaker B',paired=True)
+        c.speakers={'a':a,'b':b}
+        async def refresh():a.sleeping=True;a.wake_available=True
+        async def wake(address):assert address=='a';a.connected=True
+        async def connect(address):raise ConnectionError('A different app has the connection')
+        c.refresh_devices=refresh;c._wake=wake;c._connect=connect
+        await asyncio.gather(c._perform('connect','a'),c._perform('connect','b'))
+        assert a.connected and not a.busy and not a.error
+        assert 'different app' in b.error and not b.busy
+        assert not c.operations
+    asyncio.run(scenario())
+
+
+def test_cancel_connection_stops_pending_task_and_clears_busy_state():
+    async def scenario():
+        c=Controller();s=Speaker('a','/a','Speaker',paired=True);c.speakers={'a':s}
+        started=asyncio.Event();stopped=asyncio.Event()
+        async def pending(address):
+            started.set()
+            try:await asyncio.Event().wait()
+            finally:stopped.set()
+        c._connect_or_wake=pending
+        task=asyncio.create_task(c._perform('connect','a'));await started.wait()
+        assert s.busy and s.operation=='connect'
+        await c._perform('disconnect','a')
+        try:await task
+        except asyncio.CancelledError:pass
+        assert stopped.is_set() and not s.busy and not s.connected and s.operation==''
+    asyncio.run(scenario())
+
+
+def test_rename_changes_speaker_then_reads_back_before_alias_sync():
+    class Names(FakeSession):
+        def __init__(self):super().__init__();self.name='Old name';self.closed=False
+        async def request(self,command,response=0,payload=b''):
+            self.commands.append((command,response,payload))
+            if command==0x16f:self.name=payload[:-1].decode('utf-8');return b'\0'
+            if command==0x16d:return self.name.encode()+b'\0'
+    class Aliases:
+        async def set_alias(self,path,name):self.value=(path,name)
+    async def scenario():
+        session=Names();c,s=setup(session);s.features['rename']=True;c.bluez=Aliases()
+        await c._rename('test',' Café ')
+        assert session.commands==[(0x16f,0,b'Caf\xc3\xa9\0'),(0x16d,0x16e,b'')]
+        assert s.name==s.device_name=='Café' and c.bluez.value==('/test','Café')
+        session.commands.clear()
+        try:await c._rename('test','x'*31)
+        except ValueError:pass
+        else:raise AssertionError('Invalid name was accepted')
+        assert not session.commands
+    asyncio.run(scenario())

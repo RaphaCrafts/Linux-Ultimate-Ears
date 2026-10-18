@@ -9,9 +9,10 @@ from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, 
 from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import (QMainWindow, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout,
     QGridLayout, QListWidget, QListWidgetItem, QFrame, QSlider, QComboBox, QStackedWidget,
-    QScrollArea, QMessageBox, QMenu, QApplication, QProgressBar, QSystemTrayIcon)
+    QScrollArea, QMessageBox, QMenu, QApplication, QProgressBar, QSystemTrayIcon, QInputDialog)
 from PySide6.QtCore import QProcess, QProcessEnvironment
 from . import __version__
+from .preferences import restore_appearance
 
 
 def asset_root():
@@ -95,7 +96,7 @@ class Window(QMainWindow):
         self.catalogue = json.loads((asset_root()/'speakers/manifest.json').read_text())['images']
         self.setWindowTitle('Speaker studio')
         self.setWindowIcon(app_icon())
-        self.resize(1080, 810)
+        self.resize(1000, 760)
         self.setMinimumSize(800, 640)
         container = QWidget()
         outer = QVBoxLayout(container)
@@ -127,12 +128,13 @@ class Window(QMainWindow):
         body.setSpacing(0)
         sidebar = QFrame()
         sidebar.setObjectName('sidebar')
-        sidebar.setFixedWidth(205)
+        sidebar.setFixedWidth(190)
         side = QVBoxLayout(sidebar)
         side.setContentsMargins(13,23,13,20)
         side.addWidget(text('YOUR SPEAKERS','eyebrow'))
         self.list = QListWidget()
         self.list.setIconSize(QSize(28,54))
+        self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.list.currentItemChanged.connect(self.select)
         self.list.itemClicked.connect(lambda item:self.open_speaker(item.data(Qt.UserRole)))
         side.addWidget(self.list)
@@ -146,7 +148,7 @@ class Window(QMainWindow):
         scroll.setFrameShape(QFrame.NoFrame)
         content = QWidget()
         main = QVBoxLayout(content)
-        main.setContentsMargins(27,22,27,20)
+        main.setContentsMargins(22,18,22,16)
         nav = QHBoxLayout()
         self.tabs = {}
         for key,label in [('speaker','Speaker'),('party','PartyUp'),('eq','Equalizer')]:
@@ -250,20 +252,26 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.connection_label = text('','muted')
         for label in [self.model_label,self.name_label,self.connection_label]:names.addWidget(label)
         heading.addLayout(names,1)
+        self.rename_button = button('Rename',self.rename_speaker)
+        heading.addWidget(self.rename_button)
         self.connect_button = button('Connect',self.connect,True)
         heading.addWidget(self.connect_button)
         layout.addLayout(heading)
+        self.device_error = text('','muted')
+        self.device_error.setVisible(False)
+        layout.addWidget(self.device_error)
         columns = QHBoxLayout()
         hero = QFrame()
         hero.setObjectName('hero')
+        hero.setMaximumWidth(320)
         image_layout = QVBoxLayout(hero)
-        image_layout.setContentsMargins(18,18,18,18)
+        image_layout.setContentsMargins(15,15,15,15)
         image_layout.addWidget(text('ULTIMATE EARS','eyebrow'))
         self.photo = QLabel()
         self.photo.setTextFormat(Qt.PlainText)
         self.photo.setAlignment(Qt.AlignCenter)
-        self.photo.setMinimumHeight(320)
-        image_layout.addWidget(self.photo,1)
+        self.photo.setFixedHeight(240)
+        image_layout.addWidget(self.photo)
         self.battery_label = text('Battery —','section')
         battery_row = QHBoxLayout()
         battery_row.addWidget(self.battery_label)
@@ -315,6 +323,8 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.preset.activated.connect(self.set_preset)
         eq_layout.addWidget(self.preset)
         self.mini_curve = Curve()
+        self.mini_curve.setMinimumHeight(90)
+        self.mini_curve.setMaximumHeight(110)
         eq_layout.addWidget(self.mini_curve)
         eq_layout.addWidget(button('Open equalizer',lambda:self.navigate('eq')))
         controls.addWidget(panel(eq_layout))
@@ -326,8 +336,9 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         controls.addLayout(actions)
         controls.addWidget(text('Hear the charge spoken aloud by your speaker.','muted'))
         controls.addStretch()
-        columns.addLayout(controls,1)
+        columns.addLayout(controls,2)
         layout.addLayout(columns)
+        layout.addStretch()
         footer = QHBoxLayout()
         footer.addWidget(text('More speakers, one soundtrack.','section'),1)
         footer.addWidget(button('View PartyUp',lambda:self.navigate('party'),True))
@@ -439,17 +450,19 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
     def update_devices(self, devices):
         if devices and self.demo != all(d['address'].startswith('demo-') for d in devices):
             return
+        devices = [restore_appearance(d,self.settings) for d in devices]
         self.devices = {d['address']:d for d in devices}
         selected = self.selected
         self.list.blockSignals(True)
         self.list.clear()
         for d in devices:
-            state = 'Connected' if d['connected'] else 'Sleeping · wake available' if d.get('sleeping') and d.get('wake_available') else 'Saved · disconnected' if d['paired'] else 'Not paired'
+            state = 'Waking…' if d['busy'] and d.get('operation')=='wake' else 'Connecting controls…' if d['busy'] and d.get('operation')=='connect' else 'Controls ready' if d['connected'] else 'Audio linked' if d.get('audio_connected') else 'Bluetooth linked' if d.get('bluez_connected') else 'Sleeping · wake available' if d.get('sleeping') and d.get('wake_available') else 'Saved · disconnected' if d['paired'] else 'Not paired'
             item = QListWidgetItem(f"{d['name']}\n{state}")
+            item.setToolTip(d['name']+' · '+state)
             item.setData(Qt.UserRole,d['address'])
             image = self.image_path(d)
             if image:item.setIcon(QIcon(str(image)))
-            item.setSizeHint(QSize(170,70))
+            item.setSizeHint(QSize(150,64))
             self.list.addItem(item)
             if d['address']==selected:self.list.setCurrentItem(item)
         if selected not in self.devices:
@@ -505,12 +518,27 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.stack.setCurrentWidget(self.eq_page if self.page=='eq' else self.speaker_page)
         self.model_label.setText(d.get('model','').upper().replace('-',' ') or 'ULTIMATE EARS')
         self.name_label.setText(d['name'])
-        status = 'Connecting…' if d['busy'] and not d['connected'] else 'Connected' if d['connected'] else 'Disconnected · pairing saved in Linux' if d['paired'] else 'Pair in Bluetooth settings first'
-        if not d['connected'] and d.get('sleeping') and d.get('wake_available'):status='Sleeping nearby · ready to turn on'
+        pending = d['busy'] and d.get('operation') in ('connect','wake')
+        if pending:
+            status = 'Waking and connecting…' if d['operation']=='wake' else 'Connecting speaker controls…'
+        elif d['connected']:
+            status = 'Controls connected' + (' · Bluetooth audio connected' if d.get('audio_connected') else ' · audio not linked')
+        elif d.get('audio_connected'):
+            status = 'Bluetooth audio connected · connect controls to adjust the speaker'
+        elif d.get('bluez_connected'):
+            status = 'Bluetooth linked · speaker controls not connected'
+        elif d.get('sleeping') and d.get('wake_available'):
+            status = 'Sleeping nearby · ready to wake and connect'
+        else:
+            status = 'Not connected · pairing saved in Linux' if d['paired'] else 'Pair in Bluetooth settings first'
         if d.get('firmware') and d['connected']:status+=' · Firmware '+d['firmware']
         self.connection_label.setText(status)
-        self.connect_button.setText('Disconnect' if d['connected'] else 'Connect')
-        self.connect_button.setEnabled(not d['busy'] and d['paired'])
+        self.device_error.setText(d.get('error',''))
+        self.device_error.setVisible(bool(d.get('error')) and not d['busy'])
+        self.rename_button.setEnabled(active and not pending and (self.demo or d['features'].get('rename',False)))
+        self.rename_button.setToolTip('Change the name stored on the speaker' if active else 'Connect speaker controls to rename it')
+        self.connect_button.setText('Cancel' if pending else 'Disconnect controls' if d['connected'] else 'Wake & connect' if d.get('sleeping') and d.get('wake_available') else 'Connect controls')
+        self.connect_button.setEnabled(pending or not d['busy'] and d['paired'])
         charge = d['battery']
         self.battery_label.setText(f'Battery {charge}%' if charge is not None else 'Battery')
         self.battery_hint.setText('Low charge' if charge is not None and charge<=20 else 'Charge remaining' if charge is not None else 'Connect to check')
@@ -536,10 +564,10 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         if record:self.colour_select.setCurrentText(record['colour'])
         self.colour_select.setVisible(bool(variants))
         self.colour_select.blockSignals(False)
-        self.finish_hint.setText('Detected: '+d['colour']+'. You can choose a different finish.' if d.get('colour') else 'Finish not recognized. Choose a finish or use Generic.' if d.get('colour_code') is not None else 'Connect to detect the finish, or choose it below.')
+        self.finish_hint.setText(('Remembered: ' if d.get('remembered_colour') else 'Detected: ')+d['colour']+'. You can choose a different finish.' if d.get('colour') else 'Finish not recognized. Choose a finish or use Generic.' if d.get('colour_code') is not None else 'Connect to detect the finish, or choose it below.')
         image = self.image_path(d)
         if image:
-            self.photo.setPixmap(QPixmap(str(image)).scaled(320,370,Qt.KeepAspectRatio,Qt.SmoothTransformation))
+            self.photo.setPixmap(QPixmap(str(image)).scaled(220,240,Qt.KeepAspectRatio,Qt.SmoothTransformation))
         else:
             self.photo.clear()
             self.photo.setText('Ultimate Ears\n'+d['name'])
@@ -703,7 +731,17 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.volume_debounce.stop()
         if self.demo:
             d=self.devices[self.selected];d['connected']=not d['connected'];self.update_devices(list(self.devices.values()));return
-        self.command('disconnect' if self.devices[self.selected]['connected'] else 'connect')
+        d=self.devices[self.selected]
+        self.command('disconnect' if d['connected'] or d['busy'] else 'wake' if d.get('sleeping') and d.get('wake_available') else 'connect')
+
+    def rename_speaker(self):
+        if not self.selected:return
+        d=self.devices[self.selected]
+        name,ok=QInputDialog.getText(self,'Rename speaker','Name saved on the speaker:',text=d['name'])
+        if ok and name.strip()!=d['name']:
+            if self.demo:
+                self.devices[self.selected]['name']=name.strip();self.update_devices(list(self.devices.values()))
+            else:self.command('rename',name)
 
     def keyboard_volume(self, action):
         if not self.volume.isSliderDown():self.volume_debounce.start()

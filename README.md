@@ -33,7 +33,8 @@ Zorin OS 18, or newer** as the baseline. ARM computers are not supported yet.
 ## What you can do
 
 - See your speaker's battery, connection and current volume.
-- Detect known BOOM 3 / MEGABOOM 3 finishes automatically after connecting.
+- Detect known BOOM 3 / MEGABOOM 3 finishes and remember their artwork while offline.
+- Rename a connected speaker using **Rename**; the new name is stored on the speaker.
 - Use the blue icon in your taskbar and system tray.
 - Adjust speaker volume without reaching for your phone.
 - Choose a sound profile or adjust five custom EQ bands.
@@ -48,7 +49,8 @@ Zorin OS 18, or newer** as the baseline. ARM computers are not supported yet.
 
 **Search for speakers** scans for both regular Bluetooth devices and low-energy
 signals from sleeping speakers. For a compatible paired speaker nearby, select
-it and click **Turn on**. The app verifies that the speaker responds before
+it and click **Turn on**. **Connect controls** also checks for a sleeping speaker
+and wakes it when a supported signal is available. The app verifies that the speaker responds before
 reporting that it is on. Remote wake was tested with a real MEGABOOM 3.
 
 Bluetooth Smart / remote power must be enabled on the speaker (use the phone app
@@ -70,7 +72,9 @@ Choose **Automatic** under **Speaker finish** to use the colour reported by the
 speaker. Known BOOM 3 and MEGABOOM 3 colours are mapped to matching artwork.
 Unrecognized or unsupported colours use a neutral Generic illustration; you can
 choose any finish manually without changing the speaker. Your selection is saved.
-Colour detection needs a control connection and does not identify every limited
+The last detected colour and model are saved separately for each speaker, so the
+artwork stays correct after restarting the app or renaming the speaker. Manual
+finish choices take priority. Colour detection needs a control connection and does not identify every limited
 edition or later-generation speaker.
 
 The tray menu has **Show Speaker studio**, **Hide window**, and **Quit**. Hiding
@@ -91,6 +95,23 @@ images are included. The app will refuse unsupported model identities.
 
 Your Linux music player and sound settings still choose where music plays.
 Speaker studio controls the speaker; it does not replace your music player.
+
+## Renaming and connections
+
+Connect the speaker controls, click **Rename**, enter a short name and save. The
+app checks that the speaker stored the new name and then updates its Linux
+Bluetooth label. Its colour stays associated with that speaker.
+
+The sidebar and speaker page distinguish **speaker controls**, **Bluetooth audio**,
+and a Bluetooth link without an audio connection. Linux can show a Bluetooth
+connection while the app still needs to connect its controls. Your Linux Sound
+settings choose which speaker plays music. **Disconnect controls** leaves music
+connections alone.
+
+Connection attempts can be cancelled. If one speaker fails, its own page keeps
+the error so connecting another speaker does not hide what happened. Close the
+phone’s UE app or another running Speaker studio instance if a control connection
+is occupied.
 
 ## If something doesn't work
 

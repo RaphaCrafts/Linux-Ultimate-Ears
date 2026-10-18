@@ -81,3 +81,15 @@ def test_wake_writes_only_target_characteristic_and_keeps_successful_connection(
         with pytest.raises(RuntimeError):await b.wake(ADDRESS)
         assert not b.characteristic.writes and b.device.disconnected
     asyncio.run(scenario())
+
+
+def test_renamed_known_model_still_has_sleep_discovery():
+    class Discovery(BlueZ):
+        async def objects(self):return self.data
+    async def scenario():
+        b=Discovery();b.data=objects();b.known_models[ADDRESS]='megaboom-3'
+        p=b.data[PATH]['org.bluez.Device1'];p['Name']=Variant('s','Garden');p['Alias']=Variant('s','Garden')
+        b.last_seen[PATH]=time.monotonic()
+        rows,_=await b.devices()
+        assert len(rows)==1 and rows[0]['name']=='Garden' and rows[0]['wake_path']==PATH
+    asyncio.run(scenario())
