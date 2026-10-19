@@ -259,3 +259,11 @@ powered throughout. Reconnect to Speaker studio afterward to read its version.
 Firmware updates cannot be guaranteed risk-free or guaranteed to cure stuttering.
 Speaker studio does not flash firmware or install downloaded firmware files.
 UE documents updates through its [official phone app](https://support.logi.com/hc/en-in/articles/22067951753751-Getting-Started-UE-EVERBOOM).
+
+## Android companion
+
+The native Android Studio project is in [`android/`](android/README.md). It adapts
+the Speaker Studio design for paired-speaker selection, native PartyUp grouping,
+Double Up / two-speaker Stereo and group volume. Open the `android` folder in
+Android Studio to sync and build. Android hardware operation and groups of three
+or more remain unverified; see its README for setup and the testing checklist.
