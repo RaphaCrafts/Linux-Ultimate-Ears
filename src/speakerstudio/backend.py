@@ -11,7 +11,7 @@ from .colours import finish_name
 from .naming import encode_name, decode_name
 from .preferences import remembered_model, remembered_models
 from .protocol import LegacySession, open_rfcomm, CommandError, ProtocolError, battery_percent
-from .audio_mix import ComputerMix, snapshot as audio_snapshot, speaker_sinks
+from .audio_mix import ComputerMix, snapshot as audio_snapshot, speaker_sinks, output_for_address
 
 
 class Controller(QThread):
@@ -37,6 +37,11 @@ class Controller(QThread):
         self.computer_mix=ComputerMix()
         self.mix_outputs=[]
         self.mix_preparing=False
+        self.group_switching=False
+        self.group_switch_task=None
+        self.mix_members=[]
+        self.playback_method='native'
+        self.native_group_modes={}
 
     def run(self):
         self.stopping = False
@@ -95,7 +100,9 @@ class Controller(QThread):
     def submit(self, action, *args):
         mix_action=action in ('computer_mix_outputs','computer_mix_start','computer_mix_stop','computer_mix_prepare')
         if not self.loop or not self.loop.is_running() or not mix_action and (not self.bluez or not self.bluez.manager):
-            self.error.emit('Bluetooth is still starting. Please try again in a moment.')
+            message='Bluetooth is still starting. Please try again in a moment.'
+            self.error.emit(message)
+            if action=='group_method':self.publish_computer_mix(message)
             return
         def launch():
             task = self.loop.create_task(self._perform(action, *args))
@@ -127,6 +134,8 @@ class Controller(QThread):
             self.operations[address] = asyncio.current_task()
             self.publish()
         try:
+            if self.group_switching and self.group_switch_task is not asyncio.current_task() and action in ('group_add','group_remove','ungroup','party_mode','balance','group_volume','computer_mix_start','computer_mix_prepare','computer_mix_stop'):
+                raise RuntimeError('Wait for the playback mode switch to finish.')
             if (self.computer_mix.active or self.mix_preparing) and action in ('group_add','party_mode','balance','group_volume'):
                 raise RuntimeError('Stop Computer mix before using native PartyUp controls.')
             if action == 'scan':
@@ -452,7 +461,110 @@ class Controller(QThread):
         self.status.emit('Installed firmware version read. Check update availability in the official UE app.')
 
     def publish_computer_mix(self,error=''):
-        self.computer_mix_changed.emit({'running':self.computer_mix.active,'outputs':self.mix_outputs,'error':error})
+        self.mix_error=error
+        self.computer_mix_changed.emit({'running':self.computer_mix.active,'outputs':self.mix_outputs,'error':error,
+            'members':list(self.mix_members),'method':self.playback_method,'switching':self.group_switching})
+
+    async def _group_method(self,method,addresses_json):
+        """Keep group intent while changing both the speaker link and Linux audio."""
+        if self.group_switching:
+            self.error.emit('A playback mode switch is already running.')
+            return
+        was_running=self.computer_mix.active
+        previous_members=list(self.mix_members)
+        previous_method=self.playback_method
+        try:
+            addresses=json.loads(addresses_json)
+            if method not in ('native','computer') or not isinstance(addresses,list) or not addresses or any(not isinstance(a,str) for a in addresses) or len(set(addresses))!=len(addresses):
+                raise ValueError('Choose a host and different speakers for the group.')
+            if method=='computer' and len(addresses)!=2:
+                raise ValueError('Computer mix currently supports exactly two speakers.')
+            if method=='computer' and self.computer_mix.active:
+                if addresses==self.mix_members:
+                    self.publish_computer_mix()
+                    return
+                raise RuntimeError('Stop the current Computer mix before changing its speakers.')
+            # Acquire ownership before the first await: two inventory reads may
+            # otherwise resume into overlapping mode transitions.
+            self.group_switching=True
+            self.group_switch_task=asyncio.current_task()
+            self.mix_members=list(addresses)
+            self.playback_method=method
+            self.publish_computer_mix()
+            await self.refresh_devices()
+            for address in addresses:
+                if address not in self.speakers or not self.speakers[address].paired:
+                    raise RuntimeError('A selected speaker is not paired in Linux. Pair it before switching.')
+                if self.speakers[address].busy:raise RuntimeError(self.speakers[address].name+' is busy. Wait for it to finish.')
+            if method=='computer':
+                # End native hosts first: a receiver may have no direct Linux link
+                # until its speaker-to-speaker PartyUp connection has been released.
+                for address in addresses:
+                    speaker=self.speakers[address]
+                    if speaker.connected or speaker.audio_connected or speaker.broadcast&2:
+                        await self._group_controls(address,refresh=True)
+                        if speaker.broadcast&2:
+                            if speaker.audio_mode in (0,0x50):self.native_group_modes[address]=speaker.audio_mode
+                            await self._perform('ungroup',address)
+                            if speaker.error or speaker.broadcast&2:
+                                raise RuntimeError('Could not end PartyUp on '+speaker.name+'. '+speaker.error)
+                for address in addresses:
+                    speaker=self.speakers[address]
+                    self.status.emit('Connecting Linux audio to '+speaker.name+'…')
+                    if speaker.sleeping and speaker.wake_available:await self._group_controls(address)
+                    try:await self.bluez.connect_audio(address)
+                    except Exception as error:raise ConnectionError(speaker.name+': '+str(error)) from error
+                names=await self._wait_group_outputs(addresses)
+                self.computer_mix.start(names)
+            else:
+                self.computer_mix.stop()
+                for address in addresses:await self._group_controls(address)
+                host=addresses[0]
+                for address in addresses[1:]:
+                    await self._perform('group_add',host,address)
+                    if self.speakers[host].error or address not in self.speakers[host].members:
+                        raise RuntimeError('Could not join '+self.speakers[address].name+' to PartyUp. '+self.speakers[host].error)
+                if len(addresses)==2 and host in self.native_group_modes:
+                    await self._perform('party_mode',host,self.native_group_modes[host])
+                    if self.speakers[host].error:raise RuntimeError(self.speakers[host].error)
+                await self.bluez.connect_audio(host)
+            await self.refresh_devices()
+            self.status.emit('Computer mix is on' if method=='computer' else 'Native PartyUp is on')
+        except asyncio.CancelledError:
+            if was_running and self.computer_mix.active:
+                self.mix_members=previous_members;self.playback_method=previous_method
+            self.publish_computer_mix('The mode switch was interrupted by a speaker disconnect. Retry the switch.')
+            raise
+        except Exception as error:
+            if was_running and self.computer_mix.active:
+                self.mix_members=previous_members;self.playback_method=previous_method
+            self.publish_computer_mix(str(error))
+            self.error.emit(str(error))
+        finally:
+            if self.group_switch_task is asyncio.current_task():
+                self.group_switching=False
+                self.group_switch_task=None
+                # Keep any error until the next explicit attempt.
+                self.publish_computer_mix(getattr(self,'mix_error',''))
+
+    async def _group_controls(self,address,refresh=False):
+        speaker=self.speakers[address]
+        if not speaker.connected or refresh:
+            await self._perform('refresh' if speaker.connected else 'connect',address)
+            if not speaker.connected:await self._perform('connect',address)
+            if not speaker.connected or speaker.error:
+                raise ConnectionError('Could not connect controls for '+speaker.name+'. '+speaker.error)
+
+    async def _wait_group_outputs(self,addresses):
+        for _ in range(20):
+            rows=audio_snapshot()
+            names=[output_for_address(rows,address) for address in addresses]
+            if all(names):
+                self.mix_outputs=[{'name':name,'label':self.speakers[address].name} for name,address in zip(names,addresses)]
+                return names
+            await asyncio.sleep(.25)
+        missing=[self.speakers[address].name for address,name in zip(addresses,names) if not name]
+        raise ConnectionError('Linux audio output did not appear for '+', '.join(missing)+'. Retry the switch.')
 
     async def _computer_mix_outputs(self):
         try:
@@ -496,6 +608,7 @@ class Controller(QThread):
             configuration(names,'validation')
             await self._prepare_computer_mix()
             self.computer_mix.start(names)
+            self.playback_method='computer'
             self.publish_computer_mix()
             self.status.emit('Computer mix is on. Linux is sending audio directly to both speakers.')
         except Exception as error:self.publish_computer_mix(str(error))
@@ -503,6 +616,7 @@ class Controller(QThread):
     async def _computer_mix_stop(self):
         try:
             self.computer_mix.stop()
+            self.mix_members=[]
             self.publish_computer_mix()
             self.status.emit('Computer mix stopped. The previous output was restored unless you selected a different one.')
         except Exception as error:self.publish_computer_mix(str(error))

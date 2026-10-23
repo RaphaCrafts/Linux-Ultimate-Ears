@@ -16,7 +16,6 @@ from .preferences import restore_appearance
 from .equalizer import BUILTIN_PRESETS, PREVIEW_CURVES, preview_bands, load_profiles, save_profile
 from .party_visual import PartyLink, PartyPlayArea, SpeakerDragCard
 from .firmware import FirmwareDialog
-from .computer_mix_ui import ComputerMixDialog
 
 
 def asset_root():
@@ -106,6 +105,8 @@ class Window(QMainWindow):
         self.eq_pending = None
         self.eq_profile = None
         self.settings = QSettings('RaphaCrafts', 'SpeakerStudio')
+        self.playback_method=str(self.settings.value('party/default','native'))
+        self.computer_group=[]
         self.catalogue = json.loads((asset_root()/'speakers/manifest.json').read_text())['images']
         self.setWindowTitle('Speaker studio')
         self.setWindowIcon(app_icon())
@@ -370,20 +371,23 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         party_heading.addWidget(self.read_group_button)
         party_heading.addWidget(button('Back to speaker',lambda:self.navigate('speaker')))
         layout.addLayout(party_heading)
-        preference=QHBoxLayout()
-        preference.addWidget(text('Default PartyUp mode','muted'))
-        self.party_default=QComboBox()
-        self.party_default.addItem('Native PartyUp','native')
-        self.party_default.addItem('Computer mix · experimental','computer')
-        self.party_default.setCurrentIndex(max(0,self.party_default.findData(self.settings.value('party/default','native'))))
-        self.party_default.activated.connect(lambda index:self.settings.setValue('party/default',self.party_default.itemData(index)))
-        preference.addWidget(self.party_default)
-        layout.addLayout(preference)
-        alternative=QHBoxLayout()
-        self.computer_mix_hint=text('Alternative: send audio directly from Linux to two speakers.','muted')
-        alternative.addWidget(self.computer_mix_hint,1)
-        alternative.addWidget(button('Computer mix · experimental',self.show_computer_mix))
-        layout.addLayout(alternative)
+        mode_row=QHBoxLayout()
+        mode_row.addWidget(text('Send sound with','section'))
+        self.method_buttons={}
+        for method,label in [('native','Native PartyUp'),('computer','Computer mix')]:
+            option=button(label,lambda checked=False,m=method:self.choose_group_method(m))
+            option.setCheckable(True)
+            option.setAccessibleName(label+' group method')
+            option.setObjectName('playbackMode')
+            self.method_buttons[method]=option
+            mode_row.addWidget(option)
+        layout.addLayout(mode_row)
+        self.computer_mix_hint=text('','muted')
+        layout.addWidget(self.computer_mix_hint)
+        self.start_computer_group=button('Start Computer mix',self.retry_group_connection,True)
+        layout.addWidget(self.start_computer_group)
+        self.retry_group=button('Retry connection',self.retry_group_connection)
+        layout.addWidget(self.retry_group)
         self.native_party_controls=QWidget()
         layout.addWidget(self.native_party_controls)
         layout.addStretch()
@@ -400,7 +404,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.host_select.setAccessibleName('PartyUp host speaker')
         self.host_select.activated.connect(self.choose_host)
         controls.addWidget(self.host_select,1)
-        self.ungroup_button = button('End group',lambda:self.party_action('ungroup'))
+        self.ungroup_button = button('End group',self.end_playback_group)
         controls.addWidget(self.ungroup_button)
         layout.addLayout(controls)
         group_vol = QHBoxLayout()
@@ -418,7 +422,9 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.group_volume_label = text('—','muted')
         group_vol.addWidget(self.group_volume,1)
         group_vol.addWidget(self.group_volume_label)
-        layout.addLayout(group_vol)
+        self.group_volume_row=QWidget()
+        self.group_volume_row.setLayout(group_vol)
+        layout.addWidget(self.group_volume_row)
         self.party_link=PartyLink()
         layout.addWidget(self.party_link)
         self.balance_panel=QWidget()
@@ -473,7 +479,9 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.levels_refresh=button('Refresh speaker levels',lambda:self.party_action('group_levels'))
         levels_row.addWidget(self.levels_hint,1)
         levels_row.addWidget(self.levels_refresh)
-        layout.addLayout(levels_row)
+        self.levels_row=QWidget()
+        self.levels_row.setLayout(levels_row)
+        layout.addWidget(self.levels_row)
         self.member_sliders={}
         self.member_timers={}
         self.mix_signature=None
@@ -568,7 +576,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
 
     def open_party(self):
         self.navigate('party')
-        if self.settings.value('party/default','native')=='computer':self.show_computer_mix()
+
 
     def navigate(self, page):
         if page!='party':
@@ -785,6 +793,10 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
                 slider.blockSignals(False)
 
     def choose_host(self,index):
+        if self.playback_method=='computer':
+            self.computer_group=[self.host_select.itemData(index)]
+            self.render_party()
+            return
         self.group_debounce.stop()
         self.cancel_balance()
         self.group_host=self.host_select.itemData(index)
@@ -825,6 +837,11 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             self.controller.submit(action,self.group_host,*args)
 
     def join_speaker(self,address):
+        if self.playback_method=='computer':
+            if address not in self.play_area.receivers:return
+            self.computer_group=[self.group_host,address]
+            self.request_group_method('computer',self.computer_group)
+            return
         host=self.devices.get(self.group_host,{})
         target=self.devices.get(address,{})
         if not host or host.get('busy') or target.get('busy'):return
@@ -876,11 +893,29 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.schedule_balance()
 
     def render_party(self):
-        computer_mix_active=getattr(self,'computer_mix_state',{}).get('running',False)
-        self.native_party_controls.setVisible(not computer_mix_active)
-        if computer_mix_active:
-            self.cancel_balance();self.group_debounce.stop()
-            self.party_link.timer.stop()
+        state=self.computer_mix_state
+        switching=state.get('switching',False)
+        self.native_party_controls.setVisible(True)
+        self.native_party_controls.setEnabled(not switching)
+        for method,option in self.method_buttons.items():
+            option.setChecked(self.playback_method==method)
+            option.setEnabled(not switching and (method!=self.playback_method or method=='computer' and not state.get('running')))
+        self.computer_mix_hint.setText('Switching connection method…' if switching else 'Experimental: may have echo, drift or interruptions.' if self.playback_method=='computer' else 'Speakers share sound through native PartyUp. Your choice is remembered.')
+        self.retry_group.setVisible(bool(state.get('error')))
+        self.retry_group.setEnabled(not switching)
+        self.start_computer_group.setVisible(False)
+        if self.playback_method=='computer':
+            self.render_computer_group()
+            return
+        self.read_group_button.setVisible(True)
+        self.group_volume_row.setVisible(True)
+        self.levels_row.setVisible(True)
+        self.ungroup_button.setText('End group')
+        if switching:
+            self.play_area.set_targets(None,[])
+            self.ungroup_button.setEnabled(False)
+            self.host_select.setEnabled(False)
+            self.party_error.setText(state.get('error',''))
             return
         self.read_group_button.setEnabled(any(d.get('audio_connected') and d.get('paired') and not d.get('busy') for d in self.devices.values()))
         current=self.devices.get(self.group_host)
@@ -898,7 +933,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         if self.group_host:self.host_select.setCurrentIndex(self.host_select.findData(self.group_host))
         self.host_select.blockSignals(False)
         host=self.devices.get(self.group_host)
-        error=host.get('error','') if host else ''
+        error=state.get('error') or (host.get('error','') if host else '')
         self.party_error.setText(error);self.party_error.setVisible(bool(error))
         allowed=[d['address'] for d in self.devices.values() if host and d['address']!=host['address'] and d['address'] not in host.get('members',[]) and d['connected'] and d['features'].get('group') and not d['busy'] and not host['busy'] and not (d.get('broadcast',0)&2)]
         self.play_area.set_targets(self.group_host,allowed)
@@ -1051,6 +1086,104 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             card.setLayout(box)
             card.setMinimumHeight(190)
             self.available_grid.addWidget(card,i//3,i%3)
+
+    def selected_group_addresses(self):
+        if self.playback_method=='computer' and self.computer_group:return list(self.computer_group)
+        host=self.devices.get(self.group_host,{})
+        if host and host.get('broadcast',0)&2:return [host['address']]+list(host.get('members',[]))
+        if self.computer_mix_state.get('members'):return list(self.computer_mix_state['members'])
+        return [host['address']] if host else []
+
+    def choose_group_method(self,method):
+        if self.computer_mix_state.get('switching'):return
+        addresses=self.selected_group_addresses()
+        self.playback_method=method
+        self.settings.setValue('party/default',method)
+        if method=='computer':
+            self.computer_group=addresses or ([self.selected] if self.selected in self.devices else [])
+        if len(addresses)>=2 or method=='native' and self.computer_mix_state.get('running'):
+            self.request_group_method(method,addresses)
+        else:self.render_party()
+
+    def request_group_method(self,method,addresses):
+        self.cancel_balance();self.group_debounce.stop()
+        for timer in self.member_timers.values():timer.stop()
+        if self.demo:
+            host=self.devices.get(addresses[0]) if addresses else None
+            if method=='computer' and host:
+                host['members']=[];host['broadcast']=0
+            elif host:
+                host['members']=list(addresses[1:]);host['broadcast']=3 if len(addresses)>1 else 0
+            self.update_computer_mix({'running':method=='computer' and len(addresses)==2,'members':list(addresses),'method':method,'switching':False,'outputs':[],'error':''})
+            return
+        self.computer_mix_state={**self.computer_mix_state,'switching':True,'error':'','members':list(addresses)}
+        self.render_party()
+        self.controller.submit('group_method',method,json.dumps(addresses))
+
+    def retry_group_connection(self):
+        addresses=self.computer_group if self.playback_method=='computer' else self.selected_group_addresses()
+        if addresses:self.request_group_method(self.playback_method,addresses)
+
+    def end_playback_group(self):
+        if self.playback_method=='native':self.party_action('ungroup');return
+        if self.demo:
+            self.update_computer_mix({**self.computer_mix_state,'running':False,'members':[],'switching':False,'error':''})
+        else:self.controller.submit('computer_mix_stop')
+        self.computer_group=self.computer_group[:1]
+        self.render_party()
+
+    def render_computer_group(self):
+        state=self.computer_mix_state
+        switching=state.get('switching',False)
+        self.cancel_balance();self.group_debounce.stop();self.party_link.hide()
+        self.read_group_button.setVisible(False)
+        for widget in (self.group_volume_row,self.levels_row,self.balance_panel,self.party_mode_row):widget.setVisible(False)
+        self.ungroup_button.setText('Stop Computer mix' if state.get('running') else 'Clear group')
+        self.ungroup_button.setEnabled(not switching and len(self.computer_group)>1)
+        # A PartyUp receiver need not have a Linux/control link yet. Keep the
+        # chosen addresses while the backend establishes those separate links.
+        if not self.computer_group:
+            host=self.devices.get(self.group_host) or next((d for d in self.devices.values() if d.get('broadcast',0)&2),None) or self.devices.get(self.selected)
+            if not host:host=next((d for d in self.devices.values() if d.get('paired')),None)
+            if host:self.computer_group=[host['address']]+list(host.get('members',[]))
+        addresses=list(self.computer_group)
+        self.start_computer_group.setVisible(len(addresses)==2 and not state.get('running') and not switching and not state.get('error'))
+        self.group_host=addresses[0] if addresses else None
+        self.host_select.blockSignals(True);self.host_select.clear()
+        for d in self.devices.values():
+            if d.get('paired'):self.host_select.addItem(d['name'],d['address'])
+        if self.group_host:self.host_select.setCurrentIndex(self.host_select.findData(self.group_host))
+        self.host_select.blockSignals(False)
+        self.host_select.setEnabled(not switching and not state.get('running'))
+        allowed=[a for a,d in self.devices.items() if d.get('paired') and not d.get('busy') and a not in addresses] if len(addresses)==1 and not switching and not state.get('running') else []
+        self.play_area.set_targets(self.group_host,allowed)
+        error=state.get('error','')
+        self.party_error.setText(error);self.party_error.setVisible(bool(error))
+        self.party_info.setText('Computer mix · playing through Linux' if state.get('running') else 'Connecting the selected speakers…' if switching else 'Computer mix · choose two speakers')
+        self.play_hint.setText('Connecting Linux audio to each speaker…' if switching else 'Both speakers receive sound directly from Linux.' if state.get('running') else 'Drag a paired speaker here. Linux connects it automatically.')
+        self.group_status.setText('Experimental · automatic timing compensation is enabled.')
+        if self.party_dragging:return
+        signature=('computer',tuple(addresses),bool(state.get('running')),switching,error,tuple((a,d['name'],d.get('paired'),d.get('busy'),d.get('audio_connected')) for a,d in self.devices.items()))
+        if signature==self.party_grid_signature:return
+        self.clear_party_cards();self.party_grid_signature=signature
+        for i,address in enumerate(addresses):
+            d=self.devices.get(address,{})
+            box=QVBoxLayout();box.addWidget(text(d.get('name','Group member'),'section'))
+            if d:
+                photo=QLabel();photo.setAlignment(Qt.AlignCenter)
+                image=self.image_path(d)
+                if image:photo.setPixmap(QPixmap(str(image)).scaled(70,105,Qt.KeepAspectRatio,Qt.SmoothTransformation))
+                box.addWidget(photo)
+            box.addWidget(text('Playing through Linux' if state.get('running') else 'Connecting…' if switching else 'Selected','muted'))
+            self.party_grid.addWidget(panel(box),i//3,i%3)
+        for i,(address,d) in enumerate((a,d) for a,d in self.devices.items() if a not in addresses):
+            box=QVBoxLayout();box.addWidget(text(d['name'],'section'))
+            box.addWidget(text('Linux audio connected' if d.get('audio_connected') else 'Paired · connects when added' if d.get('paired') else 'Pair in Bluetooth settings','muted'))
+            action=button('Add to group',lambda checked=False,a=address:self.join_speaker(a),True)
+            action.setEnabled(address in allowed);box.addWidget(action)
+            card=SpeakerDragCard(self.group_host,address,QPixmap(str(self.image_path(d)))) if address in allowed else panel()
+            if address in allowed:card.draggingChanged.connect(self.party_drag_changed)
+            card.setLayout(box);self.available_grid.addWidget(card,i//3,i%3)
 
     def party_connect_button(self,d):
         caption='Connecting…' if d['busy'] else 'Wake & connect' if d.get('sleeping') and d.get('wake_available') else 'Connect first'
@@ -1215,16 +1348,13 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
 
     def update_computer_mix(self,state):
         self.computer_mix_state=state
-        self.computer_mix_hint.setText('Computer mix is on · native PartyUp is bypassed.' if state['running'] else state.get('error') or 'Alternative: send audio directly from Linux to two speakers.')
+        if state.get('method') and (state.get('switching') or state.get('running')):self.playback_method=state['method']
+        if 'members' in state:self.computer_group=list(state['members'])
         if state.get('error'):self.show_error(state['error'])
         self.render_party()
 
     def show_computer_mix(self):
-        previous=getattr(self,'computer_mix_dialog',None)
-        if previous:
-            previous.close();previous.deleteLater()
-        self.computer_mix_dialog=ComputerMixDialog(self.controller,self,self.demo,self.computer_mix_state)
-        self.computer_mix_dialog.show()
+        self.choose_group_method('computer')
 
     def show_error(self,message):
         self.notice.setText(message)

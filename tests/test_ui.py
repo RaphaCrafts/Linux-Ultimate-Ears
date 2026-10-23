@@ -269,12 +269,11 @@ def test_eq_reset_and_saved_party_default(tmp_path,monkeypatch):
     assert w.devices[w.selected]['eq']==0 and not w.eq_dirty
     assert 'party' not in w.tabs
     assert len([b for b in w.findChildren(QPushButton) if b.text()=='PartyUp'])==1
-    w.party_default.setCurrentIndex(1);w.party_default.activated.emit(1)
-    opened=[];w.show_computer_mix=lambda:opened.append(True)
-    w.open_party();assert w.page=='party' and opened
+    w.method_buttons['computer'].click()
+    w.open_party();assert w.page=='party' and w.playback_method=='computer'
     w.close()
     second=Window(Controller(),demo=True);app.processEvents()
-    assert second.party_default.currentData()=='computer'
+    assert second.playback_method=='computer'
     second.close()
 
 

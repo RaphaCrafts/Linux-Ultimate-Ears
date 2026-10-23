@@ -397,3 +397,20 @@ Built-in preview curves retain their existing shapes. They are not measured
 speaker coefficients; draft sliders start from these illustrative previews.
 Physical-speaker listening and persistence of custom bands on hardware have not
 been revalidated for this update.
+
+
+## Integrated group methods, 0.1.16 (2026-10-23)
+
+Tests cover a native receiver without either a control or Linux audio link,
+native teardown before direct audio connection, exact output matching, connection
+failure retaining selection, retry success, native group reconstruction after
+stopping the mix, selection validation before teardown, serialized transitions,
+and a Bluetooth startup failure clearing the UI's pending state. UI tests cover
+mode switching with a disconnected receiver, dragging a paired receiver in
+Computer mix mode and retry without losing group cards. BlueZ tests verify the
+A2DP profile is requested even when generic Connected is already true and that
+transient profile errors are retried rather than reported as success.
+
+The revised view was rendered offscreen for visual inspection. Live inventory
+confirmed the reported receiver lacked a direct Linux transport. Full hardware
+switching and listening remain unverified for this release.

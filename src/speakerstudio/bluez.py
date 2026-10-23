@@ -11,6 +11,7 @@ from dbus_next.aio import MessageBus
 
 from .ble import legacy_beacon, WAKE_CHARACTERISTIC, wake_payload
 
+A2DP_SINK_UUID = '0000110b-0000-1000-8000-00805f9b34fb'
 SPP_UUID = '00001101-0000-1000-8000-00805f9b34fb'
 
 
@@ -167,6 +168,24 @@ class BlueZ:
                     pass
             self.scanning = False
             self.scan_finished.set()
+
+    async def connect_audio(self,address):
+        """Connect only a saved Classic speaker's A2DP profile, then verify it."""
+        rows,_=await self.devices()
+        row=next((r for r in rows if r['address']==address),None)
+        if not row or not row['paired']:raise RuntimeError('Pair this speaker in Linux Bluetooth settings first.')
+        if row.get('audio_connected'):return
+        device=await self.interface(row['path'],'org.bluez.Device1')
+        last_error=None
+        for attempt in range(3):
+            try:await asyncio.wait_for(device.call_connect_profile(A2DP_SINK_UUID),12)
+            except Exception as error:last_error=error
+            for _ in range(8):
+                rows,_=await self.devices()
+                current=next((r for r in rows if r['address']==address),None)
+                if current and current.get('audio_connected'):return
+                await asyncio.sleep(.25)
+        raise ConnectionError('Linux could not connect the speaker audio profile. Keep it on and nearby, and release other Bluetooth audio sources.') from last_error
 
     async def set_alias(self,path,name):
         properties=await self.interface(path,'org.freedesktop.DBus.Properties')

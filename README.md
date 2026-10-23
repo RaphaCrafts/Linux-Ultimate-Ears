@@ -289,3 +289,13 @@ original stays intact. **Reset to Out loud** selects the baseline and clears the
 draft. Preset curves are illustrative previews, so custom drafts start from the
 displayed curve rather than measured factory coefficients. Named profiles stay
 on this computer; the speaker stores the last applied custom EQ bands.
+
+
+Version 0.1.16 puts **Native PartyUp / Computer mix** in the group view. Toggle
+to switch an existing pair, or choose Computer mix first and drag a paired
+speaker into the play area. The app ends native PartyUp, connects each speaker's
+Linux audio profile and waits for both outputs before creating the mix. A
+PartyUp receiver may be playing without having a separate Linux audio connection;
+that is now handled automatically. A failed switch keeps the selected pair and
+offers **Retry connection**. Switch back to Native PartyUp to rebuild the group.
+The method choice is remembered. Computer mix currently supports two speakers.

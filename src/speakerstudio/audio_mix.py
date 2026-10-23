@@ -41,6 +41,12 @@ def speaker_sinks(objects):
     return result
 
 
+def output_for_address(objects,address):
+    """Resolve an exact Classic address, never an alias or substring."""
+    prefix='bluez_output.'+address.upper().replace(':','_')+'.'
+    return next((name for name in speaker_sinks(objects) if name.upper().startswith(prefix.upper())),None)
+
+
 def configuration(names,node_name):
     if len(names)!=2 or len(set(names))!=2:raise ValueError('Choose two different speaker outputs.')
     if any(not re.fullmatch(r'bluez_output\.[0-9A-Fa-f_.:]+',name) for name in names):

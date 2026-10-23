@@ -85,3 +85,30 @@ No manual per-speaker delay calibration is implemented in this update.
 Validation on 2026-10-23: automated tests cover automatic ungroup ordering,
 failure preventing mix startup, and direct PartyUp connections. These new flows
 have not been verified with physical speakers.
+
+
+Version 0.1.16 integrates the method selector and group cards. Switching an
+existing pair captures its addresses before ungrouping. It ends native hosts
+first, connects each paired Classic device with BlueZ `ConnectProfile` for the
+A2DP Sink service, verifies MediaTransport availability, and waits for exact
+PipeWire outputs matching those addresses. It does not require a separate
+receiver control session for Computer mix. Generic Bluetooth Connected state
+alone is insufficient evidence of an audio output. Transient profile transitions
+are retried. No pairing, trust setting or Bluetooth service is replaced.
+
+Selecting Computer mix before dragging a paired speaker uses the same backend
+transition. Native switching stops the owned mix, reconnects controls, joins the
+selected speakers and restores the prior two-speaker channel mode when known.
+Transitions are serialized; an error retains selection and makes retry available.
+A failure after native teardown does not automatically recreate native PartyUp;
+the user can retry or select Native PartyUp. Computer mix is limited to two
+speakers, and larger selections are rejected before teardown.
+
+Live inventory on 2026-10-23 showed the reported receiver paired without a direct
+Linux audio transport while the host had a transport. This confirms the missing
+handoff prerequisite; it does not prove that the receiver was currently in a
+native group. Automated tests cover the new transition order and UI behavior.
+The new full switching flow has not yet been listening-tested on physical
+speakers. The existing latency compensation remains experimental.
+
+BlueZ API reference: [Device ConnectProfile](https://bluez.readthedocs.io/en/latest/device-api/).
