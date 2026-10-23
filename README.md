@@ -299,3 +299,15 @@ PartyUp receiver may be playing without having a separate Linux audio connection
 that is now handled automatically. A failed switch keeps the selected pair and
 offers **Retry connection**. Switch back to Native PartyUp to rebuild the group.
 The method choice is remembered. Computer mix currently supports two speakers.
+
+
+Version 0.1.17 adds vertical volume sliders beside the speakers in both group
+methods, including native two-speaker pairs. Native PartyUp uses the existing
+speaker-level commands; use **Refresh speaker levels** if a receiver's level
+is unknown. Unsupported receiver controls remain disabled. Computer mix controls
+each speaker's Linux output independently, with automatic local level refresh
+and a manual refresh button. These output levels are separate from the mix's
+master volume and remain as normal Linux output settings after stopping the mix.
+The speaker-page slider now holds your chosen value while the command is being
+processed, instead of flashing back to the old value. Rapid changes are queued
+and each completed request updates its own displayed level.

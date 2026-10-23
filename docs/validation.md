@@ -414,3 +414,29 @@ transient profile errors are retried rather than reported as success.
 The revised view was rendered offscreen for visual inspection. Live inventory
 confirmed the reported receiver lacked a direct Linux transport. Full hardware
 switching and listening remain unverified for this release.
+
+
+## Individual volumes and stable slider feedback, 0.1.17 (2026-10-23)
+
+Computer mix volume controls resolve a fresh PipeWire node ID for an exact,
+participating Bluetooth output on each edit. Tests cover independent output
+selection, reconnecting node IDs, mute readback and explicit unmute on adjustment,
+0–100% bounds, unavailable output handling, no writes after stopping the mix,
+and operation without a BlueZ inventory or speaker control socket. Level reads
+are local PipeWire operations; they do not add RFCOMM polling during playback.
+
+UI tests cover vertical native pair controls, per-output dispatch, background
+readbacks preserving edits, and acknowledgement of the actual level even when
+it is quantized. The main speaker slider and native member sliders hold pending
+values until the corresponding command completes; rapid volume requests wait
+for an active command rather than being dropped. Unavailable backend submission
+restores the last actual level. Group-volume changes retain their existing
+synchronization behavior. Physical button events and forced system-wide hardware
+volume synchronization are not introduced in this update.
+
+A silent PipeWire runtime trial created two temporary null sinks without changing
+the configured playback output. The new helpers set their volumes to 23% and
+71%, changed only the first to 48%, and verified the second stayed at 71%. Both
+temporary sinks were removed afterward. No physical speaker volumes were changed
+by this trial. Both revised group views were rendered offscreen for visual QA.
+Native receiver proxy volume retains its earlier hardware-verification limits.

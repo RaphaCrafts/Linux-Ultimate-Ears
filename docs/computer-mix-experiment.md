@@ -112,3 +112,18 @@ The new full switching flow has not yet been listening-tested on physical
 speakers. The existing latency compensation remains experimental.
 
 BlueZ API reference: [Device ConnectProfile](https://bluez.readthedocs.io/en/latest/device-api/).
+
+
+Version 0.1.17 adds independent Linux output volume controls on the speaker cards.
+`wpctl get-volume` supplies volume/mute readback; `set-volume --limit 1.0` and an
+explicit unmute implement a user's slider adjustment. Only outputs in the active
+mix can be edited. Node IDs are resolved from a fresh inventory on every edit.
+Normal volume settings remain after Stop; the existing output-default restoration
+is unchanged. These controls adjust relative loudness, not left/right channel
+assignment, and do not raise either speaker automatically when creating a mix.
+Whether Linux output volume is synchronized to physical buttons depends on the
+Bluetooth audio stack's hardware-volume support. Speaker Studio's native volume
+controls remain the existing 16/32-step speaker protocol controls.
+
+References: [WirePlumber volume commands](https://pipewire.pages.freedesktop.org/wireplumber/man/wpctl.html),
+[Bluetooth hardware volume](https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/bluetooth.html).

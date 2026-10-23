@@ -112,6 +112,40 @@ class ComputerMix:
             self.stop()
             raise
 
+    @staticmethod
+    def _volume(node_id):
+        output=subprocess.check_output(['wpctl','get-volume',str(node_id)],text=True,timeout=2,env={**system_env(),'LC_ALL':'C'})
+        match=re.fullmatch(r'Volume:\s+(\d+(?:\.\d+)?)\s*(\[MUTED\])?\s*',output.strip())
+        if not match:raise RuntimeError('Linux returned an unreadable volume level.')
+        return {'volume':max(0,min(100,round(float(match[1])*100))),'muted':bool(match[2])}
+
+    def _output_node(self,name,rows):
+        if not self.active or name not in self.names:raise RuntimeError('This speaker is not in the active Computer mix.')
+        if name not in speaker_sinks(rows):raise RuntimeError('The speaker audio output disconnected. Reconnect it before adjusting volume.')
+        node=next(o for o in rows if o.get('type')=='PipeWire:Interface:Node' and o.get('info',{}).get('props',{}).get('node.name')==name and o.get('info',{}).get('props',{}).get('media.class')=='Audio/Sink')
+        if type(node.get('id')) is not int or node['id']<0:raise RuntimeError('Invalid Linux audio output ID.')
+        return node['id']
+
+    def levels(self):
+        if not self.active:return {}
+        rows=snapshot()
+        levels={}
+        for name in self.names:
+            try:levels[name]=self._volume(self._output_node(name,rows))
+            except (OSError,ValueError,RuntimeError,subprocess.SubprocessError):
+                levels[name]={'error':'Could not read this speaker’s Linux volume. Refresh to try again.'}
+        return levels
+
+    def set_volume(self,name,percent):
+        if type(percent) is not int or not 0<=percent<=100:raise ValueError('Choose a volume between 0 and 100%.')
+        if not self.active or name not in self.names:raise RuntimeError('This speaker is not in the active Computer mix.')
+        # Resolve a fresh node ID on every change: IDs may change on reconnect.
+        node_id=self._output_node(name,snapshot())
+        subprocess.run(['wpctl','set-volume','--limit','1.0',str(node_id),f'{percent}%'],check=True,timeout=2,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,env=system_env())
+        # Explicit slider adjustment also releases a mute set in Sound settings.
+        subprocess.run(['wpctl','set-mute',str(node_id),'0'],check=True,timeout=2,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,env=system_env())
+        return self._volume(node_id)
+
     def check(self):
         if not self.active:return
         if self.process.poll() is not None:raise RuntimeError('Computer mix stopped unexpectedly.')

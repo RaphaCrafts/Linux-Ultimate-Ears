@@ -26,6 +26,7 @@ class Speaker:
     busy: bool = False
     battery: int | None = None
     volume: int | None = None
+    volume_revision: str = ''
     volume_steps: int = 31
     eq: int | None = None
     firmware: str = ''

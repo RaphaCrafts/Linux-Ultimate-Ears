@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import sys
+import uuid
 from pathlib import Path
 from PySide6.QtCore import Qt, QSettings, QSize, QTimer
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, QDesktopServices
@@ -101,6 +102,7 @@ class Window(QMainWindow):
         self.balance_dirty = False
         self.party_grid_signature = None
         self.party_card_actions = []
+        self.volume_request = None
         self.eq_dirty = False
         self.eq_pending = None
         self.eq_profile = None
@@ -476,7 +478,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         layout.addWidget(self.balance_panel)
         levels_row=QHBoxLayout()
         self.levels_hint=text('Individual speaker volumes','muted')
-        self.levels_refresh=button('Refresh speaker levels',lambda:self.party_action('group_levels'))
+        self.levels_refresh=button('Refresh speaker levels',self.refresh_group_levels)
         levels_row.addWidget(self.levels_hint,1)
         levels_row.addWidget(self.levels_refresh)
         self.levels_row=QWidget()
@@ -484,6 +486,11 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         layout.addWidget(self.levels_row)
         self.member_sliders={}
         self.member_timers={}
+        self.computer_sliders={}
+        self.computer_outputs={}
+        self.computer_errors={}
+        self.computer_level_pending={}
+        self.native_level_pending={}
         self.mix_signature=None
         self.party_dragging=False
         self.play_area=PartyPlayArea()
@@ -710,12 +717,14 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.battery_meter.setValue(charge if charge is not None else 0)
         self.battery_meter.setEnabled(charge is not None)
         self.battery_meter.setStyleSheet('QProgressBar::chunk {background:'+('#efab59' if charge is not None and charge<=20 else '#12b5d3')+';border-radius:4px;}')
-        if not self.volume.isSliderDown() and not self.volume_debounce.isActive():
+        if self.volume_request and (self.volume_request[0]!=self.selected or d.get('volume_revision')==self.volume_request[1] or not d['connected']):
+            self.volume_request=None
+        if not self.volume_request and not self.volume.isSliderDown() and not self.volume_debounce.isActive():
             self.volume.blockSignals(True)
             self.volume.setValue(d['volume'] or 0)
             self.volume.blockSignals(False)
             self.volume_label.setText(f"{d['volume']}%" if d['volume'] is not None else '—')
-        self.volume.setEnabled(active and d['volume'] is not None)
+        self.volume.setEnabled(d['connected'] and (not d['busy'] or d.get('operation')=='volume') and d['volume'] is not None)
         self.identify_button.setEnabled(active)
         self.power_button.setText('Power off' if d['connected'] else 'Turn on')
         self.power_button.setEnabled(active and d['features'].get('power',False) or not d['connected'] and not d['busy'] and d.get('wake_available',False) and d.get('sleeping') is True)
@@ -938,9 +947,9 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         allowed=[d['address'] for d in self.devices.values() if host and d['address']!=host['address'] and d['address'] not in host.get('members',[]) and d['connected'] and d['features'].get('group') and not d['busy'] and not host['busy'] and not (d.get('broadcast',0)&2)]
         self.play_area.set_targets(self.group_host,allowed)
         if self.party_dragging:return
-        multiple=bool(host and host.get('broadcast',0)&2 and len(host.get('members',[]))>=2)
-        self.levels_hint.setVisible(multiple)
-        self.levels_refresh.setVisible(multiple)
+        individual_levels=bool(host and host.get('broadcast',0)&2 and host.get('members'))
+        self.levels_hint.setVisible(individual_levels)
+        self.levels_refresh.setVisible(individual_levels)
         self.levels_refresh.setEnabled(bool(host and not host['busy']))
         self.levels_hint.setText('Individual volumes · changing group volume synchronizes all speakers')
         paired_view=bool(host and host.get('broadcast',0)&2 and len(host.get('members',[]))==1)
@@ -968,6 +977,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             self.group_volume.setValue(host['volume'] or 0)
         self.host_select.setEnabled(bool(connected))
         if not host:
+            self.native_level_pending.clear()
             self.cancel_balance()
             self.party_link.set_state('idle','Connect a speaker to start PartyUp',(QPixmap(),QPixmap()))
             self.party_link.hide()
@@ -1026,14 +1036,20 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             photo.setFixedHeight(105)
             image=self.image_path(d) if d else self.generic_path('')
             if image:photo.setPixmap(QPixmap(str(image)).scaled(80,105,Qt.KeepAspectRatio,Qt.SmoothTransformation))
-            if multiple:
+            if individual_levels:
                 level_row=QHBoxLayout()
                 level_row.addWidget(photo,1)
                 slider=QSlider(Qt.Vertical)
                 slider.setRange(0,100)
                 slider.setFixedHeight(120)
                 slider.setAccessibleName('Volume for '+(d['name'] if d else 'group member'))
-                level=d.get('volume') if i==0 or d and d['connected'] else metadata.get('volume')
+                direct=i==0 or d and d['connected']
+                level=d.get('volume') if direct else metadata.get('volume')
+                revision=d.get('volume_revision') if direct else metadata.get('volume_revision')
+                request=self.native_level_pending.get(address)
+                if request and request[0]==self.group_host:
+                    if request[1]==revision:self.native_level_pending.pop(address,None)
+                    else:level=request[2]
                 slider.setValue(level if level is not None else 0)
                 slider.setEnabled(level is not None and not host['busy'])
                 self.member_sliders[address]=slider
@@ -1059,7 +1075,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
                 remove=button('Remove from group',lambda checked=False,a=address:self.party_action('group_remove',a))
                 remove.setEnabled(not host['busy']);box.addWidget(remove)
                 self.party_card_actions.append((remove,address))
-            card=panel(box);card.setMinimumHeight(300 if multiple else 250)
+            card=panel(box);card.setMinimumHeight(300 if individual_levels else 250)
             self.party_grid.addWidget(card,i//3,i%3)
         available=[d for d in available if d['address'] not in displayed]
         if not available:self.available_grid.addWidget(text('No other speakers found. Use Search for speakers to look for more.','muted'),0,0,1,3)
@@ -1106,6 +1122,8 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         else:self.render_party()
 
     def request_group_method(self,method,addresses):
+        self.computer_level_pending.clear()
+        self.native_level_pending.clear()
         self.cancel_balance();self.group_debounce.stop()
         for timer in self.member_timers.values():timer.stop()
         if self.demo:
@@ -1125,6 +1143,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         if addresses:self.request_group_method(self.playback_method,addresses)
 
     def end_playback_group(self):
+        self.computer_level_pending.clear()
         if self.playback_method=='native':self.party_action('ungroup');return
         if self.demo:
             self.update_computer_mix({**self.computer_mix_state,'running':False,'members':[],'switching':False,'error':''})
@@ -1137,7 +1156,11 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         switching=state.get('switching',False)
         self.cancel_balance();self.group_debounce.stop();self.party_link.hide()
         self.read_group_button.setVisible(False)
-        for widget in (self.group_volume_row,self.levels_row,self.balance_panel,self.party_mode_row):widget.setVisible(False)
+        for widget in (self.group_volume_row,self.balance_panel,self.party_mode_row):widget.setVisible(False)
+        self.levels_row.setVisible(bool(state.get('running')))
+        self.levels_refresh.setVisible(True);self.levels_hint.setVisible(True)
+        self.levels_hint.setText('Individual Linux output volumes')
+        self.levels_refresh.setEnabled(bool(state.get('running') and not switching))
         self.ungroup_button.setText('Stop Computer mix' if state.get('running') else 'Clear group')
         self.ungroup_button.setEnabled(not switching and len(self.computer_group)>1)
         # A PartyUp receiver need not have a Linux/control link yet. Keep the
@@ -1161,21 +1184,36 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.party_error.setText(error);self.party_error.setVisible(bool(error))
         self.party_info.setText('Computer mix · playing through Linux' if state.get('running') else 'Connecting the selected speakers…' if switching else 'Computer mix · choose two speakers')
         self.play_hint.setText('Connecting Linux audio to each speaker…' if switching else 'Both speakers receive sound directly from Linux.' if state.get('running') else 'Drag a paired speaker here. Linux connects it automatically.')
-        self.group_status.setText('Experimental · automatic timing compensation is enabled.')
-        if self.party_dragging:return
+        self.group_status.setText('Adjust each speaker’s volume to balance the sound. Automatic timing compensation is enabled.')
+        self.update_computer_levels()
+        if self.party_dragging or any(slider.isSliderDown() for slider in self.computer_sliders.values()):return
         signature=('computer',tuple(addresses),bool(state.get('running')),switching,error,tuple((a,d['name'],d.get('paired'),d.get('busy'),d.get('audio_connected')) for a,d in self.devices.items()))
         if signature==self.party_grid_signature:return
         self.clear_party_cards();self.party_grid_signature=signature
         for i,address in enumerate(addresses):
             d=self.devices.get(address,{})
             box=QVBoxLayout();box.addWidget(text(d.get('name','Group member'),'section'))
+            row=QHBoxLayout()
             if d:
                 photo=QLabel();photo.setAlignment(Qt.AlignCenter)
                 image=self.image_path(d)
                 if image:photo.setPixmap(QPixmap(str(image)).scaled(70,105,Qt.KeepAspectRatio,Qt.SmoothTransformation))
-                box.addWidget(photo)
+                row.addWidget(photo,1)
+            slider=QSlider(Qt.Vertical);slider.setRange(0,100);slider.setFixedHeight(120)
+            slider.setAccessibleName('Computer mix volume for '+d.get('name','group member'))
+            self.computer_sliders[address]=slider
+            row.addWidget(slider);box.addLayout(row)
+            self.computer_outputs[address]=text('Reading volume…','muted')
+            box.addWidget(self.computer_outputs[address])
+            self.computer_errors[address]=text('','muted');box.addWidget(self.computer_errors[address])
+            timer=QTimer(slider);timer.setSingleShot(True);timer.setInterval(180)
+            self.member_timers[address]=timer
+            timer.timeout.connect(lambda a=address:self.send_computer_level(a))
+            slider.valueChanged.connect(lambda value,a=address:self.edit_computer_level(a,value))
+            slider.sliderReleased.connect(lambda a=address:self.send_computer_level(a))
             box.addWidget(text('Playing through Linux' if state.get('running') else 'Connecting…' if switching else 'Selected','muted'))
             self.party_grid.addWidget(panel(box),i//3,i%3)
+        self.update_computer_levels()
         for i,(address,d) in enumerate((a,d) for a,d in self.devices.items() if a not in addresses):
             box=QVBoxLayout();box.addWidget(text(d['name'],'section'))
             box.addWidget(text('Linux audio connected' if d.get('audio_connected') else 'Paired · connects when added' if d.get('paired') else 'Pair in Bluetooth settings','muted'))
@@ -1184,6 +1222,44 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             card=SpeakerDragCard(self.group_host,address,QPixmap(str(self.image_path(d)))) if address in allowed else panel()
             if address in allowed:card.draggingChanged.connect(self.party_drag_changed)
             card.setLayout(box);self.available_grid.addWidget(card,i//3,i%3)
+
+    def refresh_group_levels(self):
+        if self.playback_method=='native':self.party_action('group_levels');return
+        if not self.demo:self.controller.submit('computer_mix_levels')
+        else:self.update_computer_levels()
+
+    def edit_computer_level(self,address,value):
+        self.computer_outputs[address].setText(f'Volume {value}%')
+        self.member_timers[address].start()
+
+    def send_computer_level(self,address):
+        slider=self.computer_sliders.get(address)
+        timer=self.member_timers.get(address)
+        if timer:timer.stop()
+        if not slider or self.playback_method!='computer' or not self.computer_mix_state.get('running') or self.computer_mix_state.get('switching'):return
+        value=slider.value()
+        self.computer_level_pending[address]=value
+        if self.demo:
+            self.computer_mix_state.setdefault('levels',{})[address]={'volume':value,'muted':False,'requested_volume':value}
+            self.update_computer_levels()
+        else:self.controller.submit('computer_mix_volume',address,value)
+
+    def update_computer_levels(self):
+        state=self.computer_mix_state
+        for address,slider in self.computer_sliders.items():
+            level=state.get('levels',{}).get(address,{})
+            value=level.get('volume')
+            pending=self.computer_level_pending.get(address)
+            if pending is not None and (level.get('requested_volume')==pending or value==pending and not level.get('muted') or level.get('error')):
+                self.computer_level_pending.pop(address,None)
+            timer=self.member_timers.get(address)
+            editing=slider.isSliderDown() or bool(timer and timer.isActive()) or address in self.computer_level_pending
+            slider.setEnabled(bool(state.get('running') and not state.get('switching') and value is not None))
+            if not editing:
+                slider.blockSignals(True);slider.setValue(value if value is not None else 0);slider.blockSignals(False)
+                self.computer_outputs[address].setText('Muted' if level.get('muted') else f'Volume {value}%' if value is not None else 'Volume unavailable' if level.get('error') else 'Reading volume…')
+            self.computer_errors[address].setText(level.get('error',''))
+            self.computer_errors[address].setVisible(bool(level.get('error')))
 
     def party_connect_button(self,d):
         caption='Connecting…' if d['busy'] else 'Wake & connect' if d.get('sleeping') and d.get('wake_available') else 'Connect first'
@@ -1198,6 +1274,10 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         else:self.controller.submit('connect',address)
 
     def clear_party_cards(self):
+        for timer in self.member_timers.values():timer.stop()
+        self.computer_sliders={}
+        self.computer_outputs={}
+        self.computer_errors={}
         self.member_sliders={}
         self.member_timers={}
         self.party_card_actions=[]
@@ -1210,10 +1290,15 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
                     item.widget().deleteLater()
 
     def send_member_level(self,host,address,value):
-        if self.group_host==host:self.party_action('member_volume',address,value)
+        if self.group_host!=host:return
+        if self.demo:self.party_action('member_volume',address,value);return
+        revision=uuid.uuid4().hex
+        self.native_level_pending[address]=(host,revision,value)
+        self.party_action('member_volume',address,value,revision)
 
     def open_speaker(self,address):
         self.selected=address
+        self.volume_request=None
         self.eq_dirty=False
         self.eq_pending=None
         self.eq_profile=None
@@ -1236,7 +1321,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
                 self.render()
             self.show_status(f'Demo: {action.replace("_"," ")}')
             return
-        self.controller.submit(action,self.selected,*args)
+        return self.controller.submit(action,self.selected,*args)
 
     def scan(self):
         if self.demo:self.show_status('Demo speakers are already visible.');return
@@ -1265,7 +1350,12 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.volume_debounce.stop()
         if self.demo:
             self.devices[self.selected]['volume']=self.volume.value();return
-        self.command('volume',self.volume.value())
+        value=self.volume.value()
+        revision=uuid.uuid4().hex
+        self.volume_request=(self.selected,revision,value)
+        if self.command('volume',value,revision) is False:
+            self.volume_request=None
+            self.render()
 
     def set_preset(self,index):
         code=self.preset.itemData(index)
@@ -1347,9 +1437,14 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.firmware_dialog.show()
 
     def update_computer_mix(self,state):
+        previous=self.computer_mix_state
+        if self.demo and state.get('running') and 'levels' not in state:
+            state={**state,'levels':{a:{'volume':self.devices.get(a,{}).get('volume') or 0,'muted':False} for a in state.get('members',[])}}
         self.computer_mix_state=state
         if state.get('method') and (state.get('switching') or state.get('running')):self.playback_method=state['method']
         if 'members' in state:self.computer_group=list(state['members'])
+        if not self.demo and state.get('running') and not state.get('switching') and (not previous.get('running') or previous.get('switching')):
+            self.controller.submit('computer_mix_levels')
         if state.get('error'):self.show_error(state['error'])
         self.render_party()
 

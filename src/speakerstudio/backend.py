@@ -36,6 +36,7 @@ class Controller(QThread):
         self.last_snapshot = None
         self.computer_mix=ComputerMix()
         self.mix_outputs=[]
+        self.mix_levels={}
         self.mix_preparing=False
         self.group_switching=False
         self.group_switch_task=None
@@ -95,30 +96,33 @@ class Controller(QThread):
                     try:self.computer_mix.stop()
                     except Exception as restore_error:error=restore_error
                     self.publish_computer_mix(str(error))
+            if self.computer_mix.active and not self.group_switching:
+                await self._computer_mix_levels()
             await asyncio.sleep(3)
 
     def submit(self, action, *args):
-        mix_action=action in ('computer_mix_outputs','computer_mix_start','computer_mix_stop','computer_mix_prepare')
+        mix_action=action in ('computer_mix_outputs','computer_mix_start','computer_mix_stop','computer_mix_prepare','computer_mix_levels','computer_mix_volume')
         if not self.loop or not self.loop.is_running() or not mix_action and (not self.bluez or not self.bluez.manager):
             message='Bluetooth is still starting. Please try again in a moment.'
             self.error.emit(message)
             if action=='group_method':self.publish_computer_mix(message)
-            return
+            return False
         def launch():
             task = self.loop.create_task(self._perform(action, *args))
             self.tasks.add(task)
             task.add_done_callback(self.tasks.discard)
         self.loop.call_soon_threadsafe(launch)
+        return True
 
     async def _perform(self, action, *args):
-        address = args[0] if args and args[0] in self.speakers else None
+        address = args[0] if not action.startswith('computer_mix_') and args and args[0] in self.speakers else None
         speaker = self.speakers.get(address)
         if action=='disconnect' and speaker:
             await self._disconnect(address)
             self.publish()
             return
         if speaker and speaker.busy:
-            if action=='balance':
+            if action in ('balance','volume','member_volume'):
                 active=self.operations.get(address)
                 if active and active is not asyncio.current_task():
                     await asyncio.wait({active})
@@ -166,6 +170,12 @@ class Controller(QThread):
                 if session and session.closed:
                     self.sessions.pop(address, None)
                     self.invalidate(speaker)
+                if action=='volume' and len(args)>2:speaker.volume_revision=args[2]
+                if action=='member_volume' and len(args)>3:
+                    receiver,revision=args[1],args[3]
+                    speaker.member_info.setdefault(receiver,{})['volume_revision']=revision
+                    target=self.speakers.get(receiver)
+                    if target:target.volume_revision=revision
                 self.publish()
 
     def publish(self):
@@ -463,7 +473,33 @@ class Controller(QThread):
     def publish_computer_mix(self,error=''):
         self.mix_error=error
         self.computer_mix_changed.emit({'running':self.computer_mix.active,'outputs':self.mix_outputs,'error':error,
-            'members':list(self.mix_members),'method':self.playback_method,'switching':self.group_switching})
+            'members':list(self.mix_members),'method':self.playback_method,'switching':self.group_switching,
+            'levels':{address:dict(level) for address,level in self.mix_levels.items()}})
+
+    def _mix_output_name(self,address):
+        prefix='BLUEZ_OUTPUT.'+address.upper().replace(':','_')+'.'
+        return next((name for name in self.computer_mix.names if name.upper().startswith(prefix)),None)
+
+    async def _computer_mix_levels(self):
+        if not self.computer_mix.active or self.group_switching:return
+        try:
+            levels=self.computer_mix.levels()
+            self.mix_levels={address:levels.get(self._mix_output_name(address),{'error':'Speaker audio output unavailable.'}) for address in self.mix_members}
+        except (OSError,ValueError,RuntimeError,subprocess.SubprocessError):
+            self.mix_levels={address:{'error':'Could not read Linux volume. Refresh to try again.'} for address in self.mix_members}
+        self.publish_computer_mix(getattr(self,'mix_error',''))
+
+    async def _computer_mix_volume(self,address,percent):
+        try:
+            if self.group_switching:raise RuntimeError('Wait for the playback mode switch to finish.')
+            if address not in self.mix_members or not self.computer_mix.active:
+                raise RuntimeError('Start Computer mix with this speaker before changing its volume.')
+            name=self._mix_output_name(address)
+            if not name:raise RuntimeError('The selected speaker has no output in this Computer mix.')
+            self.mix_levels[address]={**self.computer_mix.set_volume(name,percent),'requested_volume':percent}
+        except Exception as error:
+            self.mix_levels[address]={'error':str(error) or 'Could not adjust the speaker volume. Refresh and try again.'}
+        self.publish_computer_mix(getattr(self,'mix_error',''))
 
     async def _group_method(self,method,addresses_json):
         """Keep group intent while changing both the speaker link and Linux audio."""
@@ -489,6 +525,7 @@ class Controller(QThread):
             self.group_switching=True
             self.group_switch_task=asyncio.current_task()
             self.mix_members=list(addresses)
+            self.mix_levels={}
             self.playback_method=method
             self.publish_computer_mix()
             await self.refresh_devices()
@@ -617,6 +654,7 @@ class Controller(QThread):
         try:
             self.computer_mix.stop()
             self.mix_members=[]
+            self.mix_levels={}
             self.publish_computer_mix()
             self.status.emit('Computer mix stopped. The previous output was restored unless you selected a different one.')
         except Exception as error:self.publish_computer_mix(str(error))
@@ -638,7 +676,7 @@ class Controller(QThread):
         self.status.emit('Speaker renamed to '+actual)
         self.publish()
 
-    async def _volume(self, address, percent):
+    async def _volume(self, address, percent, revision=None):
         s = self.speakers[address]
         raw = round(max(0, min(100, int(percent))) * s.volume_steps / 100)
         await self.sessions[address].request(0x18d if s.volume_steps == 31 else 0x190, payload=bytes([raw]))
@@ -839,7 +877,7 @@ class Controller(QThread):
             self.publish()
         self.status.emit('Individual levels refreshed' if not failures else 'Some speakers do not expose an individual level. Use group volume or balance for those speakers.')
 
-    async def _member_volume(self,address,receiver,percent):
+    async def _member_volume(self,address,receiver,percent,revision=None):
         host=self.speakers[address]
         if not host.broadcast&2 or receiver not in [address]+host.members:
             raise RuntimeError('This speaker is no longer in the PartyUp group.')
