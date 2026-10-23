@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QLabel, QPushButton, QVBoxL
 from PySide6.QtCore import QProcess, QProcessEnvironment
 from . import __version__
 from .preferences import restore_appearance
+from .equalizer import BUILTIN_PRESETS, PREVIEW_CURVES, preview_bands, load_profiles, save_profile
 from .party_visual import PartyLink, PartyPlayArea, SpeakerDragCard
 from .firmware import FirmwareDialog
 from .computer_mix_ui import ComputerMixDialog
@@ -102,6 +103,8 @@ class Window(QMainWindow):
         self.party_grid_signature = None
         self.party_card_actions = []
         self.eq_dirty = False
+        self.eq_pending = None
+        self.eq_profile = None
         self.settings = QSettings('RaphaCrafts', 'SpeakerStudio')
         self.catalogue = json.loads((asset_root()/'speakers/manifest.json').read_text())['images']
         self.setWindowTitle('Speaker studio')
@@ -533,10 +536,14 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             self.band_sliders.append(slider)
             self.band_outputs.append(out)
         inner.addLayout(bands)
+        eq_actions=QHBoxLayout()
+        inner.addLayout(eq_actions)
         self.apply_eq = button('Apply custom EQ',self.apply_custom,True)
-        inner.addWidget(self.apply_eq)
+        eq_actions.addWidget(self.apply_eq,1)
+        self.save_eq=button('Save profile…',self.save_eq_profile)
+        eq_actions.addWidget(self.save_eq)
         self.reset_eq=button('Reset to Out loud',lambda:self.send_eq(0))
-        inner.addWidget(self.reset_eq)
+        eq_actions.addWidget(self.reset_eq)
         self.custom_note = text('','muted')
         inner.addWidget(self.custom_note)
         layout.addWidget(panel(inner))
@@ -546,9 +553,15 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
     def band_changed(self, label, value):
         label.setText(f'{round(value*100/(128 if value < 0 else 127)):+d}%')
         self.eq_dirty = True
-        self.curve.scale = 128
-        self.curve.bands = [s.value() for s in self.band_sliders]
-        self.curve.update()
+        self.eq_pending = None
+        self.eq_profile = None
+        self.render_eq_profiles(self.devices[self.selected])
+        for curve in (self.curve,self.mini_curve):
+            curve.scale=128
+            curve.bands=[s.value() for s in self.band_sliders]
+            curve.setToolTip('Custom draft · Apply custom EQ to hear it')
+            curve.update()
+        self.custom_note.setText('Custom draft · Apply to hear it, or save a named copy. Built-in presets stay unchanged.')
 
     def select(self, current, previous):
         if current:self.open_speaker(current.data(Qt.UserRole))
@@ -716,50 +729,60 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             self.photo.clear()
             self.photo.setText('Ultimate Ears\n'+d['name'])
         self.eq_copy.setText('Sound for '+d['name']+' · Preset curves are illustrative; Custom shows stored levels.')
-        self.preset.blockSignals(True)
-        self.eq_preset.blockSignals(True)
-        for select in [self.preset,self.eq_preset]:
-            select.clear()
-            for name,code in self.preset_options():select.addItem(name,code)
-            index = select.findData(d['eq'])
-            if index<0:select.insertItem(0,'Custom (speaker setting)' if d['eq']==4 else 'Current speaker setting',d['eq']);index=0
-            select.setCurrentIndex(index)
-            select.setEnabled(active and d['features'].get('eq_write',False))
-        self.preset.blockSignals(False)
-        self.eq_preset.blockSignals(False)
+        self.render_eq_profiles(d)
         custom = active and d['features'].get('custom_eq',False)
         self.reset_eq.setEnabled(active and d['features'].get('eq_write',False))
         self.apply_eq.setEnabled(custom)
+        self.save_eq.setEnabled(custom)
         for slider in self.band_sliders:slider.setEnabled(custom)
-        self.custom_note.setText('Relative levels: less (−) or more (+). Apply when ready.' if custom else 'Custom bands are not available for this speaker in this release.')
+        self.custom_note.setText(('Custom draft · Apply to hear it. Saved profiles and built-in presets stay unchanged.' if self.eq_dirty else 'Built-in presets are locked. Moving a slider creates a custom draft; preset curves are previews.') if custom else 'Custom bands are not available for this speaker in this release.')
         self.render_curves(d)
 
     @staticmethod
     def preset_options():
-        return [('Out loud',0),('Vocal',1),('Intimate',2),('Bass boost',3),('Custom',4)]
+        return list(BUILTIN_PRESETS)+[('Custom',4)]
+
+    def render_eq_profiles(self,d):
+        if self.eq_pending is not None and not d['busy']:
+            if d['eq']==4 and d.get('bands')==self.eq_pending:
+                self.eq_dirty=False
+                self.eq_pending=None
+        profiles=load_profiles(self.settings)
+        chosen=self.eq_profile if self.eq_dirty and self.eq_profile in profiles else 'draft' if self.eq_dirty else d['eq']
+        if not self.eq_dirty and d['eq']==4:
+            chosen=next((key for key,p in profiles.items() if p['bands']==d.get('bands')),4)
+        for select in (self.preset,self.eq_preset):
+            select.blockSignals(True)
+            select.clear()
+            for name,code in self.preset_options():select.addItem(name,code)
+            for key,profile in profiles.items():
+                select.addItem(profile['name'],key)
+                select.model().item(select.count()-1).setEnabled(bool(d['features'].get('custom_eq',False)))
+            if chosen=='draft':select.addItem('Custom draft','draft')
+            index=select.findData(chosen)
+            if index<0:select.insertItem(0,'Current speaker setting',chosen);index=0
+            select.setCurrentIndex(index)
+            select.setEnabled(d['connected'] and not d['busy'] and d['features'].get('eq_write',False))
+            select.blockSignals(False)
 
     def render_curves(self,d):
-        shapes = {0:[0,0,0,0,0],3:[3,4,0,-4,-4],2:[0,-2,-4,0,0],1:[-4,0,1,2,1]}
-        self.mini_curve.setVisible(self.demo or d['eq'] in shapes or d.get('bands') is not None)
-        self.curve.setVisible(self.demo or d['eq'] in shapes or d.get('bands') is not None)
-        self.mini_curve.setToolTip('Illustrative preset curve; not a measurement from the speaker')
-        self.curve.setToolTip('Illustrative preset curve; not a measurement from the speaker')
-        actual = d.get('bands') if d['eq']==4 else None
-        self.mini_curve.scale = 128 if actual is not None else 12
-        self.curve.scale = self.mini_curve.scale
-        self.mini_curve.bands = actual if actual is not None else shapes.get(d['eq'],[0]*5)
-        self.mini_curve.update()
+        actual=d.get('bands') if d['eq']==4 else None
+        values=actual if actual is not None else preview_bands(d['eq'])
+        if self.eq_dirty:values=[s.value() for s in self.band_sliders]
+        hint='Custom draft · Apply custom EQ to hear it' if self.eq_dirty else 'Stored custom levels' if actual is not None else 'Illustrative preset curve; not a measurement from the speaker'
+        for curve in (self.mini_curve,self.curve):
+            curve.setVisible(self.demo or d['eq'] in PREVIEW_CURVES or actual is not None or self.eq_dirty)
+            curve.setToolTip(hint)
+            curve.scale=128
+            curve.bands=list(values)
+            curve.update()
+        for output,value in zip(self.band_outputs,values):
+            output.setText(f'{round(value*100/(128 if value<0 else 127)):+d}%')
         if not self.eq_dirty and not any(s.isSliderDown() for s in self.band_sliders):
-            self.curve.bands = self.mini_curve.bands
-            if d.get('bands') is not None:
-                for slider,output,value in zip(self.band_sliders,self.band_outputs,d['bands']):
-                    if not slider.hasFocus():
-                        slider.blockSignals(True)
-                        slider.setValue(value)
-                        slider.blockSignals(False)
-                        output.setText(f'{round(value*100/(128 if value<0 else 127)):+d}%')
-                self.curve.scale = 128
-            self.curve.update()
+            for slider,value in zip(self.band_sliders,values):
+                slider.blockSignals(True)
+                slider.setValue(value)
+                slider.blockSignals(False)
 
     def choose_host(self,index):
         self.group_debounce.stop()
@@ -1059,6 +1082,8 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
     def open_speaker(self,address):
         self.selected=address
         self.eq_dirty=False
+        self.eq_pending=None
+        self.eq_profile=None
         self.volume_debounce.stop()
         self.group_debounce.stop()
         self.balance_timer.stop()
@@ -1111,20 +1136,43 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
 
     def set_preset(self,index):
         code=self.preset.itemData(index)
-        if code is not None:self.send_eq(code)
+        if code is not None:self.choose_eq_profile(code)
 
     def set_eq_preset(self,index):
         code=self.eq_preset.itemData(index)
-        if code is not None:self.send_eq(code)
+        if code is not None:self.choose_eq_profile(code)
+
+    def choose_eq_profile(self,code):
+        if code=='draft':return
+        if isinstance(code,int):self.send_eq(code);return
+        profile=load_profiles(self.settings).get(code)
+        if not profile:return
+        self.eq_profile=code
+        for slider,value in zip(self.band_sliders,profile['bands']):
+            slider.blockSignals(True);slider.setValue(value);slider.blockSignals(False)
+        self.apply_custom()
+
+    def save_eq_profile(self):
+        name,ok=QInputDialog.getText(self,'Save EQ profile','New profile name:')
+        if not ok:return
+        try:self.eq_profile=save_profile(self.settings,name,[s.value() for s in self.band_sliders])
+        except ValueError as error:self.show_error(str(error));return
+        self.eq_dirty=True
+        self.render_eq_profiles(self.devices[self.selected])
+        self.show_status('Profile saved on this computer. Apply custom EQ to hear it.')
 
     def send_eq(self,code):
         self.eq_dirty = False
+        self.eq_pending = None
+        self.eq_profile = None
         if self.demo:self.devices[self.selected]['eq']=code;self.render();return
         self.command('eq',code)
 
     def apply_custom(self):
         values=[s.value() for s in self.band_sliders]
-        self.eq_dirty = False
+        self.eq_dirty = True
+        self.eq_pending = list(values)
+        self.render()
         self.command('custom_eq',values)
 
     def power_off(self):

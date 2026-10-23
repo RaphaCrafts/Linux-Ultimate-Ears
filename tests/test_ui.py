@@ -276,3 +276,74 @@ def test_eq_reset_and_saved_party_default(tmp_path,monkeypatch):
     second=Window(Controller(),demo=True);app.processEvents()
     assert second.party_default.currentData()=='computer'
     second.close()
+
+
+def test_builtin_edits_become_drafts_and_reset_restores_baseline(tmp_path,monkeypatch):
+    from speakerstudio.equalizer import PREVIEW_CURVES, preview_bands
+    monkeypatch.setenv('XDG_CONFIG_HOME',str(tmp_path))
+    app=QApplication.instance() or QApplication([])
+    w=Window(Controller(),demo=True);app.processEvents();w.navigate('eq')
+    original=dict(PREVIEW_CURVES)
+    for code in range(4):
+        w.send_eq(code)
+        assert [slider.value() for slider in w.band_sliders]==preview_bands(code)
+        w.band_sliders[0].setValue(50)
+        assert w.eq_preset.currentText()=='Custom draft'
+        assert w.preset.currentData()=='draft' and w.eq_dirty
+        assert w.devices[w.selected]['eq']==code, 'Drafting must not change the playing preset'
+        w.update_devices(list(w.devices.values()))
+        assert w.eq_preset.currentData()=='draft' and w.band_sliders[0].value()==50
+        w.apply_custom()
+        assert w.devices[w.selected]['eq']==4 and not w.eq_dirty
+        w.send_eq(code)
+        assert [slider.value() for slider in w.band_sliders]==preview_bands(code)
+    assert dict(PREVIEW_CURVES)==original
+    w.reset_eq.click()
+    assert w.eq_preset.currentData()==0 and [s.value() for s in w.band_sliders]==[0]*5
+    w.close()
+
+
+def test_named_profiles_survive_restart_and_edits_preserve_saved_copy(tmp_path,monkeypatch):
+    from speakerstudio.equalizer import load_profiles
+    from speakerstudio.ui import QInputDialog
+    monkeypatch.setenv('XDG_CONFIG_HOME',str(tmp_path))
+    app=QApplication.instance() or QApplication([])
+    w=Window(Controller(),demo=True);app.processEvents();w.navigate('eq')
+    w.band_sliders[0].setValue(53)
+    monkeypatch.setattr(QInputDialog,'getText',lambda *a,**kw:('Late night',True))
+    w.save_eq.click()
+    key=w.eq_preset.currentData();saved=load_profiles(w.settings)[key]
+    assert saved['name']=='Late night' and saved['bands']==[53,0,0,0,0]
+    w.band_sliders[0].setValue(77)
+    assert w.eq_preset.currentData()=='draft'
+    assert load_profiles(w.settings)[key]==saved
+    w.send_eq(0)
+    w.set_eq_preset(w.eq_preset.findData(key))
+    assert w.devices[w.selected]['eq']==4 and w.devices[w.selected]['bands']==saved['bands']
+    assert w.eq_preset.currentText()=='Late night'
+    assert w.band_outputs[0].text()=='+42%'
+    w.close()
+    second=Window(Controller(),demo=True);app.processEvents()
+    assert second.eq_preset.findData(key)>=0
+    second.choose_eq_profile(key)
+    assert second.devices[second.selected]['bands']==saved['bands']
+    second.close()
+
+
+def test_custom_apply_keeps_draft_during_old_busy_snapshots(tmp_path,monkeypatch):
+    from copy import deepcopy
+    monkeypatch.setenv('XDG_CONFIG_HOME',str(tmp_path))
+    app=QApplication.instance() or QApplication([])
+    c=Controller();w=Window(c,demo=True);app.processEvents();w.navigate('eq')
+    w.band_sliders[0].setValue(42)
+    sent=[];w.command=lambda *args:sent.append(args)
+    w.apply_custom();assert sent==[('custom_eq',[42,0,0,0,0])]
+    rows=deepcopy(list(w.devices.values()))
+    selected=next(d for d in rows if d['address']==w.selected)
+    selected.update(busy=True,operation='custom_eq')
+    w.update_devices(rows)
+    assert w.eq_dirty and w.band_sliders[0].value()==42
+    selected.update(busy=False,operation='',eq=4,bands=[42,0,0,0,0])
+    w.update_devices(rows)
+    assert not w.eq_dirty and w.eq_preset.currentData()==4
+    w.close()

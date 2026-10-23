@@ -278,3 +278,14 @@ to restore the default sound profile; Vocal, Intimate and Bass boost remain
 available in the preset menu. PartyUp lives in the sidebar, with a saved default
 of native PartyUp or experimental Computer mix. Opening Computer mix ends native
 PartyUp automatically; it checks again before playback starts.
+
+
+Version 0.1.15 keeps Out loud, Vocal, Intimate and Bass boost fixed. Moving any
+EQ slider creates a **Custom draft** without changing the playing preset.
+**Apply custom EQ** sends the draft to the speaker's custom slot. **Save profile…**
+stores a named copy on this computer; select its name later to apply it. Editing
+a saved profile creates a new draft, and saving requires a new name so the
+original stays intact. **Reset to Out loud** selects the baseline and clears the
+draft. Preset curves are illustrative previews, so custom drafts start from the
+displayed curve rather than measured factory coefficients. Named profiles stay
+on this computer; the speaker stores the last applied custom EQ bands.

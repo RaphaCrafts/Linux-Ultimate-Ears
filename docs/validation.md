@@ -381,3 +381,19 @@ before disposing of the Qt worker. The final regression suite has88passing tests
 Computer mix actions remain available during a Bluetooth-inventory outage, so
 Stop can restore audio without waiting for BlueZ to recover. Native Bluetooth
 actions still require a ready Bluetooth service.
+
+
+## EQ profiles, 0.1.15 (2026-10-23)
+
+Regression coverage verifies all four built-ins survive edits and custom applies,
+slider movement immediately becomes a draft without sending a command, baseline
+reset clears the draft, and saved named profiles survive reopening the app.
+Saved profiles cannot overwrite built-in names or other saved names. Subsequent
+edits preserve the original saved bands. Old busy snapshots cannot erase a
+pending custom apply. Malformed stored profiles are ignored. Existing backend
+tests verify custom writes use the custom EQ slot (preset code 4).
+
+Built-in preview curves retain their existing shapes. They are not measured
+speaker coefficients; draft sliders start from these illustrative previews.
+Physical-speaker listening and persistence of custom bands on hardware have not
+been revalidated for this update.
