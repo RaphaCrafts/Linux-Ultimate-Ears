@@ -363,3 +363,41 @@ def test_group_inventory_is_unknown_until_status_arrives():
         c.invalidate(s)
         assert not s.group_status_known
     asyncio.run(scenario())
+
+
+def test_refresh_all_probes_stale_controls_and_continues_after_failure():
+    async def scenario():
+        c=Controller();calls=[]
+        c.speakers={a:Speaker(a,'/'+a,a,connected=True) for a in ('stale','healthy','busy')}
+        c.speakers['busy'].busy=True
+        class Session:
+            closed=False
+            def close(self):self.closed=True
+        stale=Session();c.sessions['stale']=stale
+        async def inventory():calls.append('inventory')
+        async def read(address):
+            calls.append(address)
+            if address=='stale':raise TimeoutError()
+        c.refresh_devices=inventory;c._read_state=read
+        await c._perform('refresh_all')
+        assert calls==['inventory','stale','healthy']
+        assert stale.closed and not c.speakers['stale'].connected
+        assert c.speakers['healthy'].connected and not c.speakers['healthy'].busy
+    asyncio.run(scenario())
+
+
+def test_one_click_retries_transient_connection_and_socket_loss():
+    async def scenario():
+        c=Controller();s=Speaker('a','/a','Test',paired=True,bluez_connected=True)
+        c.speakers={'a':s};calls=[]
+        async def connect(address):
+            calls.append(address)
+            if len(calls)==1:
+                c._lost(address,'Socket closed',interrupt=False)
+                assert s.busy and c.operations[address] is asyncio.current_task()
+                raise ConnectionError('Still starting')
+            s.connected=True;s.error=''
+        c._connect=connect
+        await c._perform('connect','a')
+        assert calls==['a','a'] and s.connected and not s.busy and not s.error
+    asyncio.run(scenario())

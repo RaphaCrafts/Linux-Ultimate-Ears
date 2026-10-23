@@ -36,6 +36,7 @@ class Controller(QThread):
         self.last_snapshot = None
         self.computer_mix=ComputerMix()
         self.mix_outputs=[]
+        self.mix_preparing=False
 
     def run(self):
         self.stopping = False
@@ -92,7 +93,7 @@ class Controller(QThread):
             await asyncio.sleep(3)
 
     def submit(self, action, *args):
-        mix_action=action in ('computer_mix_outputs','computer_mix_start','computer_mix_stop')
+        mix_action=action in ('computer_mix_outputs','computer_mix_start','computer_mix_stop','computer_mix_prepare')
         if not self.loop or not self.loop.is_running() or not mix_action and (not self.bluez or not self.bluez.manager):
             self.error.emit('Bluetooth is still starting. Please try again in a moment.')
             return
@@ -118,6 +119,7 @@ class Controller(QThread):
             return
         if speaker:
             if action=='connect' and speaker.sleeping and speaker.wake_available:action='wake'
+            if action=='connect':self.connecting.add(address)
             speaker.busy = True
             speaker.operation = action
             speaker.group_target = args[1] if action=='group_add' and len(args)>1 else ''
@@ -125,7 +127,7 @@ class Controller(QThread):
             self.operations[address] = asyncio.current_task()
             self.publish()
         try:
-            if self.computer_mix.active and action in ('group_add','party_mode','balance','group_volume'):
+            if (self.computer_mix.active or self.mix_preparing) and action in ('group_add','party_mode','balance','group_volume'):
                 raise RuntimeError('Stop Computer mix before using native PartyUp controls.')
             if action == 'scan':
                 self.status.emit('Looking for nearby and sleeping speakers…')
@@ -145,6 +147,7 @@ class Controller(QThread):
             self.error.emit((speaker.name+': ' if speaker else '')+message)
         finally:
             if speaker:
+                if action=='connect':self.connecting.discard(address)
                 if self.operations.get(address) is asyncio.current_task():
                     self.operations.pop(address,None)
                     speaker.busy = False
@@ -217,8 +220,8 @@ class Controller(QThread):
                     self._lost(address,'Speaker is no longer available in Bluetooth')
         self.publish()
 
-    def _lost(self, address, reason):
-        task=self.operations.pop(address,None)
+    def _lost(self, address, reason, interrupt=True):
+        task=self.operations.pop(address,None) if interrupt else None
         if task and task is not asyncio.current_task() and not task.done():task.cancel()
         session = self.sessions.pop(address,None)
         if session:session.close()
@@ -229,8 +232,9 @@ class Controller(QThread):
         speaker = self.speakers.get(address)
         if speaker:
             self.invalidate(speaker)
-            speaker.busy = False
-            speaker.operation = ''
+            if interrupt:
+                speaker.busy = False
+                speaker.operation = ''
             speaker.error = 'Speaker controls disconnected. Reconnect to read the speaker and manage PartyUp.'
             self.publish()
 
@@ -252,7 +256,7 @@ class Controller(QThread):
                     s.sleeping=False
                     self.status.emit(s.name+' is on and connected')
                     return
-                except (ConnectionError,TimeoutError) as error:last_error=error
+                except (OSError,TimeoutError) as error:last_error=error
             raise ConnectionError('The wake request was sent, but the speaker did not become reachable. Try its power button or check Bluetooth Smart in the phone app.') from last_error
 
         finally:
@@ -269,14 +273,25 @@ class Controller(QThread):
             self.publish()
             await self._wake(address)
         else:
-            await self._connect(address)
+            try:await self._connect(address)
+            except (OSError,TimeoutError):
+                # A cached awake beacon or first RFCOMM attempt can be stale.
+                # Retry within this click, and rediscover wake support if needed.
+                if not s.bluez_connected:
+                    await self.bluez.scan(4,le_only=True)
+                    await self.refresh_devices()
+                if s.sleeping and s.wake_available:await self._wake(address)
+                else:
+                    await asyncio.sleep(1)
+                    await self._connect(address)
 
     async def _connect(self, address):
+        already_connecting=address in self.connecting
         self.connecting.add(address)
         try:
             await self._connect_controls(address)
         finally:
-            self.connecting.discard(address)
+            if not already_connecting:self.connecting.discard(address)
 
     async def _connect_controls(self, address):
         speaker = self.speakers[address]
@@ -292,7 +307,7 @@ class Controller(QThread):
         channel = await rfcomm_channel(address)
         session = LegacySession(await open_rfcomm(address, channel),
                                 on_notification=lambda message: self._notification(address, message),
-                                on_disconnect=lambda reason: self._lost(address, reason))
+                                on_disconnect=lambda reason: self._lost(address, reason, interrupt=False))
         self.sessions[address] = session
         try:
             identity = (await session.request(6, 7)).rstrip(b'\0').decode('ascii', errors='strict')
@@ -413,8 +428,19 @@ class Controller(QThread):
         await self._read_levels(address)
         self.publish()
 
+    async def _refresh_all(self):
+        await self.refresh_devices()
+        for address,speaker in list(self.speakers.items()):
+            if speaker.connected and not speaker.busy:
+                await self._perform('refresh',address)
+        self.publish()
+        self.status.emit('Connection status refreshed')
+
     async def _refresh(self, address):
-        await self._read_state(address)
+        try:await self._read_state(address)
+        except (OSError,TimeoutError):
+            self._lost(address,'Speaker did not reply to refresh')
+            raise
         self.status.emit('Speaker readings refreshed')
 
     async def _firmware(self,address):
@@ -439,13 +465,36 @@ class Controller(QThread):
         except Exception:
             self.publish_computer_mix('Could not read Linux audio outputs. PipeWire tools pw-cli, pw-dump and wpctl are required.')
 
+    async def _prepare_computer_mix(self):
+        if self.computer_mix.active:return
+        if self.mix_preparing:raise RuntimeError('Computer mix is still preparing. Try again in a moment.')
+        self.mix_preparing=True
+        try:
+            await self.refresh_devices()
+            for speaker in list(self.speakers.values()):
+                if not (speaker.connected or speaker.audio_connected or speaker.broadcast&2):continue
+                if speaker.busy:raise RuntimeError(speaker.name+' is busy. Wait for it to finish.')
+                await self._perform('refresh' if speaker.connected else 'connect',speaker.address)
+                if not speaker.connected or speaker.error:
+                    raise RuntimeError('Could not check native PartyUp on '+speaker.name+'. '+speaker.error)
+                if speaker.broadcast&2:
+                    await self._perform('ungroup',speaker.address)
+                    if speaker.error or speaker.broadcast&2:
+                        raise RuntimeError('Could not end native PartyUp on '+speaker.name+'. '+speaker.error)
+        finally:self.mix_preparing=False
+
+    async def _computer_mix_prepare(self):
+        try:
+            await self._prepare_computer_mix()
+            await self._computer_mix_outputs()
+        except Exception as error:self.publish_computer_mix(str(error))
+
     async def _computer_mix_start(self,names_json):
         try:
             names=json.loads(names_json)
-            if not isinstance(names,list) or any(not isinstance(n,str) for n in names):raise ValueError('Choose two speaker outputs.')
-            for s in self.speakers.values():
-                if s.broadcast&2 and any(n.upper().startswith('BLUEZ_OUTPUT.'+s.address.replace(':','_')+'.') for n in names):
-                    raise RuntimeError('End native PartyUp before starting Computer mix.')
+            from .audio_mix import configuration
+            configuration(names,'validation')
+            await self._prepare_computer_mix()
             self.computer_mix.start(names)
             self.publish_computer_mix()
             self.status.emit('Computer mix is on. Linux is sending audio directly to both speakers.')

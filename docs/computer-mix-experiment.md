@@ -66,3 +66,22 @@ monitoring and cleanup without selecting an output or interrupting real music.
 Output selection/restoration is covered by automated lifecycle tests, including
 preserving a manually changed output. AppImage launches system audio tools with
 the original system library environment, excluding bundled Qt plugin paths.
+
+
+Version 0.1.14 ends native PartyUp when opening Computer mix and checks again
+before starting playback. It reads connected speakers, reconnects controls for
+speakers with an audio link, and sends the existing ungroup command to native
+hosts. A failed check or ungroup prevents the mix from starting. Both speakers
+still need separate Linux audio outputs; missing outputs are explained in the
+panel. The default mode is saved locally and opens the chosen controls from the
+single sidebar PartyUp entry. Choosing a default does not start playback.
+
+The panel now shows a short experimental warning. Automatic latency compensation
+was already enabled through `combine.latency-compensate`: PipeWire uses delay
+buffers to match the reported stream latencies. This does not measure acoustic
+offset and is not a guarantee against drift, echo or Bluetooth interruptions.
+No manual per-speaker delay calibration is implemented in this update.
+
+Validation on 2026-10-23: automated tests cover automatic ungroup ordering,
+failure preventing mix startup, and direct PartyUp connections. These new flows
+have not been verified with physical speakers.

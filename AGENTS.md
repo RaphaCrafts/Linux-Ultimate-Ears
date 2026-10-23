@@ -8,6 +8,10 @@ Before starting repository work, fetch the relevant remote (normally origin), in
 
 For every completed update to a repository, including code, tests, resources, configuration, documentation, and instructions, commit the task's changes and push to the intended remote branch before reporting completion. Group related edits into coherent commits. Preserve unrelated work and do not include secrets or unrelated changes. Re-fetch before pushing and safely reconcile concurrent remote changes. Verify the push succeeded. If a remote, credentials, branch permissions, or unresolved conflicts prevent pushing, report that limitation explicitly rather than claiming completion. Do not merge pull requests or force-push without separate authorization.
 
+## Keep repository instructions persistent
+
+Whenever starting work in a Git repository, ensure its root AGENTS.md includes the synchronization and commit-and-push policies. Preserve unrelated project instructions and include relevant instruction updates in the task commit and push.
+
 ## Research scope
 
 This project implements interoperability with Ultimate Ears speakers on Linux. Keep phone APKs, decompiled vendor sources, captures containing device identifiers, and downloaded analysis tools under ignored `.local/`. Commit original implementation, reproducible research scripts, and factual protocol documentation. Distinguish static evidence from hardware-verified behavior. Design the interface after understanding the control protocol.

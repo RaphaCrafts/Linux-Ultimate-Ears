@@ -239,3 +239,40 @@ def test_read_existing_group_connects_audio_host_not_selected_receiver(tmp_path,
     w.read_existing_group()
     assert sent[-1]==('refresh',host)
     w.close()
+
+
+def test_refresh_available_offline_and_party_connect_stays_on_page(tmp_path,monkeypatch):
+    from dataclasses import asdict
+    from PySide6.QtWidgets import QPushButton
+    from speakerstudio.models import Speaker
+    monkeypatch.setenv('XDG_CONFIG_HOME',str(tmp_path))
+    app=QApplication.instance() or QApplication([])
+    c=Controller();w=Window(c,demo=True);app.processEvents()
+    row=asdict(Speaker('demo-sleep','','Sleeping',paired=True,wake_available=True,sleeping=True))
+    w.update_devices([row]);w.navigate('party')
+    assert w.refresh_button.isEnabled()
+    action=next(b for b in w.party_page.findChildren(QPushButton) if b.text()=='Wake & connect')
+    calls=[];c.submit=lambda *args:calls.append(args)
+    w.demo=False
+    action.click();assert calls[-1]==('connect','demo-sleep') and w.page=='party'
+    w.refresh_button.click();assert calls[-1]==('refresh_all',)
+    w.demo=True;w.close()
+
+
+def test_eq_reset_and_saved_party_default(tmp_path,monkeypatch):
+    from PySide6.QtWidgets import QPushButton
+    monkeypatch.setenv('XDG_CONFIG_HOME',str(tmp_path))
+    app=QApplication.instance() or QApplication([])
+    w=Window(Controller(),demo=True);app.processEvents();w.navigate('eq')
+    w.send_eq(3);w.band_sliders[0].setValue(32)
+    w.reset_eq.click()
+    assert w.devices[w.selected]['eq']==0 and not w.eq_dirty
+    assert 'party' not in w.tabs
+    assert len([b for b in w.findChildren(QPushButton) if b.text()=='PartyUp'])==1
+    w.party_default.setCurrentIndex(1);w.party_default.activated.emit(1)
+    opened=[];w.show_computer_mix=lambda:opened.append(True)
+    w.open_party();assert w.page=='party' and opened
+    w.close()
+    second=Window(Controller(),demo=True);app.processEvents()
+    assert second.party_default.currentData()=='computer'
+    second.close()

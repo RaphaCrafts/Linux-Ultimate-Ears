@@ -1,7 +1,7 @@
 """Explicit independent-playback controls, separate from native PartyUp."""
 import json
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton, QCheckBox, QScrollArea, QWidget, QLayout, QFrame
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton, QScrollArea, QWidget, QLayout, QFrame
 
 
 class ComputerMixDialog(QDialog):
@@ -20,9 +20,9 @@ class ComputerMixDialog(QDialog):
             widget=QLabel(value);widget.setTextFormat(Qt.PlainText);widget.setWordWrap(True)
             widget.ensurePolished();widget.setMinimumHeight(widget.heightForWidth(440))
             layout.addWidget(widget);return widget
-        label('Play without PartyUp').setObjectName('section')
-        label('Linux sends the same stereo audio directly to two speakers, bypassing their PartyUp link. This is experimental: some setups may still have echo, drift or interruptions.')
-        label('First end native PartyUp. Connect both speakers separately in Linux Bluetooth settings, then refresh outputs. Your phone’s Bluetooth should be off for this comparison.')
+        label('Computer mix').setObjectName('section')
+        label('Experimental: may have echo, drift or interruptions. Automatic timing compensation is enabled.')
+        label('Native PartyUp ends automatically. Connect both speakers in Linux Bluetooth settings if their outputs are missing.')
         self.refresh=QPushButton('Refresh outputs');self.refresh.clicked.connect(lambda:self.controller.submit('computer_mix_outputs'))
         layout.addWidget(self.refresh)
         self.outputs=[]
@@ -30,27 +30,24 @@ class ComputerMixDialog(QDialog):
             label(caption)
             combo=QComboBox();combo.setAccessibleName(caption+' audio output');combo.currentIndexChanged.connect(self.enabled_state)
             self.outputs.append(combo);layout.addWidget(combo)
-        self.confirm=QCheckBox('Native PartyUp is off')
-        self.confirm.toggled.connect(self.enabled_state);layout.addWidget(self.confirm)
         self.message=label('Refresh outputs to find connected speakers.')
         row=QHBoxLayout()
         self.start=QPushButton('Start Computer mix');self.start.clicked.connect(self.start_mix)
         self.stop=QPushButton('Stop and restore output');self.stop.clicked.connect(lambda:self.controller.submit('computer_mix_stop'))
         row.addWidget(self.start);row.addWidget(self.stop);layout.addLayout(row)
-        label('Start selects Computer mix as Linux’s output. Stop or Quit removes it and restores the previous output unless you chose another one. Closing this panel or hiding the app keeps playback running. Firmware is not changed.')
+        label('Closing this panel keeps music playing. Stop restores your previous output.')
         done=QPushButton('Done');done.clicked.connect(self.close);layout.addWidget(done)
         controller.computer_mix_changed.connect(self.update_state)
         self.update_state(state or {'running':False,'outputs':[],'error':''})
-        if not demo:controller.submit('computer_mix_outputs')
+        if not demo:controller.submit('computer_mix_prepare')
 
     def enabled_state(self,*args):
         if not hasattr(self,'start'):return
         names=[combo.currentData() for combo in self.outputs]
         valid=all(names) and names[0]!=names[1]
-        self.start.setEnabled(bool(valid and self.confirm.isChecked() and not self.running and not self.demo))
+        self.start.setEnabled(bool(valid and not self.running and not self.demo))
         self.stop.setEnabled(self.running and not self.demo)
         for combo in self.outputs:combo.setEnabled(not self.running)
-        self.confirm.setEnabled(not self.running)
 
     def update_state(self,state):
         self.running=state['running']

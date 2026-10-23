@@ -267,3 +267,14 @@ the Speaker Studio design for paired-speaker selection, native PartyUp grouping,
 Double Up / two-speaker Stereo and group volume. Open the `android` folder in
 Android Studio to sync and build. Android hardware operation and groups of three
 or more remain unverified; see its README for setup and the testing checklist.
+
+
+In version 0.1.14, **Refresh** updates Bluetooth status and probes all idle control
+connections, including stale connections after laptop sleep. **Connect first**
+and **Wake & connect** work directly on the PartyUp page; a saved pairing alone
+does not prove that a speaker is currently nearby. Connection attempts retry
+transient failures within the same click. The equalizer has **Reset to Out loud**
+to restore the default sound profile; Vocal, Intimate and Bass boost remain
+available in the preset menu. PartyUp lives in the sidebar, with a saved default
+of native PartyUp or experimental Computer mix. Opening Computer mix ends native
+PartyUp automatically; it checks again before playback starts.

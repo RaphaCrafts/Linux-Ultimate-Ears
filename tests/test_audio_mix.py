@@ -83,8 +83,8 @@ def test_dialog_dispatch_and_native_controls_blocked(tmp_path,monkeypatch):
     c=Controller();calls=[];monkeypatch.setattr(c,'submit',lambda *args:calls.append(args))
     state={'running':False,'outputs':[{'name':LEFT,'label':'First'},{'name':RIGHT,'label':'Second'}],'error':''}
     d=ComputerMixDialog(c,state=state)
-    assert not d.start.isEnabled()
-    d.confirm.setChecked(True);assert d.start.isEnabled()
+    assert calls[-1]==('computer_mix_prepare',)
+    assert d.start.isEnabled()
     d.start.click();assert calls[-1]==('computer_mix_start',json.dumps([LEFT,RIGHT]))
     d.update_state({**state,'running':True});assert d.stop.isEnabled() and not d.start.isEnabled()
     d.stop.click();assert calls[-1]==('computer_mix_stop',)
@@ -110,16 +110,27 @@ def test_backend_rejects_native_group_when_mix_is_running():
     asyncio.run(scenario())
 
 
-def test_backend_rejects_mix_when_native_group_is_known_active(monkeypatch):
+def test_backend_ends_native_group_before_starting_mix(monkeypatch):
     import asyncio
     from speakerstudio.backend import Controller
     from speakerstudio.models import Speaker
     async def scenario():
-        c=Controller();states=[];c.computer_mix_changed.connect(states.append)
-        c.speakers['00:11:22:33:44:55']=Speaker('00:11:22:33:44:55','','Host',connected=True,broadcast=3)
-        monkeypatch.setattr(c.computer_mix,'start',lambda *a:pytest.fail('Native group must be ended first'))
+        c=Controller();states=[];calls=[];c.computer_mix_changed.connect(states.append)
+        host=Speaker('00:11:22:33:44:55','','Host',connected=True,broadcast=3)
+        c.speakers[host.address]=host
+        async def refresh():pass
+        async def read(address):calls.append('read')
+        async def ungroup(address):calls.append('ungroup');host.broadcast=0
+        c.refresh_devices=refresh;c._refresh=read;c._ungroup=ungroup
+        monkeypatch.setattr(c.computer_mix,'start',lambda names:calls.append('start'))
         await c._computer_mix_start(json.dumps([LEFT,RIGHT]))
-        assert states and 'End native PartyUp' in states[-1]['error']
+        assert calls==['read','ungroup','start'] and not states[-1]['error']
+        host.broadcast=3
+        async def failure(address):raise RuntimeError('No response')
+        c._ungroup=failure;calls.clear()
+        await c._computer_mix_start(json.dumps([LEFT,RIGHT]))
+        assert calls==['read'] and 'Could not end native PartyUp' in states[-1]['error']
+        assert not c.mix_preparing
     asyncio.run(scenario())
 
 

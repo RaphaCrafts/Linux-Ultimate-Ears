@@ -150,7 +150,7 @@ class Window(QMainWindow):
         side.addWidget(self.list)
         side.addWidget(button('Search for speakers', self.scan, True))
         side.addWidget(button('Bluetooth settings', self.bluetooth_settings))
-        side.addWidget(button('PartyUp', lambda:self.navigate('party')))
+        side.addWidget(button('PartyUp', self.open_party))
         side.addWidget(text('Independent app by RaphaCrafts','muted'))
         body.addWidget(sidebar)
         scroll = QScrollArea()
@@ -161,7 +161,7 @@ class Window(QMainWindow):
         main.setContentsMargins(22,18,22,16)
         nav = QHBoxLayout()
         self.tabs = {}
-        for key,label in [('speaker','Speaker'),('party','PartyUp'),('eq','Equalizer')]:
+        for key,label in [('speaker','Speaker'),('eq','Equalizer')]:
             tab = button(label, lambda checked=False,k=key:self.navigate(k))
             tab.setCheckable(True)
             self.tabs[key] = tab
@@ -355,10 +355,6 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         columns.addLayout(controls,2)
         layout.addLayout(columns)
         layout.addStretch()
-        footer = QHBoxLayout()
-        footer.addWidget(text('More speakers, one soundtrack.','section'),1)
-        footer.addWidget(button('View PartyUp',lambda:self.navigate('party'),True))
-        layout.addLayout(footer)
         return widget
 
     def build_party(self):
@@ -371,6 +367,15 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         party_heading.addWidget(self.read_group_button)
         party_heading.addWidget(button('Back to speaker',lambda:self.navigate('speaker')))
         layout.addLayout(party_heading)
+        preference=QHBoxLayout()
+        preference.addWidget(text('Default PartyUp mode','muted'))
+        self.party_default=QComboBox()
+        self.party_default.addItem('Native PartyUp','native')
+        self.party_default.addItem('Computer mix · experimental','computer')
+        self.party_default.setCurrentIndex(max(0,self.party_default.findData(self.settings.value('party/default','native'))))
+        self.party_default.activated.connect(lambda index:self.settings.setValue('party/default',self.party_default.itemData(index)))
+        preference.addWidget(self.party_default)
+        layout.addLayout(preference)
         alternative=QHBoxLayout()
         self.computer_mix_hint=text('Alternative: send audio directly from Linux to two speakers.','muted')
         alternative.addWidget(self.computer_mix_hint,1)
@@ -530,6 +535,8 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         inner.addLayout(bands)
         self.apply_eq = button('Apply custom EQ',self.apply_custom,True)
         inner.addWidget(self.apply_eq)
+        self.reset_eq=button('Reset to Out loud',lambda:self.send_eq(0))
+        inner.addWidget(self.reset_eq)
         self.custom_note = text('','muted')
         inner.addWidget(self.custom_note)
         layout.addWidget(panel(inner))
@@ -545,6 +552,10 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
 
     def select(self, current, previous):
         if current:self.open_speaker(current.data(Qt.UserRole))
+
+    def open_party(self):
+        self.navigate('party')
+        if self.settings.value('party/default','native')=='computer':self.show_computer_mix()
 
     def navigate(self, page):
         if page!='party':
@@ -639,16 +650,15 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
 
     def render(self):
         d = self.devices.get(self.selected)
+        self.refresh_button.setEnabled(True)
         if self.page=='party':
             self.stack.setCurrentWidget(self.party_page)
             self.render_party()
             return
         if not d:
             self.stack.setCurrentWidget(self.empty)
-            self.refresh_button.setEnabled(False)
             return
         active = d['connected'] and not d['busy']
-        self.refresh_button.setEnabled(active)
         self.stack.setCurrentWidget(self.eq_page if self.page=='eq' else self.speaker_page)
         self.model_label.setText(d.get('model','').upper().replace('-',' ') or 'ULTIMATE EARS')
         self.name_label.setText(d['name'])
@@ -718,6 +728,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.preset.blockSignals(False)
         self.eq_preset.blockSignals(False)
         custom = active and d['features'].get('custom_eq',False)
+        self.reset_eq.setEnabled(active and d['features'].get('eq_write',False))
         self.apply_eq.setEnabled(custom)
         for slider in self.band_sliders:slider.setEnabled(custom)
         self.custom_note.setText('Relative levels: less (−) or more (+). Apply when ready.' if custom else 'Custom bands are not available for this speaker in this release.')
@@ -907,9 +918,14 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             self.group_volume.setValue(0)
             self.group_volume.blockSignals(False)
             self.group_volume_label.setText('—')
-            self.party_info.setText('No control connection. Go back to a speaker and reconnect to manage PartyUp.')
+            self.party_info.setText('Connect a speaker below to start PartyUp.')
             self.group_status.setText('Bluetooth disconnection does not necessarily end the group on the speakers.')
             self.clear_party_cards()
+            for i,d in enumerate(self.devices.values()):
+                box=QVBoxLayout()
+                box.addWidget(text(d['name'],'section'))
+                box.addWidget(self.party_connect_button(d))
+                self.available_grid.addWidget(panel(box),i//3,i%3)
             self.play_hint.setText('Use Read existing group to reconnect to the speaker playing from Linux.')
             return
         members=host.get('members',[])
@@ -1005,13 +1021,25 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
                 action.setEnabled(eligible)
                 self.party_card_actions.append((action,d['address']))
             else:
-                action=button('Connect first',lambda checked=False,a=d['address']:self.open_speaker(a))
+                action=self.party_connect_button(d)
             box.addWidget(action)
             card=SpeakerDragCard(host['address'],d['address'],QPixmap(str(image))) if eligible else panel()
             if eligible:card.draggingChanged.connect(self.party_drag_changed)
             card.setLayout(box)
             card.setMinimumHeight(190)
             self.available_grid.addWidget(card,i//3,i%3)
+
+    def party_connect_button(self,d):
+        caption='Connecting…' if d['busy'] else 'Wake & connect' if d.get('sleeping') and d.get('wake_available') else 'Connect first'
+        action=button(caption,lambda checked=False,a=d['address']:self.connect_party_speaker(a))
+        action.setEnabled(d['paired'] and not d['busy'])
+        return action
+
+    def connect_party_speaker(self,address):
+        if self.demo:
+            self.devices[address]['connected']=True
+            self.update_devices(list(self.devices.values()))
+        else:self.controller.submit('connect',address)
 
     def clear_party_cards(self):
         self.member_sliders={}
@@ -1111,7 +1139,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
 
     def refresh(self):
         if self.demo:self.show_status('Demo readings refreshed.');return
-        self.command('refresh')
+        self.controller.submit('refresh_all')
 
     def refresh_quietly(self):
         if self.demo:return
