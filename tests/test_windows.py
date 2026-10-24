@@ -237,6 +237,28 @@ def test_windows_native_group_does_not_fail_on_linux_audio_routing():
     assert states[-1]['error']=='' and not states[-1]['switching']
 
 
+@pytest.mark.skipif(sys.platform != 'win32', reason='Windows receiver handoff')
+def test_windows_join_releases_receiver_socket_without_losing_host_membership():
+    from speakerstudio.backend import Controller
+    from speakerstudio.models import Speaker
+    async def scenario():
+        host='00:11:22:33:44:55';receiver='00:11:22:33:44:66'
+        c=Controller();c.loop=asyncio.get_running_loop();closed=[]
+        c.speakers={a:Speaker(a,'',a,connected=True,features={'group':True}) for a in (host,receiver)}
+        class HostSession:
+            async def request(self,command,response=0,payload=b''):
+                if command==0x414:return b'\x03\x00'
+                if command==0x417:
+                    c._notification(host,Message(0x418,bytes.fromhex(receiver.replace(':',''))+b'\0'))
+        c.sessions={host:HostSession(),receiver:SimpleNamespace(close=lambda:closed.append(True))}
+        await c._group_add(host,receiver)
+        assert closed and receiver not in c.sessions and not c.speakers[receiver].connected
+        assert not c.speakers[receiver].error
+        assert c.speakers[host].connected and c.speakers[host].members==[receiver]
+        assert c.group_ready_at[host]>time.monotonic()
+    asyncio.run(scenario())
+
+
 @pytest.mark.skipif(sys.platform != 'win32', reason='Windows BLE projection')
 def test_windows_cancelled_scan_stops_and_unregisters_watcher(monkeypatch):
     from speakerstudio import windows as w

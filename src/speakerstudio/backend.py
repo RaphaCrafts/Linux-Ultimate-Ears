@@ -5,6 +5,7 @@ import socket
 import json
 import subprocess
 import sys
+import time
 from PySide6.QtCore import QThread, Signal
 if sys.platform == 'win32':
     from .windows import WindowsBluetooth as BlueZ, rfcomm_channel, open_rfcomm
@@ -48,6 +49,7 @@ class Controller(QThread):
         self.mix_members=[]
         self.playback_method='native'
         self.native_group_modes={}
+        self.group_ready_at={}
 
     def run(self):
         self.stopping = False
@@ -57,6 +59,7 @@ class Controller(QThread):
         self.waking.clear()
         self.connecting.clear()
         self.operations.clear()
+        self.group_ready_at.clear()
         self.speakers.clear()
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
@@ -264,6 +267,7 @@ class Controller(QThread):
         self.publish_computer_mix(message,reset=True)
 
     def _lost(self, address, reason, interrupt=True):
+        self.group_ready_at.pop(address,None)
         task=self.operations.pop(address,None) if interrupt else None
         if task and task is not asyncio.current_task() and not task.done():task.cancel()
         session = self.sessions.pop(address,None)
@@ -784,6 +788,15 @@ class Controller(QThread):
             await self._busy_request(session, 0x417, bytes.fromhex(receiver.replace(':','')) + b'\x02')
             self.status.emit('Waiting for the speaker to join PartyUp…')
             await asyncio.wait_for(future, 30)
+            # Receiver handoff can still be settling after the join ACK/status.
+            # Switching the host's mode immediately can drop the fresh member.
+            self.group_ready_at[address]=time.monotonic()+6
+            if sys.platform=='win32' and receiver in self.sessions:
+                # This firmware relinquishes its direct Classic controls when
+                # becoming a native receiver. Do not retain a silently stalled
+                # Windows stream; group controls go through the host instead.
+                self._lost(receiver,'Using the host for PartyUp controls',interrupt=False)
+                target.error=''
             self.publish()
             self.status.emit('Speaker joined PartyUp')
         finally:
@@ -847,6 +860,10 @@ class Controller(QThread):
     async def _party_mode(self,address,mode):
         s=self.speakers[address]
         if mode not in (0,0x50):raise ValueError('Unsupported PartyUp playback mode')
+        delay=self.group_ready_at.get(address,0)-time.monotonic()
+        if delay>0:
+            self.status.emit('Waiting for the new PartyUp connection to settle…')
+            await asyncio.sleep(delay)
         if not s.broadcast&2 or len(s.members)!=1:
             raise RuntimeError('Playback mode requires exactly two speakers in PartyUp.')
         session=self.sessions[address]
@@ -897,6 +914,14 @@ class Controller(QThread):
                     await self._read_levels(receiver)
                     host.member_info.setdefault(receiver,{})['volume']=target.volume
                 else:await self._receiver_attribute(address,receiver)
+            except (OSError,TimeoutError) as error:
+                # A receiver may relinquish its Classic socket during PartyUp
+                # without Windows immediately reporting the link loss.
+                self._lost(receiver,'Receiver control channel stopped responding',interrupt=False)
+                metadata=host.member_info.setdefault(receiver,{})
+                metadata.pop('volume',None)
+                metadata['level_error']='The receiver’s direct controls stopped responding. Refresh levels to try the host proxy; group volume and stereo balance remain available.'
+                failures.append(error)
             except (RuntimeError,CommandError) as error:
                 metadata=host.member_info.setdefault(receiver,{})
                 metadata.pop('volume',None)

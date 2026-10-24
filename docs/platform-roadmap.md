@@ -14,7 +14,9 @@ Updated 2026-10-24.
   dependencies install in `.venv-windows` on first launch. Pairing and music
   output selection use Windows Settings. Search refreshes saved Classic
   pairings and supported BLE sleep signals. Remote wake and a power-off/wake/
-  reconnect cycle passed on a physical MEGABOOM 3. Other models and Windows
-  PartyUp/audible group behavior remain unverified; see the
+  reconnect cycle passed on a physical MEGABOOM 3. A real pair also passed native
+  PartyUp, Stereo/Double Up, balance, and group-volume command checks. Audible
+  Stereo routing and balance were user-confirmed. Other models, receiver proxy
+  levels, and long playback synchronization remain unverified; see the
   [Windows validation report](windows-validation.md). Computer mix remains
   Linux-only. There is no standalone Windows executable release yet.

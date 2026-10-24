@@ -53,9 +53,12 @@ The Windows backend uses native WinRT RFCOMM with the existing BOOM 3 /
 MEGABOOM 3 protocol and interface: battery, volume, EQ, rename, power off, and
 native PartyUp commands. A physical MEGABOOM 3 passed Windows wake, control
 readback, same-value setting writes, and a power-off/wake/reconnect cycle.
-Windows support remains **experimental**: one other paired speaker still could
-not open its control channel, so Windows PartyUp and audible two-speaker behavior
-remain unverified. See the [Windows validation report](docs/windows-validation.md).
+Windows support remains **experimental**. A physical MEGABOOM 3 pair passed
+PartyUp joining/removal, Stereo and Double Up mode readback, balance and group
+volume command checks. The user also confirmed audible Stereo routing and
+balance on the pair. Individual receiver proxy levels were not confirmed by
+this firmware; long playback stability and synchronization remain unmeasured.
+See the [Windows validation report](docs/windows-validation.md).
 Computer mix is available only on Linux.
 
 To explore without a speaker, run `Speaker-Studio.bat --demo`. For a quick UI

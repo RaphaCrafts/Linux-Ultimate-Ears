@@ -40,6 +40,47 @@ def test_native_balance_endpoints_centre_and_confirmed_readback():
     asyncio.run(scenario())
 
 
+def test_mode_switch_waits_for_new_receiver_handoff(monkeypatch):
+    from speakerstudio import backend
+    from types import SimpleNamespace
+    waits=[]
+    monkeypatch.setattr(backend,'time',SimpleNamespace(monotonic=lambda:10))
+    async def sleep(delay):waits.append(delay)
+    monkeypatch.setattr(backend.asyncio,'sleep',sleep)
+    async def scenario():
+        c,s=controller();c.group_ready_at[HOST]=16
+        class Session:
+            mode=0
+            async def request(self,command,response=0,payload=b''):
+                if command==0x414:return bytes([3,self.mode])
+                if command==0x413:
+                    assert waits==[6]
+                    self.mode=payload[1]
+        c.sessions[HOST]=Session()
+        await c._party_mode(HOST,0x50)
+        assert s.audio_mode==0x50 and waits==[6]
+    asyncio.run(scenario())
+
+
+def test_receiver_level_timeout_invalidates_only_its_stale_direct_controls():
+    from types import SimpleNamespace
+    async def scenario():
+        c,host=controller()
+        target=Speaker(MEMBER,'/receiver','Receiver',connected=True)
+        c.speakers[MEMBER]=target
+        closed=[]
+        c.sessions[MEMBER]=SimpleNamespace(close=lambda:closed.append(True))
+        async def read(address):
+            if address==MEMBER:raise TimeoutError('stalled receiver')
+            host.volume=40
+        c._read_levels=read
+        await c._group_levels(HOST)
+        assert host.connected and host.members==[MEMBER] and host.volume==40
+        assert closed and not target.connected and MEMBER not in c.sessions
+        assert 'stopped responding' in host.member_info[MEMBER]['level_error']
+    asyncio.run(scenario())
+
+
 def test_stereo_mode_preserves_group_state_and_requires_fresh_confirmation():
     async def scenario():
         c,s=controller();s.audio_mode=0

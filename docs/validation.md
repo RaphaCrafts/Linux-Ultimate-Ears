@@ -443,7 +443,7 @@ Native receiver proxy volume retains its earlier hardware-verification limits.
 
 ## Experimental Windows desktop (2026-10-24)
 
-On Windows with Python 3.13 x64 / PyWinRT 3.2.1, the audited suite passes **140 tests**;
+On Windows with Python 3.13 x64 / PyWinRT 3.2.1, the audited suite passes **143 tests**;
 one AppImage desktop-entry test is skipped because it asserts POSIX paths.
 The Linux Computer mix backend test explicitly simulates the Linux platform.
 Additional tests cover the asynchronous stream adapter, fragmented response and
@@ -458,9 +458,12 @@ background worker succeeded and found a UE
 speaker. The follow-up audit fixed endpoint pairing detection, added BLE wake,
 and verified a physical MEGABOOM 3 through the real Windows worker and interface.
 Readings, same-value settings writes, disconnect/reconnect, and a complete
-power-off/sleep-detection/BLE-wake/reconnect cycle passed. One other paired
-speaker still rejected RFCOMM connection, leaving two-speaker Windows PartyUp
-unverified. Computer mix remains Linux-only. The detailed
+power-off/sleep-detection/BLE-wake/reconnect cycle passed. Refreshing the other
+speaker's Windows pairing resolved its RFCOMM failure. The physical pair then
+passed PartyUp join/removal, Stereo/Double Up mode readback, balance, and group
+volume checks. The user confirmed audible Stereo routing and left/right balance
+using quiet test tones. Receiver proxy levels and long playback synchronization
+remain unverified. Computer mix remains Linux-only. The detailed
 [Windows report](windows-validation.md) separates physical, automated, and
 unverified behavior. Device-identifier diagnostics remain in ignored `.local/`.
 

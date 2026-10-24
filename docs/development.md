@@ -95,7 +95,10 @@ pairings remain visible for the session after the pre-wake beacon is invalidated
 Worker shutdown cancels and drains native reads before closing its COM apartment.
 Do not repeatedly cancel a WinRT reader while it waits for native cancellation
 completion. See [Windows validation](windows-validation.md) for physical results
-and the remaining two-speaker connection limitation.
+and the receiver proxy-level and listening-test limits. A new receiver handoff
+settles for six seconds before switching modes. Windows releases the receiver's
+direct control stream after joining, since it can silently stall in native
+receiver mode. Receiver read timeouts invalidate only that direct connection.
 
 ### Shared controller
 
