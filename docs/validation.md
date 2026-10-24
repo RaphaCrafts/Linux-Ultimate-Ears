@@ -443,7 +443,7 @@ Native receiver proxy volume retains its earlier hardware-verification limits.
 
 ## Experimental Windows desktop (2026-10-24)
 
-On Windows with Python 3.13 x64 / PyWinRT 3.2.1, the suite passes **132 tests**;
+On Windows with Python 3.13 x64 / PyWinRT 3.2.1, the audited suite passes **140 tests**;
 one AppImage desktop-entry test is skipped because it asserts POSIX paths.
 The Linux Computer mix backend test explicitly simulates the Linux platform.
 Additional tests cover the asynchronous stream adapter, fragmented response and
@@ -455,10 +455,14 @@ environment, installed dependencies and verified the Qt window and bundled
 artwork. A native Windows rendering was also visually checked, including system
 fonts and speaker artwork. Native Windows paired-device enumeration from the
 background worker succeeded and found a UE
-speaker; identifiers were not saved. Speaker connection, command readback,
-PartyUp, and audible behavior on Windows have not been hardware-verified.
-Linux hardware evidence elsewhere in this document does not verify Windows.
-There is no BLE wake or Windows equivalent of PipeWire Computer mix in this port.
+speaker. The follow-up audit fixed endpoint pairing detection, added BLE wake,
+and verified a physical MEGABOOM 3 through the real Windows worker and interface.
+Readings, same-value settings writes, disconnect/reconnect, and a complete
+power-off/sleep-detection/BLE-wake/reconnect cycle passed. One other paired
+speaker still rejected RFCOMM connection, leaving two-speaker Windows PartyUp
+unverified. Computer mix remains Linux-only. The detailed
+[Windows report](windows-validation.md) separates physical, automated, and
+unverified behavior. Device-identifier diagnostics remain in ignored `.local/`.
 
 ## Automatic mix cleanup and Android redesign (2026-10-24)
 

@@ -17,7 +17,9 @@ def main():
     if not python.exists():
         print('Setting up Speaker studio. First launch requires internet access.', flush=True)
         venv.EnvBuilder(with_pip=True).create(environment)
-    fingerprint = hashlib.sha256((root / 'pyproject.toml').read_bytes()).hexdigest()
+    # Editable installs point at an absolute source directory. Reinstall after
+    # the repository moves, even when its requirements have not changed.
+    fingerprint = hashlib.sha256(str(root).encode() + (root / 'pyproject.toml').read_bytes()).hexdigest()
     marker = environment / 'speaker-studio-installed'
     if not marker.exists() or marker.read_text() != fingerprint:
         subprocess.run([str(python), '-m', 'pip', 'install', '-e', str(root)], check=True)

@@ -13,6 +13,8 @@ Updated 2026-10-24.
   The shared Qt interface and legacy command codec use native WinRT RFCOMM;
   dependencies install in `.venv-windows` on first launch. Pairing and music
   output selection use Windows Settings. Search refreshes saved Classic
-  pairings. Computer mix and BLE remote wake are unavailable. Windows physical
-  speaker validation remains open; Linux hardware results do not verify this
-  transport. There is no standalone Windows executable release yet.
+  pairings and supported BLE sleep signals. Remote wake and a power-off/wake/
+  reconnect cycle passed on a physical MEGABOOM 3. Other models and Windows
+  PartyUp/audible group behavior remain unverified; see the
+  [Windows validation report](windows-validation.md). Computer mix remains
+  Linux-only. There is no standalone Windows executable release yet.

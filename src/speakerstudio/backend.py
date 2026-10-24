@@ -68,7 +68,7 @@ class Controller(QThread):
             except Exception as error:self.error.emit(str(error))
         tasks = asyncio.all_tasks(self.loop)
         for task in tasks:
-            task.cancel()
+            if not task.cancelling():task.cancel()
         self.loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
         self.loop.close()
 
@@ -556,7 +556,7 @@ class Controller(QThread):
             await self.refresh_devices()
             for address in addresses:
                 if address not in self.speakers or not self.speakers[address].paired:
-                    raise RuntimeError('A selected speaker is not paired in Linux. Pair it before switching.')
+                    raise RuntimeError('A selected speaker is not paired. Pair it in Bluetooth settings before switching.')
                 if self.speakers[address].busy:raise RuntimeError(self.speakers[address].name+' is busy. Wait for it to finish.')
             if method=='computer':
                 # End native hosts first: a receiver may have no direct Linux link
@@ -589,9 +589,12 @@ class Controller(QThread):
                 if len(addresses)==2 and host in self.native_group_modes:
                     await self._perform('party_mode',host,self.native_group_modes[host])
                     if self.speakers[host].error:raise RuntimeError(self.speakers[host].error)
-                await self.bluez.connect_audio(host)
+                if sys.platform=='win32':
+                    self.status.emit('PartyUp is configured. Select the host speaker in Windows Sound settings for music.')
+                else:
+                    await self.bluez.connect_audio(host)
             await self.refresh_devices()
-            self.status.emit('Computer mix is on' if method=='computer' else 'Native PartyUp is on')
+            self.status.emit('Computer mix is on' if method=='computer' else 'Native PartyUp is on. Select its host in Windows Sound settings for music.' if sys.platform=='win32' else 'Native PartyUp is on')
         except asyncio.CancelledError:
             if was_running and self.computer_mix.active:
                 self.mix_members=previous_members;self.playback_method=previous_method
@@ -1007,8 +1010,13 @@ class Controller(QThread):
                 except Exception as error:self.error.emit(str(error))
                 for session in self.sessions.values():
                     session.close()
-                for task in list(self.tasks):
-                    task.cancel()
+                # WinRT cancellation waits for native completion. Cancelling a
+                # reader twice can abandon that wait and leave a callback aimed
+                # at an already closed event loop. Drain workers before COM exit.
+                pending=[task for task in asyncio.all_tasks(self.loop) if task is not asyncio.current_task()]
+                for task in pending:
+                    if not task.cancelling():task.cancel()
+                await asyncio.gather(*pending,return_exceptions=True)
                 if self.bluez:
                     await self.bluez.close()
                 self.loop.stop()

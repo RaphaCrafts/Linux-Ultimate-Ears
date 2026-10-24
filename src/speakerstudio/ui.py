@@ -814,13 +814,22 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.render_party()
 
     def read_existing_group(self):
-        candidates=[d for d in self.devices.values() if d.get('audio_connected') and d.get('paired') and not d.get('busy')]
+        candidates=self.existing_group_candidates()
         candidates.sort(key=lambda d:not d.get('audio_active'))
         if not candidates:return
-        host=candidates[0]
+        host=next((d for d in candidates if d['address']==self.group_host),candidates[0]) if sys.platform=='win32' else candidates[0]
         self.group_host=host['address']
         if self.demo:self.render_party();return
         self.controller.submit('refresh' if host['connected'] else 'connect',host['address'])
+
+    def existing_group_candidates(self):
+        candidates=[d for d in self.devices.values() if d.get('paired') and not d.get('busy')]
+        if sys.platform=='win32':
+            # Windows does not expose A2DP inventory through this backend.
+            # Read the selected speaker instead of guessing its audio route.
+            selected=self.group_host or self.selected
+            return [d for d in candidates if d['address']==selected]
+        return [d for d in candidates if d.get('audio_connected')]
 
     def party_action(self,action,*args):
         if getattr(self,'computer_mix_state',{}).get('running'):
@@ -931,7 +940,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             self.host_select.setEnabled(False)
             self.party_error.setText(state.get('error',''))
             return
-        self.read_group_button.setEnabled(any(d.get('audio_connected') and d.get('paired') and not d.get('busy') for d in self.devices.values()))
+        self.read_group_button.setEnabled(bool(self.existing_group_candidates()))
         current=self.devices.get(self.group_host)
         signature=(self.group_host,tuple(current.get('members',[]))) if current else None
         if current and current['connected'] and signature==self.mix_signature:

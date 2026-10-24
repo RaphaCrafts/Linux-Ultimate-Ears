@@ -39,17 +39,24 @@ The first launch downloads dependencies into an isolated `.venv-windows` folder;
 later launches reuse it. No administrator access is needed. Python 3.13 x64 is
 the version used for local validation.
 
-Pair and turn on your speaker in **Windows Settings → Bluetooth & devices**,
-then search in the app and connect its controls. For music, select the speaker
-in Windows Sound settings. Search refreshes saved Classic Bluetooth pairings;
-use Windows Settings to discover and pair new devices. A renamed speaker can
-be recognized after reconnecting because its verified model is remembered.
+Pair your speaker in **Windows Settings → Bluetooth & devices**, then search in
+the app and connect its controls. **Search for speakers** also detects compatible
+sleeping speakers: choose **Turn on**, or **Connect controls** to wake and connect.
+Bluetooth Smart / remote power must be enabled in the UE phone app. Wake requires
+a recent supported BLE signal that matches the exact saved Classic pairing;
+deep sleep or disabled Bluetooth Smart can still require the power button.
+For music, select the host speaker in Windows Sound settings. Use Windows
+Settings to discover and pair new devices. Renamed speakers are recognized from
+their verified model or a supported BLE beacon matched to the saved pairing.
 
 The Windows backend uses native WinRT RFCOMM with the existing BOOM 3 /
 MEGABOOM 3 protocol and interface: battery, volume, EQ, rename, power off, and
-native PartyUp commands. These Windows hardware operations are **experimental,
-not yet verified on physical speakers**. Linux Computer mix and BLE remote wake
-are unavailable on Windows; turn sleeping speakers on with their power button.
+native PartyUp commands. A physical MEGABOOM 3 passed Windows wake, control
+readback, same-value setting writes, and a power-off/wake/reconnect cycle.
+Windows support remains **experimental**: one other paired speaker still could
+not open its control channel, so Windows PartyUp and audible two-speaker behavior
+remain unverified. See the [Windows validation report](docs/windows-validation.md).
+Computer mix is available only on Linux.
 
 To explore without a speaker, run `Speaker-Studio.bat --demo`. For a quick UI
 check, run `Speaker-Studio.bat --smoke-test`. If setup fails, the console stays
@@ -353,5 +360,6 @@ reopening the app never start a mix; group playback needs an explicit action.
 Android 0.2.0 has a phone layout with Speakers, Sound and PartyUp tabs, built-in
 and custom EQ, saved profiles, naming, firmware information, stereo balance and
 individual receiver levels where supported. It uses native PartyUp. Computer Mix
-and remote BLE wake remain Linux-only; Android hardware/audio validation is still
-pending. Windows is [parked for later](docs/platform-roadmap.md).
+remains Linux-only; remote BLE wake is implemented on Linux and Windows.
+Android hardware/audio validation is still pending. See the
+[platform scope](docs/platform-roadmap.md) for Windows validation limits.

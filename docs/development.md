@@ -68,7 +68,7 @@ Do not commit an unusable pointer or claim an unverified build succeeded.
 
 Run `Speaker-Studio.bat` from the repository root. The standard-library bootstrap
 creates `.venv-windows` and installs an editable copy of the project. A hash of
-`pyproject.toml` triggers dependency setup again when its requirements change;
+`pyproject.toml` or a changed repository location triggers dependency setup again;
 otherwise startup needs no package download. Keep the repository's assets beside
 its source. This is a source launcher, not a standalone executable distribution.
 
@@ -83,7 +83,19 @@ test settings and ordinary per-user storage. Bluetooth identifiers stay local.
 Run `Speaker-Studio.bat --smoke-test` to check the UI and assets, or install pytest
 in a development environment and run `python -m pytest -q`. Windows tests cover
 SPP API selection, failed-connection cleanup, async frame dispatch and timeout,
-and disabling Linux Computer mix. BLE wake is not implemented on Windows.
+and disabling Linux Computer mix. Windows BLE discovery uses an active
+advertisement watcher, hands callbacks to the asyncio worker, and decodes the
+same FE61 manufacturer layout as Linux. Only a fresh, validated beacon matched
+to a paired Classic address enables wake. GATT discovery must find the exact
+writable wake characteristic; the payload contains the Windows adapter address.
+The controller verifies RFCOMM identity/readback after wake. A custom Windows
+name does not hide a speaker matched through its validated beacon. Recognized
+pairings remain visible for the session after the pre-wake beacon is invalidated.
+
+Worker shutdown cancels and drains native reads before closing its COM apartment.
+Do not repeatedly cancel a WinRT reader while it waits for native cancellation
+completion. See [Windows validation](windows-validation.md) for physical results
+and the remaining two-speaker connection limitation.
 
 ### Shared controller
 

@@ -226,6 +226,9 @@ def test_active_group_without_inventory_is_not_shown_as_empty(tmp_path,monkeypat
 
 
 def test_read_existing_group_connects_audio_host_not_selected_receiver(tmp_path,monkeypatch):
+    from types import SimpleNamespace
+    from speakerstudio import ui
+    monkeypatch.setattr(ui,'sys',SimpleNamespace(platform='linux'))
     monkeypatch.setenv('XDG_CONFIG_HOME',str(tmp_path))
     app=QApplication.instance() or QApplication([])
     controller=Controller();w=Window(controller,demo=True);app.processEvents()
