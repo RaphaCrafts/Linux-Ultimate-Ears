@@ -1,8 +1,10 @@
 from pathlib import Path
+import sys
 import pytest
 from speakerstudio.desktop import register_appimage, quote_exec
 
 
+@pytest.mark.skipif(sys.platform == 'win32', reason='AppImage desktop entries require POSIX paths')
 def test_launcher_uses_persistent_appimage_and_survives_move(tmp_path):
     image=tmp_path/'Speaker studio % blue.AppImage';image.write_bytes(b'test')
     icon=tmp_path/'icon.png';icon.write_bytes(b'icon')

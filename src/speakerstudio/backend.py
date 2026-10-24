@@ -4,13 +4,18 @@ from dataclasses import asdict
 import socket
 import json
 import subprocess
+import sys
 from PySide6.QtCore import QThread, Signal
-from .bluez import BlueZ, rfcomm_channel
+if sys.platform == 'win32':
+    from .windows import WindowsBluetooth as BlueZ, rfcomm_channel, open_rfcomm
+else:
+    from .bluez import BlueZ, rfcomm_channel
+    from .protocol import open_rfcomm
 from .models import Speaker, LEGACY_MODELS
 from .colours import finish_name
 from .naming import encode_name, decode_name
 from .preferences import remembered_model, remembered_models
-from .protocol import LegacySession, open_rfcomm, CommandError, ProtocolError, battery_percent
+from .protocol import LegacySession, CommandError, ProtocolError, battery_percent
 from .audio_mix import ComputerMix, snapshot as audio_snapshot, speaker_sinks, output_for_address
 
 
@@ -107,6 +112,9 @@ class Controller(QThread):
         return True
 
     async def _perform(self, action, *args):
+        if sys.platform == 'win32' and (action.startswith('computer_mix_') or action == 'group_method' and args[0] == 'computer'):
+            self.publish_computer_mix('Computer mix is available only on Linux. Choose Native PartyUp on Windows.')
+            return
         address = args[0] if not action.startswith('computer_mix_') and args and args[0] in self.speakers else None
         speaker = self.speakers.get(address)
         if action=='disconnect' and speaker:
@@ -689,7 +697,7 @@ class Controller(QThread):
             raise RuntimeError('The speaker stored the name as '+actual+'. Check the name and try again.')
         try:await self.bluez.set_alias(s.path,actual)
         except Exception:
-            s.error='The speaker was renamed. Linux’s Bluetooth label may update after reconnecting.'
+            s.error='The speaker was renamed. Your desktop’s Bluetooth label may update after reconnecting.'
         self.status.emit('Speaker renamed to '+actual)
         self.publish()
 
@@ -728,7 +736,7 @@ class Controller(QThread):
     async def _disconnect(self, address):
         self._lost(address,'Disconnected from speaker controls')
         self.speakers[address].error = ''
-        self.status.emit('Disconnected from speaker controls. Pairing is still saved in Linux.')
+        self.status.emit('Disconnected from speaker controls. Pairing is still saved in Bluetooth settings.')
 
     async def _busy_request(self, session, command, payload):
         for attempt in range(3):

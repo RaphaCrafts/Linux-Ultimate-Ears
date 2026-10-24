@@ -2,8 +2,7 @@
 import asyncio
 import json
 from dataclasses import asdict
-from .backend import Controller
-from .bluez import BlueZ
+from .backend import Controller, BlueZ
 from .models import Speaker
 
 

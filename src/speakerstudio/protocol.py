@@ -84,7 +84,10 @@ class LegacySession:
         if self.closed:
             raise ConnectionError('Speaker disconnected')
         async with self.write_lock:
-            await self.loop.sock_sendall(self.sock, message.encode())
+            if hasattr(self.sock, 'send_async'):
+                await self.sock.send_async(message.encode())
+            else:
+                await self.loop.sock_sendall(self.sock, message.encode())
 
     async def request(self, command, response=0, payload=b'', timeout=5):
         async with self.lock:
@@ -102,7 +105,8 @@ class LegacySession:
     async def _read(self):
         try:
             while not self.closed:
-                data = await self.loop.sock_recv(self.sock, 4096)
+                data = (await self.sock.recv_async(4096) if hasattr(self.sock, 'recv_async')
+                        else await self.loop.sock_recv(self.sock, 4096))
                 if not data:
                     raise ConnectionError('Speaker disconnected')
                 for message in self.decoder.feed(data):

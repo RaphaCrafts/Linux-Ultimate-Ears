@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QLabel, QPushButton, QVBoxL
     QScrollArea, QMessageBox, QMenu, QApplication, QProgressBar, QSystemTrayIcon, QInputDialog)
 from PySide6.QtCore import QProcess, QProcessEnvironment
 from . import __version__
-from .preferences import restore_appearance
+from .preferences import restore_appearance, device_settings
 from .equalizer import BUILTIN_PRESETS, PREVIEW_CURVES, preview_bands, load_profiles, save_profile
 from .party_visual import PartyLink, PartyPlayArea, SpeakerDragCard
 from .firmware import FirmwareDialog
@@ -106,8 +106,9 @@ class Window(QMainWindow):
         self.eq_dirty = False
         self.eq_pending = None
         self.eq_profile = None
-        self.settings = QSettings('RaphaCrafts', 'SpeakerStudio')
+        self.settings = device_settings()
         self.playback_method=str(self.settings.value('party/default','native'))
+        if sys.platform == 'win32' and not demo:self.playback_method='native'
         self.computer_group=[]
         self.catalogue = json.loads((asset_root()/'speakers/manifest.json').read_text())['images']
         self.setWindowTitle('Speaker studio')
@@ -125,7 +126,7 @@ class Window(QMainWindow):
         row.addWidget(text('Speaker studio', 'brand'))
         row.addWidget(text('for Ultimate Ears', 'muted'))
         row.addStretch()
-        self.mode_label = text('DEMO — no Bluetooth controls' if demo else 'Linux', 'muted')
+        self.mode_label = text('DEMO — no Bluetooth controls' if demo else 'Windows' if sys.platform == 'win32' else 'Linux', 'muted')
         row.addWidget(self.mode_label)
         menu_button = QPushButton('☰')
         menu_button.setAccessibleName('Application menu')
@@ -247,7 +248,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.addStretch()
-        heading = text('Your sound, on Linux.','title')
+        heading = text('Your sound, on Windows.' if sys.platform == 'win32' else 'Your sound, on Linux.','title')
         heading.setAlignment(Qt.AlignCenter)
         layout.addWidget(heading)
         copy = text('Turn on your speaker, pair it in your desktop’s Bluetooth settings,\nthen select it in the sidebar and connect.','muted')
@@ -695,6 +696,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             status = 'Waking and connecting…' if d['operation']=='wake' else 'Connecting speaker controls…'
         elif d['connected']:
             status = 'Controls connected' + (' · Bluetooth audio connected' if d.get('audio_connected') else ' · audio not linked')
+            if sys.platform == 'win32':status='Controls connected · choose audio in Windows Sound settings'
         elif d.get('audio_connected'):
             status = 'Bluetooth audio connected · connect controls to adjust the speaker'
         elif d.get('bluez_connected'):
@@ -702,7 +704,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         elif d.get('sleeping') and d.get('wake_available'):
             status = 'Sleeping nearby · ready to wake and connect'
         else:
-            status = 'Not connected · pairing saved in Linux' if d['paired'] else 'Pair in Bluetooth settings first'
+            status = 'Not connected · pairing saved' if d['paired'] else 'Pair in Bluetooth settings first'
         if d.get('firmware') and d['connected']:status+=' · Firmware '+d['firmware']
         self.connection_label.setText(status)
         self.device_error.setText(d.get('error',''))
@@ -909,6 +911,9 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         for method,option in self.method_buttons.items():
             option.setChecked(self.playback_method==method)
             option.setEnabled(not switching and (method!=self.playback_method or method=='computer' and not state.get('running')))
+            if sys.platform == 'win32' and not self.demo and method == 'computer':
+                option.setEnabled(False)
+                option.setToolTip('Computer mix requires Linux PipeWire. Use Native PartyUp on Windows.')
         self.computer_mix_hint.setText('Switching connection method…' if switching else 'Experimental: may have echo, drift or interruptions.' if self.playback_method=='computer' else 'Speakers share sound through native PartyUp. Your choice is remembered.')
         self.retry_group.setVisible(bool(state.get('error')))
         self.retry_group.setEnabled(not switching)
@@ -994,7 +999,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
                 box.addWidget(text(d['name'],'section'))
                 box.addWidget(self.party_connect_button(d))
                 self.available_grid.addWidget(panel(box),i//3,i%3)
-            self.play_hint.setText('Use Read existing group to reconnect to the speaker playing from Linux.')
+            self.play_hint.setText('Use Read existing group to reconnect to the speaker playing your music.')
             return
         members=host.get('members',[])
         active=bool(host.get('broadcast',0)&2)
@@ -1456,6 +1461,9 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.notice.setToolTip(message)
 
     def bluetooth_settings(self):
+        if sys.platform == 'win32':
+            QDesktopServices.openUrl(QUrl('ms-settings:bluetooth'))
+            return
         for program,args in [('gnome-control-center',['bluetooth']),('blueman-manager',[]),('systemsettings',['kcm_bluetooth']),('kcmshell6',['kcm_bluetooth'])]:
             binary=shutil.which(program)
             if binary:
@@ -1489,7 +1497,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.show_status('Demo mode. All readings and controls are simulated.')
 
     def about(self):
-        QMessageBox.about(self,'About Speaker studio',f'Speaker studio {__version__}\nAn independent Linux app by RaphaCrafts.\nNot affiliated with Logitech or Ultimate Ears.\n\nSource and licences are included with the download.\nSpeaker images belong to Logitech / Ultimate Ears.')
+        QMessageBox.about(self,'About Speaker studio',f'Speaker studio {__version__}\nAn independent app by RaphaCrafts.\nNot affiliated with Logitech or Ultimate Ears.\n\nSource and licences are included with the download.\nSpeaker images belong to Logitech / Ultimate Ears.')
 
     def setup_tray(self):
         self.tray = QSystemTrayIcon(self.windowIcon(),self)

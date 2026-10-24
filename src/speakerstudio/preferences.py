@@ -1,8 +1,11 @@
 """Last verified speaker appearance, separate from manual finish overrides."""
 from PySide6.QtCore import QSettings
+import sys
 
 
 def device_settings():
+    if sys.platform == 'win32':
+        return QSettings(QSettings.IniFormat,QSettings.UserScope,'RaphaCrafts','SpeakerStudio')
     return QSettings('RaphaCrafts','SpeakerStudio')
 
 

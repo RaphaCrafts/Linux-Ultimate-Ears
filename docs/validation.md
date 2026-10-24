@@ -441,6 +441,25 @@ temporary sinks were removed afterward. No physical speaker volumes were changed
 by this trial. Both revised group views were rendered offscreen for visual QA.
 Native receiver proxy volume retains its earlier hardware-verification limits.
 
+## Experimental Windows desktop (2026-10-24)
+
+On Windows with Python 3.13 x64 / PyWinRT 3.2.1, the suite passes **132 tests**;
+one AppImage desktop-entry test is skipped because it asserts POSIX paths.
+The Linux Computer mix backend test explicitly simulates the Linux platform.
+Additional tests cover the asynchronous stream adapter, fragmented response and
+notification handling, timeout closure, SPP service selection, failed connection
+cleanup, and the Windows interface's disabled Computer mix option.
+
+The real `Speaker-Studio.bat --smoke-test` successfully created its isolated
+environment, installed dependencies and verified the Qt window and bundled
+artwork. A native Windows rendering was also visually checked, including system
+fonts and speaker artwork. Native Windows paired-device enumeration from the
+background worker succeeded and found a UE
+speaker; identifiers were not saved. Speaker connection, command readback,
+PartyUp, and audible behavior on Windows have not been hardware-verified.
+Linux hardware evidence elsewhere in this document does not verify Windows.
+There is no BLE wake or Windows equivalent of PipeWire Computer mix in this port.
+
 ## Automatic mix cleanup and Android redesign (2026-10-24)
 
 Linux regression coverage includes stopping an owned mix and clearing group state

@@ -10,7 +10,7 @@ from .ui import Window, asset_root, app_icon
 
 
 def main():
-    parser=argparse.ArgumentParser(description='Speaker studio for Ultimate Ears on Linux')
+    parser=argparse.ArgumentParser(description='Speaker studio for Ultimate Ears')
     parser.add_argument('--version',action='version',version=__version__)
     parser.add_argument('--demo',action='store_true',help='Explore the app without controlling Bluetooth devices')
     parser.add_argument('--smoke-test',action='store_true',help='Check packaged UI and images without accessing Bluetooth')
@@ -23,7 +23,7 @@ def main():
         application=QCoreApplication(sys.argv[:1])
         return check_speaker(args.check_speaker)
     desktop_error = ''
-    if not (args.demo or args.smoke_test or args.screenshot):
+    if sys.platform == 'linux' and not (args.demo or args.smoke_test or args.screenshot):
         from .desktop import register_appimage
         try:
             launcher=register_appimage(asset_root()/'speaker-studio.png')

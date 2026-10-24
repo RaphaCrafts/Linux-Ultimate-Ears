@@ -1,12 +1,12 @@
 <div align="center">
 
 # Speaker studio
-### Your Ultimate Ears speakers, on Linux.
+### Your Ultimate Ears speakers, on Linux and Windows.
 
 A simple desktop app for checking your speaker, adjusting its sound, and keeping
 your music setup in one place.
 
-**No account. No Python installation. No terminal needed to get started.**
+**No account. The Linux AppImage needs no Python installation or terminal.**
 
 [Download the AppImage](https://github.com/RaphaCrafts/Linux-Ultimate-Ears/raw/refs/heads/main/downloads/Speaker-Studio-x86_64.AppImage)
 
@@ -30,7 +30,32 @@ If you move the file, open it once from its new location to update the shortcut.
 The current download is for **64-bit Intel/AMD Linux PCs**, with **Ubuntu 24.04,
 Zorin OS 18, or newer** as the baseline. ARM computers are not supported yet.
 
-## What you can do
+## Windows (experimental)
+
+Keep the whole repository folder (including `src`, `assets`, and `scripts`).
+Install **Python 3.11 or newer** from [python.org](https://www.python.org/downloads/windows/)
+with the Python launcher enabled, then double-click **`Speaker-Studio.bat`**.
+The first launch downloads dependencies into an isolated `.venv-windows` folder;
+later launches reuse it. No administrator access is needed. Python 3.13 x64 is
+the version used for local validation.
+
+Pair and turn on your speaker in **Windows Settings → Bluetooth & devices**,
+then search in the app and connect its controls. For music, select the speaker
+in Windows Sound settings. Search refreshes saved Classic Bluetooth pairings;
+use Windows Settings to discover and pair new devices. A renamed speaker can
+be recognized after reconnecting because its verified model is remembered.
+
+The Windows backend uses native WinRT RFCOMM with the existing BOOM 3 /
+MEGABOOM 3 protocol and interface: battery, volume, EQ, rename, power off, and
+native PartyUp commands. These Windows hardware operations are **experimental,
+not yet verified on physical speakers**. Linux Computer mix and BLE remote wake
+are unavailable on Windows; turn sleeping speakers on with their power button.
+
+To explore without a speaker, run `Speaker-Studio.bat --demo`. For a quick UI
+check, run `Speaker-Studio.bat --smoke-test`. If setup fails, the console stays
+open with the error; check internet access and your Python installation.
+
+## What you can do on Linux
 
 - See your speaker's battery, connection and current volume.
 - Detect known BOOM 3 / MEGABOOM 3 finishes and remember their artwork while offline.

@@ -9,6 +9,10 @@ Updated 2026-10-24.
   control commands. See the [feature matrix](../android/README.md). Physical
   phone validation and a public-API-compatible BLE wake solution remain open.
   Computer Mix depends on Linux PipeWire and is not portable as implemented.
-- **Windows:** parked at the user's request. No Windows implementation or release
-  is part of this change. Future work must first assess Windows Bluetooth control
-  access, native audio routing and packaging; Linux PipeWire cannot be assumed.
+- **Windows:** experimental desktop source launch via `Speaker-Studio.bat`.
+  The shared Qt interface and legacy command codec use native WinRT RFCOMM;
+  dependencies install in `.venv-windows` on first launch. Pairing and music
+  output selection use Windows Settings. Search refreshes saved Classic
+  pairings. Computer mix and BLE remote wake are unavailable. Windows physical
+  speaker validation remains open; Linux hardware results do not verify this
+  transport. There is no standalone Windows executable release yet.

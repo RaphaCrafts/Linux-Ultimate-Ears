@@ -64,6 +64,29 @@ Do not commit an unusable pointer or claim an unverified build succeeded.
 
 ## Implementation boundaries
 
+### Windows source launcher
+
+Run `Speaker-Studio.bat` from the repository root. The standard-library bootstrap
+creates `.venv-windows` and installs an editable copy of the project. A hash of
+`pyproject.toml` triggers dependency setup again when its requirements change;
+otherwise startup needs no package download. Keep the repository's assets beside
+its source. This is a source launcher, not a standalone executable distribution.
+
+`windows.py` implements paired Classic inventory and SPP discovery/connection
+using [PyWinRT](https://pywinrt.readthedocs.io/en/latest/installing/). The transport
+follows Microsoft's [RFCOMM client sample](https://github.com/microsoft/Windows-universal-samples/blob/main/Samples/BluetoothRfcommChat/cs/Scenario1_ChatClient.xaml.cs):
+resolve the serial-port service, open a StreamSocket, and read partial frames
+using DataReader. The worker initializes its own multithreaded COM apartment.
+Windows settings use an INI file rather than the registry, allowing isolated
+test settings and ordinary per-user storage. Bluetooth identifiers stay local.
+
+Run `Speaker-Studio.bat --smoke-test` to check the UI and assets, or install pytest
+in a development environment and run `python -m pytest -q`. Windows tests cover
+SPP API selection, failed-connection cleanup, async frame dispatch and timeout,
+and disabling Linux Computer mix. BLE wake is not implemented on Windows.
+
+### Shared controller
+
 The packet codec, asynchronous controller, BlueZ integration and Qt UI are
 separate modules. Requests are serialized per speaker. Timed-out sessions close
 rather than reusing a stream where late responses could satisfy a new request.

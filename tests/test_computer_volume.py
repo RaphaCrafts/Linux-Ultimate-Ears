@@ -52,7 +52,9 @@ def test_volume_reading_handles_muted_unavailable_and_amplified_outputs(monkeypa
     with pytest.raises(RuntimeError):c.set_volume(RIGHT,40)
 
 
-def test_backend_output_volume_does_not_require_control_connection_or_bluez():
+def test_backend_output_volume_does_not_require_control_connection_or_bluez(monkeypatch):
+    from speakerstudio import backend
+    monkeypatch.setattr(backend,'sys',SimpleNamespace(platform='linux'))
     async def scenario():
         c=Controller();calls=[];states=[];c.computer_mix_changed.connect(states.append)
         c.speakers[FIRST]=Speaker(FIRST,'','First',connected=False)
