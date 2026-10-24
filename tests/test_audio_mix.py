@@ -46,7 +46,7 @@ def test_start_stop_selects_and_restores_output(monkeypatch):
     monkeypatch.setattr(mix.uuid,'uuid4',lambda:SimpleNamespace(hex='abc'))
     rows=iter([[node(LEFT),node(RIGHT,2),metadata('original')],
                [node(LEFT),node(RIGHT,2),node('speaker_studio_mix_abc',10)],
-               [metadata('speaker_studio_mix_abc')]])
+               [node('original',3),metadata('speaker_studio_mix_abc')]])
     monkeypatch.setattr(mix,'snapshot',lambda **kw:next(rows))
     monkeypatch.setattr(mix.subprocess,'Popen',lambda *a,**kw:process)
     monkeypatch.setattr(mix.subprocess,'run',lambda command,**kw:calls.append(command))
@@ -145,3 +145,90 @@ def test_mix_stop_remains_available_without_bluetooth_inventory():
     assert len(scheduled)==1 and not errors
     c.submit('connect','speaker')
     assert len(scheduled)==1 and errors
+
+
+@pytest.mark.parametrize('rows', [[], [node(LEFT)]])
+def test_reconcile_releases_previous_session_route_without_two_speakers(monkeypatch,rows):
+    name='speaker_studio_mix_'+'a'*32
+    calls=[]
+    monkeypatch.setattr(mix,'snapshot',lambda **kw:rows+[node(name,10),metadata(name)])
+    monkeypatch.setattr(mix.subprocess,'run',lambda command,**kw:calls.append(command))
+    c=mix.ComputerMix();c.reconcile()
+    assert calls==[['pw-metadata','-n','default','-d','0','default.configured.audio.sink']]
+    assert not c.active
+
+
+def test_reconcile_leaves_healthy_other_instance_and_user_route_alone(monkeypatch):
+    name='speaker_studio_mix_'+'a'*32
+    monkeypatch.setattr(mix.subprocess,'run',lambda *a,**kw:pytest.fail('Must respect healthy or user routes'))
+    monkeypatch.setattr(mix,'snapshot',lambda **kw:[node(LEFT),node(RIGHT),node(name),metadata(name)])
+    mix.ComputerMix().reconcile()
+    monkeypatch.setattr(mix,'snapshot',lambda **kw:[metadata('user-speakers')])
+    mix.ComputerMix().reconcile()
+
+
+def test_stop_does_not_restore_disconnected_bluetooth_output(monkeypatch):
+    c=mix.ComputerMix();c.process=Process();c.selected=True;c.node_name='ours';c.previous=metadata(LEFT)['metadata'][0]
+    calls=[]
+    monkeypatch.setattr(mix,'snapshot',lambda **kw:[metadata('ours')])
+    monkeypatch.setattr(mix.subprocess,'run',lambda command,**kw:calls.append(command))
+    c.stop()
+    assert calls==[['pw-metadata','-n','default','-d','0','default.configured.audio.sink']]
+    assert not c.active
+
+
+def test_explicit_refresh_stops_mix_and_clears_group_when_outputs_disappear(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+    from speakerstudio.backend import Controller
+    async def scenario():
+        c=Controller();c.computer_mix.process=Process();c.computer_mix.names=[LEFT,RIGHT]
+        c.mix_members=['host','receiver'];c.mix_levels={'host':{'volume':50}}
+        states=[];c.computer_mix_changed.connect(states.append)
+        monkeypatch.setattr(mix,'snapshot',lambda **kw:[])
+        async def devices():return [],[]
+        c.bluez=SimpleNamespace(devices=devices)
+        await c._refresh_all()
+        assert not c.computer_mix.active and c.mix_members==[] and c.mix_levels=={}
+        assert not states[-1]['running'] and states[-1]['members']==[]
+        await c._refresh_all()  # Discovery never restarts a group.
+        assert not c.computer_mix.active
+    asyncio.run(scenario())
+
+
+def test_uncertain_inventory_does_not_stop_active_mix(monkeypatch):
+    from speakerstudio.backend import Controller
+    c=Controller();c.computer_mix.process=Process();c.computer_mix.names=[LEFT,RIGHT]
+    monkeypatch.setattr(mix,'snapshot',lambda **kw:(_ for _ in ()).throw(OSError('Daemon unavailable')))
+    c._reconcile_computer_mix()
+    assert c.computer_mix.active
+    c.computer_mix.process=None
+
+
+def test_automatic_mix_cleanup_resets_visible_group_method(tmp_path,monkeypatch):
+    monkeypatch.setenv('QT_QPA_PLATFORM','offscreen');monkeypatch.setenv('XDG_CONFIG_HOME',str(tmp_path))
+    from PySide6.QtWidgets import QApplication
+    from speakerstudio.backend import Controller
+    from speakerstudio.ui import Window
+    app=QApplication.instance() or QApplication([])
+    c=Controller();w=Window(c,demo=True);app.processEvents();w.navigate('party')
+    w.update_computer_mix({'running':True,'method':'computer','members':[w.group_host,'demo-1'],'outputs':[]})
+    assert w.playback_method=='computer'
+    w.update_computer_mix({'running':False,'method':'native','members':[],'outputs':[],'reset':True})
+    assert w.playback_method=='native' and w.computer_group==[]
+    assert w.method_buttons['native'].isChecked()
+    w.close()
+
+
+def test_disconnected_bluez_inventory_stops_even_lingering_audio_nodes(monkeypatch):
+    import asyncio
+    from speakerstudio.backend import Controller
+    async def scenario():
+        c=Controller();c.computer_mix.process=Process();c.computer_mix.names=[LEFT,RIGHT];c.computer_mix.node_name='ours'
+        c.playback_method='computer';c.mix_members=['host','receiver']
+        monkeypatch.setattr(mix,'snapshot',lambda **kw:[node(LEFT),node(RIGHT),node('ours')])
+        async def devices():return [],[]
+        c.bluez=SimpleNamespace(devices=devices)
+        await c.refresh_devices()
+        assert not c.computer_mix.active and c.playback_method=='native' and not c.mix_members
+    asyncio.run(scenario())

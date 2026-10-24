@@ -84,6 +84,27 @@ class ComputerMix:
     @property
     def active(self):return self.process is not None
 
+    def reconcile(self):
+        """Validate a running mix, or release a dead previous session's route.
+
+        Never start a mix during discovery. Only an explicit group action may
+        claim the default output. Do not interfere with another healthy instance.
+        """
+        if self.active:
+            self.check()
+            return
+        rows=snapshot()
+        current=configured_output(rows)
+        name=(current or {}).get('value',{}).get('name','')
+        if not re.fullmatch(r'speaker_studio_mix_[0-9a-f]{32}',name):return
+        exists=any(o.get('info',{}).get('props',{}).get('node.name')==name for o in rows)
+        if exists and len(speaker_sinks(rows))>=2:return
+        # The previous process's saved output is unavailable. Clear only our
+        # configured route so WirePlumber can choose an available physical sink.
+        subprocess.run(['pw-metadata','-n','default','-d','0','default.configured.audio.sink'],
+                       check=True,timeout=2,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,env=system_env())
+        return True
+
     def start(self,names):
         if self.active:raise RuntimeError('Stop the current Computer mix first.')
         if any(not shutil.which(tool) for tool in ('pw-cli','pw-dump','wpctl','pw-metadata')):raise RuntimeError('Computer mix requires PipeWire tools and WirePlumber (wpctl) installed on Linux.')
@@ -157,10 +178,15 @@ class ComputerMix:
         error=None
         try:
             if self.selected:
-                current=configured_output(snapshot(timeout=1))
+                rows=snapshot(timeout=1)
+                current=configured_output(rows)
                 # Respect a different output the user selected during playback.
                 if current and current.get('value',{}).get('name')==self.node_name:
-                    if self.previous:
+                    previous_name=(self.previous or {}).get('value',{}).get('name','')
+                    # A disconnected Bluetooth output or an earlier virtual mix
+                    # would leave the laptop silent again. Let policy choose.
+                    available={o.get('info',{}).get('props',{}).get('node.name') for o in rows}
+                    if self.previous and previous_name in available and not previous_name.startswith('speaker_studio_mix_'):
                         command=['pw-metadata','-n','default','0','default.configured.audio.sink',json.dumps(self.previous['value']),self.previous.get('type','Spa:String:JSON')]
                     else:command=['pw-metadata','-n','default','-d','0','default.configured.audio.sink']
                     subprocess.run(command,check=True,timeout=1,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,env=system_env())

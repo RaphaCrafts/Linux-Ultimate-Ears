@@ -87,15 +87,7 @@ class Controller(QThread):
                 last_error = message
                 if self.bluez:await self.bluez.close()
                 self.bluez = None
-            if self.computer_mix.active:
-                try:self.computer_mix.check()
-                except (OSError,ValueError,subprocess.SubprocessError):
-                    # An uncertain local inventory must not interrupt audio.
-                    pass
-                except RuntimeError as error:
-                    try:self.computer_mix.stop()
-                    except Exception as restore_error:error=restore_error
-                    self.publish_computer_mix(str(error))
+                self._reconcile_computer_mix()
             if self.computer_mix.active and not self.group_switching:
                 await self._computer_mix_levels()
             await asyncio.sleep(3)
@@ -200,6 +192,7 @@ class Controller(QThread):
         speaker.member_info = {}
 
     async def refresh_devices(self):
+        self._reconcile_computer_mix()
         if hasattr(self.bluez,'known_models'):
             self.bluez.known_models.update(remembered_models())
             self.bluez.known_models.update({a:s.model for a,s in self.speakers.items() if s.model})
@@ -237,7 +230,30 @@ class Controller(QThread):
                 s.sleeping = None
                 if s.connected or address in self.sessions or s.busy:
                     self._lost(address,'Speaker is no longer available in Bluetooth')
+        if self.computer_mix.active and not self.group_switching and not any(s.audio_connected for s in self.speakers.values()):
+            self._stop_lost_computer_mix('No speaker audio is connected. Computer mix has stopped.')
         self.publish()
+
+    def _reconcile_computer_mix(self):
+        try:
+            if self.computer_mix.reconcile() and not self.group_switching:
+                self.mix_members=[]
+                self.mix_levels={}
+                self.playback_method='native'
+                self.publish_computer_mix(reset=True)
+        except (OSError,ValueError,subprocess.SubprocessError):
+            # A failed inventory read is not proof of a disconnect.
+            return
+        except RuntimeError as error:
+            self._stop_lost_computer_mix(str(error))
+
+    def _stop_lost_computer_mix(self,message):
+        try:self.computer_mix.stop()
+        except Exception as error:message=str(error)
+        self.mix_members=[]
+        self.mix_levels={}
+        self.playback_method='native'
+        self.publish_computer_mix(message,reset=True)
 
     def _lost(self, address, reason, interrupt=True):
         task=self.operations.pop(address,None) if interrupt else None
@@ -470,10 +486,11 @@ class Controller(QThread):
         self.publish()
         self.status.emit('Installed firmware version read. Check update availability in the official UE app.')
 
-    def publish_computer_mix(self,error=''):
+    def publish_computer_mix(self,error='',reset=False):
         self.mix_error=error
         self.computer_mix_changed.emit({'running':self.computer_mix.active,'outputs':self.mix_outputs,'error':error,
             'members':list(self.mix_members),'method':self.playback_method,'switching':self.group_switching,
+            'reset':reset,
             'levels':{address:dict(level) for address,level in self.mix_levels.items()}})
 
     def _mix_output_name(self,address):

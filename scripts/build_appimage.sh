@@ -46,5 +46,7 @@ chmod +x "$staged_image"
 QT_QPA_PLATFORM=offscreen "$staged_image" --appimage-extract-and-run --smoke-test
 # Replace the directory entry rather than truncating a possibly running image.
 mv -f -- "$staged_image" "$project_root/downloads/Speaker-Studio-x86_64.AppImage"
-(cd downloads && sha256sum Speaker-Studio-x86_64.AppImage > SHA256SUMS)
+checksum_files=(Speaker-Studio-x86_64.AppImage)
+if [[ -f downloads/Speaker-Studio-Android.apk ]]; then checksum_files+=(Speaker-Studio-Android.apk); fi
+(cd downloads && sha256sum "${checksum_files[@]}" > SHA256SUMS)
 ls -lh downloads/Speaker-Studio-x86_64.AppImage

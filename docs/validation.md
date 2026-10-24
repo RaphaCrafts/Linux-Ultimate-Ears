@@ -440,3 +440,22 @@ the configured playback output. The new helpers set their volumes to 23% and
 temporary sinks were removed afterward. No physical speaker volumes were changed
 by this trial. Both revised group views were rendered offscreen for visual QA.
 Native receiver proxy volume retains its earlier hardware-verification limits.
+
+## Automatic mix cleanup and Android redesign (2026-10-24)
+
+Linux regression coverage includes stopping an owned mix and clearing group state
+on explicit refresh after audio output loss, releasing a previous session's stale
+configured mix route with zero or one Bluetooth output, keeping a healthy second
+instance or user-selected output untouched, refusing to restore a disconnected
+Bluetooth sink, and leaving audio alone on an uncertain PipeWire inventory read.
+The final Linux suite passes all 129 tests; Android passes 19 JVM tests.
+Automatic cleanup resets the visible group method to native PartyUp; discovery
+never starts another mix. The AppImage is rebuilt with the fix.
+
+Android 0.2.0 adds the speaker control paths and phone interface described in its
+[feature matrix](../android/README.md). JVM tests additionally cover UTF-8 name
+limits and malformed names, rename readback mismatch, signed balance notifications,
+stereo balance validation/readback, stereo balance retained across group-volume
+changes, and refusing writes to unconfirmed receiver levels. Phone previews use a
+fake transport injected by an emulator-only instrumentation APK. They do not
+certify Android Bluetooth behavior. Physical Android validation remains pending.

@@ -311,3 +311,22 @@ master volume and remain as normal Linux output settings after stopping the mix.
 The speaker-page slider now holds your chosen value while the command is being
 processed, instead of flashing back to the old value. Rapid changes are queued
 and each completed request updates its own displayed level.
+
+Version 0.1.18 checks Computer Mix during startup and refresh. If a participating
+speaker's audio output disappears, the app stops the mix, clears the old group
+and returns the view to native PartyUp. It restores an available previous output,
+or lets Linux select an available output if the previous speaker disconnected.
+A stale Computer Mix default from an earlier session is also released when its
+output is missing or fewer than two Bluetooth outputs remain. Refresh and
+reopening the app never start a mix; group playback needs an explicit action.
+
+## Android phone app
+
+[Download the Android APK](downloads/Speaker-Studio-Android.apk) ·
+[Setup, feature matrix and validation](android/README.md)
+
+Android 0.2.0 has a phone layout with Speakers, Sound and PartyUp tabs, built-in
+and custom EQ, saved profiles, naming, firmware information, stereo balance and
+individual receiver levels where supported. It uses native PartyUp. Computer Mix
+and remote BLE wake remain Linux-only; Android hardware/audio validation is still
+pending. Windows is [parked for later](docs/platform-roadmap.md).

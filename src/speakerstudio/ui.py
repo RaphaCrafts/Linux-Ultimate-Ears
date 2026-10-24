@@ -1441,7 +1441,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         if self.demo and state.get('running') and 'levels' not in state:
             state={**state,'levels':{a:{'volume':self.devices.get(a,{}).get('volume') or 0,'muted':False} for a in state.get('members',[])}}
         self.computer_mix_state=state
-        if state.get('method') and (state.get('switching') or state.get('running')):self.playback_method=state['method']
+        if state.get('method') and (state.get('switching') or state.get('running') or state.get('reset')):self.playback_method=state['method']
         if 'members' in state:self.computer_group=list(state['members'])
         if not self.demo and state.get('running') and not state.get('switching') and (not previous.get('running') or previous.get('switching')):
             self.controller.submit('computer_mix_levels')
