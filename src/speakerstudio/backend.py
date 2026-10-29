@@ -352,7 +352,18 @@ class Controller(QThread):
         self.invalidate(speaker)
         self.status.emit(f'Connecting to {speaker.name}…')
         channel = await rfcomm_channel(address)
-        session = LegacySession(await open_rfcomm(address, channel),
+        try:
+            transport = await open_rfcomm(address, channel)
+        except PermissionError as error:
+            if sys.platform != 'linux':
+                raise
+            raise RuntimeError(
+                'Bluetooth refused the control connection. The saved pairing may no longer match. '
+                'Remove this speaker in Linux Bluetooth settings, put it in pairing mode, '
+                'then pair it again. If Windows and Linux share this Bluetooth adapter, '
+                'their pairing keys may need to be synchronized.'
+            ) from error
+        session = LegacySession(transport,
                                 on_notification=lambda message: self._notification(address, message),
                                 on_disconnect=lambda reason: self._lost(address, reason, interrupt=False))
         self.sessions[address] = session

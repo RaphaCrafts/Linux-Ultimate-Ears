@@ -1,5 +1,20 @@
 # First release validation
 
+## Linux pairing recovery (2026-10-29)
+
+Both saved MEGABOOM 3 pairings were discoverable but rejected RFCOMM control
+connections with `PermissionError(13)`. Linux audio connection attempts also
+failed. Removing and recreating each pairing restored audio transports and
+successful model, firmware, battery, volume and EQ reads through the published
+AppImage. The original cause of the invalid pairings was not established;
+Windows/Linux key replacement remains a possible explanation.
+
+The controller now explains the possible pairing mismatch on Linux control
+permission failures and stops retrying that failure within the same click.
+Regression coverage verifies one connection attempt, visible recovery guidance,
+and cleared connection/busy state. The suite passes 134 tests with 11 Windows-only
+tests skipped on Linux. No pairing-key synchronization has been performed.
+
 Validation date: 2026-10-18. No Bluetooth address is recorded here.
 
 ## Real hardware

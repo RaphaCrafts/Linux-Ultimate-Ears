@@ -323,6 +323,45 @@ def test_linked_speaker_connection_does_not_start_discovery():
     asyncio.run(scenario())
 
 
+def test_linux_refused_connection_explains_pairing_repair_without_retry(monkeypatch):
+    from speakerstudio import backend
+
+    class NoScan:
+        async def scan(self, *args, **kwargs):
+            raise AssertionError('A rejected pairing should not trigger discovery retries')
+
+    attempts = []
+
+    async def channel(address):
+        return 1
+
+    async def refused(address, channel):
+        attempts.append(address)
+        raise PermissionError(13, 'Connect call failed')
+
+    monkeypatch.setattr(backend.sys, 'platform', 'linux')
+    monkeypatch.setattr(backend, 'rfcomm_channel', channel)
+    monkeypatch.setattr(backend, 'open_rfcomm', refused)
+
+    async def scenario():
+        controller = Controller()
+        controller.bluez = NoScan()
+        speaker = Speaker('test', '/test', 'MEGABOOM 3', paired=True,
+                          bluez_connected=True)
+        controller.speakers['test'] = speaker
+        errors = []
+        controller.error.connect(errors.append)
+        await controller._perform('connect', 'test')
+        assert attempts == ['test']
+        assert 'saved pairing may no longer match' in speaker.error
+        assert 'pair it again' in speaker.error
+        assert errors and speaker.error in errors[0]
+        assert speaker.paired and not speaker.connected and not speaker.busy
+        assert not controller.sessions and not controller.connecting
+
+    asyncio.run(scenario())
+
+
 def test_inventory_failure_does_not_close_healthy_control_session():
     async def scenario():
         closed=asyncio.Event()

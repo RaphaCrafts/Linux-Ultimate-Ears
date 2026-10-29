@@ -186,6 +186,19 @@ the error so connecting another speaker does not hide what happened. Close the
 phone’s UE app or another running Speaker studio instance if a control connection
 is occupied.
 
+If Linux reports an authentication error or refuses both audio and controls,
+the saved pairing may no longer match the speaker. Remove only that speaker in
+Bluetooth settings, hold its Bluetooth button until the pairing light flashes,
+then pair it again. A saved pairing alone does not prove authentication works.
+
+On a laptop that boots both Windows and Linux using the same Bluetooth adapter,
+pairing separately in each system can replace the key the speaker remembers for
+that adapter. Keeping the same pairing key in both systems, or using a separate
+adapter for each system, avoids that mismatch. Key synchronization requires
+administrator access and should be repeated if either system creates a new
+pairing. Pairing from a different computer does not share this adapter identity.
+The app cannot synchronize operating-system pairing keys itself.
+
 ## Music playback
 
 To reduce Bluetooth interference, Speaker studio pauses automatic speaker
