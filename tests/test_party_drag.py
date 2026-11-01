@@ -114,3 +114,19 @@ def test_background_update_retains_drag_source_and_rejects_newly_busy_host(tmp_p
     w.party_drag_changed(False);app.processEvents()
     assert w.party_grid.count()==2 and 'Waiting for' in w.play_hint.text()
     w.close()
+
+
+def test_paired_receiver_can_join_without_direct_controls(tmp_path,monkeypatch):
+    app,w=window(tmp_path,monkeypatch)
+    try:
+        host=w.devices[w.group_host];target=w.devices['demo-1']
+        host.update(members=[],broadcast=0)
+        target.update(paired=True,connected=False,features={},broadcast=0)
+        w.render_party()
+        assert target['address'] in w.play_area.receivers
+        calls=[];w.demo=False;monkeypatch.setattr(w.controller,'submit',lambda *args:calls.append(args))
+        w.join_speaker(target['address'])
+        assert calls==[('group_add',host['address'],target['address'])]
+        target['features']['group']=False;w.render_party()
+        assert target['address'] not in w.play_area.receivers
+    finally:w.close()

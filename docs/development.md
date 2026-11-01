@@ -96,7 +96,9 @@ Worker shutdown cancels and drains native reads before closing its COM apartment
 Do not repeatedly cancel a WinRT reader while it waits for native cancellation
 completion. See [Windows validation](windows-validation.md) for physical results
 and the receiver proxy-level and listening-test limits. A new receiver handoff
-settles for six seconds before switching modes. Windows releases the receiver's
+settles for six seconds before subsequent joins, mode changes and group-volume
+synchronization. Paired native receivers join through the host without their own
+control stream. Windows releases the receiver's
 direct control stream after joining, since it can silently stall in native
 receiver mode. Receiver read timeouts invalidate only that direct connection.
 

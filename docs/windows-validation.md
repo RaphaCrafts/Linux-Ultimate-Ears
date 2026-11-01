@@ -115,3 +115,20 @@ on Windows.
 BLE API usage follows Microsoft's [GATT client documentation](https://learn.microsoft.com/en-us/windows/apps/develop/devices-sensors/gatt-client)
 and PyWinRT's [event/threading and async guidance](https://pywinrt.readthedocs.io/en/latest/types/).
 Packet evidence remains in [implementation-protocol.md](implementation-protocol.md).
+
+
+## Shared controller update, 0.1.19 (2026-11-01)
+
+The Windows source launcher now uses the shared host-mediated join policy,
+settling for later joins/group-volume synchronization, no-op playback-mode
+selection, acknowledgement of valid duplicate receiver results, and balance
+preservation during group sync. An unconfirmed asynchronous group/proxy result
+invalidates host controls before retry; it does not turn off speakers or end the
+audio group. Paired receivers do not require an independent control connection.
+The existing validated BLE wake path remains available for a sleeping receiver.
+
+These changes passed the shared cross-platform policy tests and full test suite
+on Linux (157 passed; 11 native Windows tests skipped). They have **not** received
+a new Windows-native Bluetooth or long-duration listening test. The earlier
+physical results above apply to their stated build, not to a new hardware trial.
+See [shared protocol changes](implementation-protocol.md#shared-desktop-partyup-improvements-0119).

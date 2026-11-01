@@ -273,6 +273,13 @@ and [image sources](assets/speakers/README.md) are included.
 Protocol research is available in [the research notes](docs/protocol-research.md).
 Extracted APKs and decompiled vendor code are kept out of this repository.
 
+Desktop 0.1.19 improves native PartyUp on Linux and Windows: paired receivers
+join through the host, new handoffs settle before further group changes, and
+volume synchronization preserves stereo balance. Late group/proxy replies
+cannot be reused after an unconfirmed operation. See the
+[protocol validation notes](docs/implementation-protocol.md#shared-desktop-partyup-improvements-0119)
+for the changes and hardware-testing limits.
+
 ## Play together without PartyUp
 
 If native PartyUp stutters, try **PartyUp → Computer mix · experimental**.
@@ -382,8 +389,9 @@ reopening the app never start a mix; group playback needs an explicit action.
 [Download the Android APK](downloads/Speaker-Studio-Android.apk) ·
 [Setup, feature matrix and validation](android/README.md)
 
-Android 0.3.2 has a streamlined phone layout with Speakers, Mix and Sound tabs,
-quick volume and find controls, built-in and custom EQ, saved profiles, naming,
+Android 0.4.0 has a consistent phone layout with Speakers and Sound tabs,
+remembered speaker colours, clear battery/volume displays, an EQ curve preview,
+built-in and custom EQ, saved profiles, naming,
 firmware information, stereo balance and individual receiver levels where
 supported. It uses native PartyUp. Computer Mix remains Linux-only; remote BLE
 wake is implemented on Linux and Windows.

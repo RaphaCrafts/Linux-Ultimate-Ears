@@ -104,3 +104,48 @@ Earlier Linux observations include stuttering with all control sessions closed;
 see [protocol observations](implementation-protocol.md) and the
 [Computer Mix experiment](computer-mix-experiment.md). App-side improvements
 cannot be assumed to repair buffering or synchronization inside speaker firmware.
+
+## UI and appearance update, 0.4.0
+
+Speakers and Mix have been merged into one **Speakers** tab. It keeps the former
+Mix flow, showing one large speaker card when standalone and shared group volume,
+compact member cards and playback options when broadcasting. Sound is the only
+other tab. Old saved Mix navigation restores to Speakers.
+
+The host finish is queried once on control connection using documented
+0x01be/0x01bf. A BUSY or unsupported finish reply leaves appearance optional;
+known colours already saved locally are retained. Group inventories now retain
+their unsigned 16-bit finish codes. BOOM 3 and MEGABOOM 3 mappings match the
+[finish evidence](implementation-protocol.md#finish-detection). Unknown codes
+remain neutral, and no new model capability is inferred from an appearance.
+
+Detected finishes and manual palette overrides are separate app-private values
+keyed by speaker address. Manual choices take priority until the user selects
+Detected colour. There is no colour write to the speaker and no new remote poll.
+Unknown or missing finish data does not overwrite a saved valid finish.
+
+Shared cards display speaker role, coloured artwork, a battery icon and percentage,
+and individual volume where a real level is available. Group volume remains a
+host-referenced synchronization control, not an average of individual sliders.
+Unavailable readings show a dash. Low battery has an amber/red visual indicator;
+charging is not asserted because it is not currently represented in the controller.
+
+The custom EQ preview shows the saved/draft curve, explicitly distinguished from
+an active built-in preset. Its signed relative -100..+100 display preserves the
+original -128..127 wire range and does not claim calibrated dB. A flat reset is
+local until Apply. Native SeekBars remain the accessible editing controls.
+
+Validation: 31 JVM tests, APK assembly and lint passed (the existing OldTargetApi
+warning remains). The emulator smoke check passed colour persistence/manual
+priority, unavailable finish retention, low/unknown battery states, EQ drafts
+across tabs, accessible EQ and volume edits, long names, the colour picker and
+stereo gating. Layouts were also visually checked at 1.3× system font size.
+Screenshots use simulated readings.
+
+The 0.4.0 APK was installed on the connected ZenFone with app data preserved.
+Reconnecting to the existing pink host read its finish as 0x0431 (Unicorn pink);
+the receiver inventory supplied 0x0119 (Purple). Both were displayed and saved
+in the private appearance directory. No group membership, volume or EQ write
+was performed for that appearance check. Actual EQ edits and manual colour
+selection were exercised in the fake-transport emulator, not asserted as new
+physical-speaker audio validation.

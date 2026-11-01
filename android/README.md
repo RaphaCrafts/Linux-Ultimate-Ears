@@ -1,21 +1,27 @@
 # Speaker Studio for Android
 
-Native Android companion for Speaker Studio, redesigned in 0.3.0; current build
-**0.3.2** includes the receiver-join fix, group-control timing and a UE-only main
-speaker list.
-A persistent bottom bar switches between **Speakers**, **Mix**, and **Sound**.
-The charcoal and lime interface puts volume, battery and quick actions on the
-speaker screen, PartyUp and individual levels in Mix, and profiles and EQ in
-Sound. Recognized and previously confirmed UE speakers appear on the connection screen.
-Use **Add paired speaker** once for a custom name; confirmed hosts and group
-receivers are remembered locally. Other Bluetooth devices stay in that separate
-chooser. Names are discovery hints; protocol replies still gate controls. The **•••** menu
-holds rename, refresh, firmware, change speaker, release controls and power off.
-Explanations are kept in the menu’s Phone mix & wake dialog and this guide.
-No vendor APK code or product photography is bundled.
+Native Android companion for Speaker Studio, current build **0.4.0**.
+Speakers and Sound use consistent speaker cards, battery indicators, volume
+readouts and controls. Known finish codes colour the artwork and are remembered
+per speaker. Tap **Colour** to choose a local override or return to detection.
+Custom names and colours survive reconnects and app restarts.
 
-<img src="../docs/screenshots/android-speakers.png" width="240" alt="Android speaker screen with simulated readings">
-<img src="../docs/screenshots/android-party.png" width="240" alt="Android Mix screen with simulated readings">
+Sound includes an EQ curve preview, five accessible native band controls, a flat
+reset and saved profiles. Values are relative gain from -100 to +100, not
+calibrated decibels. Editing or resetting a curve changes the draft; **Apply EQ**
+sends it to the speaker. Drafts survive tab changes within the control session.
+
+The single **Speakers** tab handles a standalone speaker or an expanding PartyUp
+group. Adding receivers brings up group volume and playback-mode controls.
+There is no separate Mix tab.
+
+The main list shows recognized and previously confirmed UE speakers. Use
+**Add paired speaker** once for a custom name. The **•••** menu holds rename,
+refresh, firmware, change speaker, release controls and power off. No vendor APK
+code or product photography is bundled.
+
+<img src="../docs/screenshots/android-standalone.png" width="240" alt="Standalone speaker with simulated readings">
+<img src="../docs/screenshots/android-speakers.png" width="240" alt="Unified speaker group with simulated readings">
 <img src="../docs/screenshots/android-sound.png" width="240" alt="Android sound screen with simulated readings">
 
 ## Install
@@ -29,7 +35,7 @@ installation, not a Play Store release. Its checksum is in
 1. Turn on the speakers and pair each in Android Bluetooth settings.
 2. Connect **media audio to the intended host** in Android's audio controls.
 3. Open Speaker Studio, allow Nearby devices, and choose that host.
-4. In **Mix**, add paired receivers and wait for each confirmed join.
+4. In **Speakers**, add paired receivers and wait for each confirmed join.
 5. Play music from your usual media app. Release controls or leave the app to
    close the control channel while keeping the speaker group playing.
 
@@ -39,7 +45,7 @@ button twice and retry. A queued command alone never marks a join successful.
 
 ## Controls and desktop parity
 
-| Capability | Android 0.3.2 |
+| Capability | Android 0.4.0 |
 | --- | --- |
 | Battery, volume, installed firmware | Read from the connected host; explicit refresh |
 | Rename, battery announcement, power off | Implemented with the desktop protocol |
@@ -52,7 +58,8 @@ button twice and retry. A queued command alone never marks a join successful.
 | Release controls | Leaves media audio and native PartyUp running |
 | Computer Mix | Linux only; requires PipeWire/WirePlumber |
 | BLE remote wake | Still Linux only; see below |
-| Product finish photographs / desktop tray | Original phone illustration / Android lifecycle |
+| Speaker colours | Detected legacy finish codes, remembered artwork and local colour override |
+| Desktop tray | Android lifecycle |
 
 Unsupported capabilities remain unavailable. Stereo requires exactly one receiver
 and a complete inventory from the host; a join event alone cannot prove inventory
@@ -62,7 +69,7 @@ correlated receiver result and readback. A command timeout closes controls to
 prevent late replies being reused. Volume edits hold their pending value until
 completion; custom EQ drafts survive tab changes and notifications.
 
-The five-band labels use the desktop's approximate ±12 dB display conversion;
+The five-band labels show signed relative gain on a -100 to +100 scale;
 the wire values remain signed bytes. Saved profiles live in app-private preferences.
 Firmware installation remains delegated to the official UE | BOOM app, as on Linux.
 
@@ -108,12 +115,17 @@ adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb shell am instrument -w io.raph.speakerstudio.test/io.raph.speakerstudio.PreviewInstrumentation
 ```
 
-2026-11-01 validation: APK assembly, JVM protocol/control tests and lint pass.
+2026-11-01 validation: APK assembly, 31 JVM protocol/control/appearance tests and
+lint pass.
 The emulator smoke check navigates the bottom tabs, checks primary controls,
-verifies Stereo stays hidden until group inventory is complete, and opens the
-settings menu. Updated screenshots use simulated readings.
+verifies Stereo stays hidden until group inventory is complete, and checks colour
+persistence, EQ drafts, accessible adjustments, long names and missing readings.
+Layouts were visually checked with enlarged text. Updated screenshots use
+simulated readings. On the ZenFone, 0.4.0 detected and saved the pink host and
+purple receiver finishes without changing the group or its levels.
 The API 35 target retains an `OldTargetApi` advisory. Emulator screenshots use
-**simulated readings**, not a physical speaker connection. On the connected ZenFone 11 Ultra (Android 16), 0.3.1 successfully joined the
+**simulated readings**, not a physical speaker connection. On the connected
+ZenFone 11 Ultra (Android 16), 0.3.1 successfully joined the
 physical two-speaker group after removing the failed receiver-control preflight.
 The user reported both speakers playing smoothly so far. Long-duration playback,
 stereo, receiver levels, custom EQ and rename still need phone validation. See

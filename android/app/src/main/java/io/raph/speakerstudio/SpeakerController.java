@@ -24,6 +24,7 @@ final class SpeakerController implements Closeable {
     volatile String name="", model="", address="";
     volatile int broadcast=0, audioMode=0, battery=-1, volume=-1, steps=31, eq=-1, balance=0;
     volatile String firmware="";
+    volatile int finishCode=-1;
     volatile boolean renameSupported, customSupported, balanceSupported;
     volatile byte[] bands;
     private final Map<String,Integer> levels=new ConcurrentHashMap<>();
@@ -81,9 +82,20 @@ final class SpeakerController implements Closeable {
         session=open(device,true);
         try {
             if(stopped) throw new IOException("Controls closed");
-            model=Protocol.model(session.query(6,7)); refresh();
+            model=Protocol.model(session.query(6,7));
+            refresh();
+            readFinish();
         }
         catch(Exception error) { disconnect(); throw error; }
+    }
+    void readFinish() throws Exception {
+        try {
+            byte[] finish=optional(requireSession(),0x1be,0x1bf);
+            if(finish!=null && finish.length==2)finishCode=Protocol.u16(finish,0);
+        } catch(LegacySession.CommandError error) {
+            // Appearance is optional. A busy speaker can keep its remembered colour.
+            if(error.status!=9)throw error;
+        }
     }
     private LegacySession requireSession() throws IOException {
         if (!connected()) throw new IOException("Connect a host speaker first"); return session;
@@ -306,7 +318,7 @@ final class SpeakerController implements Closeable {
         LegacySession old=session; session=null; if(old!=null) old.close();
         BluetoothSocket socket=connecting; if(socket!=null) try { socket.close(); } catch(IOException ignored) {}
         members.clear(); levels.clear(); groupReadyAt=0; inventoryKnown=false; groupSupported=false; broadcast=0; volume=-1; battery=-1; model="";
-        eq=-1; bands=null; customSupported=false; renameSupported=false; balanceSupported=false; firmware="";
+        finishCode=-1; eq=-1; bands=null; customSupported=false; renameSupported=false; balanceSupported=false; firmware="";
         changed.run();
     }
     @Override public void close() { stopped=true; disconnect(); timer.shutdownNow(); }

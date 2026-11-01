@@ -133,7 +133,8 @@ def test_proxy_level_requires_correlated_receiver_delivery_and_valid_value():
         await asyncio.sleep(0)
         assert not task.done(),'The command ACK alone must not enable a level slider'
         prefix=bytes.fromhex(MEMBER.replace(':',''))+b'\x00\x1e\x01'
-        assert not c._notification(HOST,Message(0x421,b'\0'*6+prefix[6:]+b'\x09'))
+        assert c._notification(HOST,Message(0x421,b'\0'*6+prefix[6:]+b'\x09'))
+        assert '00:00:00:00:00:00' not in s.member_info
         assert not task.done()
         assert c._notification(HOST,Message(0x421,prefix+b'\x09'))
         assert await task==9 and s.member_info[MEMBER]['volume']==29

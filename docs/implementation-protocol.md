@@ -178,3 +178,40 @@ Hardware test on2026-10-18: explicit RIGHT join completed with status0. The
 host confirmed broadcast-only Stereo0250, then its control socket was closed
 for listening. The user still heard stuttering. Thus the corrected assignment
 is protocol alignment, not evidence of an audible synchronization repair.
+
+
+## Shared desktop PartyUp improvements (0.1.19)
+
+Linux and Windows use the same controller policy for these changes:
+
+- A paired receiver can join through the capability-checked host without a direct
+  receiver RFCOMM session. The native-group switch connects controls only for the
+  host. Known unsupported receivers and receivers already hosting another group
+  remain excluded. Membership still requires the correlated completion or an
+  actual playing-this-broadcast inventory record, not the command queue ACK.
+- An explicitly added sleeping receiver with a fresh, supported wake signal uses
+  the existing platform BLE wake path. The host must confirm membership before
+  the controller marks that receiver awake; wake does not require receiver SPP.
+- The existing six-second post-join precaution now also gates subsequent joins
+  and group-volume synchronization. Selecting the current playback mode reads
+  configuration without rewriting it. This is an app-side precaution, not a
+  firmware timing guarantee or evidence of repaired acoustic synchronization.
+- Valid duplicate/unsolicited receiver-level results are acknowledged. Only
+  current members receive cache updates; removed members cannot be resurrected
+  by late replies. Invalid payloads do not establish a level or complete an
+  unrelated request.
+- Unconfirmed join/remove/proxy completions close the host control session before
+  a retry can reuse a late reply. They do not send an end-group or power command.
+  Reconnecting reads the actual group. A failed receiver direct read still closes
+  only that receiver's direct session, preserving the host connection.
+- Group volume snapshots the signed stereo balance before synchronization can
+  issue a reset notification, restores it, and reads back the actual value.
+  BUSY retries remain bounded; non-BUSY failures/timeouts are not blindly resent.
+
+Validation on 2026-11-01: 157 Python tests passed, 11 Windows-native tests skipped
+on Linux. New shared-policy tests exercise both platform branches without WinRT
+hardware. The Linux AppImage passed its packaged UI/image smoke check. Windows
+receives the shared source update through the existing source launcher; no new
+Windows binary or native Windows Bluetooth listening check was performed.
+Earlier physical observations in the Windows and Android validation reports
+remain separate from these new software checks.

@@ -27,7 +27,7 @@ public final class MainActivity extends Activity {
     private final Map<String,Integer> pendingLevels=new HashMap<>();
     private SpeakerController controller;
     private ExecutorService worker;
-    private boolean active, busy, party=false;
+    private boolean active, busy;
     private String status="";
     private final Map<String,String> names=new HashMap<>();
     interface Action { void run(SpeakerController c) throws Exception; }
@@ -35,7 +35,7 @@ public final class MainActivity extends Activity {
         super.onCreate(state);
         getWindow().setStatusBarColor(BG); getWindow().setNavigationBarColor(BG);
         getWindow().getDecorView().setSystemUiVisibility(0);
-        if(state!=null) { page=state.getString("page","speakers"); party=page.equals("party"); }
+        if(state!=null)page=state.getString("page","speakers").equals("sound")?"sound":"speakers";
         LinearLayout root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(BG);
         scroll=new ScrollView(this); scroll.setTag("content-scroll"); scroll.setFillViewport(true); scroll.setClipToPadding(false);
         body=new LinearLayout(this); body.setOrientation(LinearLayout.VERTICAL); body.setPadding(dp(22),dp(18),dp(22),dp(24));
@@ -67,6 +67,9 @@ public final class MainActivity extends Activity {
     private GradientDrawable background(int color) {
         GradientDrawable d=new GradientDrawable(); d.setColor(color); d.setCornerRadius(dp(24)); return d;
     }
+    private android.graphics.drawable.Drawable controlBackground(int colour) {
+        return new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x26ffffff),background(colour),background(Color.WHITE));
+    }
     private TextView text(LinearLayout parent,String value,int size,int color,boolean bold) {
         TextView t=new TextView(this); t.setText(value); t.setTextSize(size); t.setTextColor(color);
         if(bold) t.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
@@ -79,8 +82,8 @@ public final class MainActivity extends Activity {
     }
     private Button button(LinearLayout parent,String title,boolean enabled,Runnable action) {
         Button b=new Button(this); b.setText(title); b.setAllCaps(false); b.setTextColor(enabled?TEXT:MUTED);
-        b.setTextSize(15); b.setMinHeight(dp(52)); b.setEnabled(enabled && !busy);
-        b.setBackground(background(0xff2a3035));
+        b.setStateListAnimator(null);b.setTextSize(15); b.setMinHeight(dp(52)); b.setEnabled(enabled && !busy);
+        b.setBackground(controlBackground(0xff2a3035));
         b.setAlpha(enabled && !busy?1f:.45f);
         LinearLayout.LayoutParams spacing=new LinearLayout.LayoutParams(-1,-2); spacing.setMargins(0,dp(5),0,dp(5)); b.setLayoutParams(spacing);
         parent.addView(b,spacing); b.setOnClickListener(v -> action.run()); return b;
@@ -92,7 +95,7 @@ public final class MainActivity extends Activity {
     private void render() {
         if(!active) return;
         int position=scroll.getScrollY();
-        body.removeAllViews(); navigation.removeAllViews(); boolean connected=controller.connected();
+        body.removeAllViews(); navigation.removeAllViews(); boolean connected=controller.connected() && !controller.model.isEmpty();
         if(!connected) { eqDirty=false;eqDraft=null;pendingLevels.clear(); }
         else rememberSpeakers();
         LinearLayout heading=new LinearLayout(this); heading.setGravity(Gravity.CENTER_VERTICAL); body.addView(heading);
@@ -100,15 +103,15 @@ public final class MainActivity extends Activity {
         brand.setLayoutParams(new LinearLayout.LayoutParams(0,-2,1));
         Button more=button(heading,"•••",true,this::settings); more.setContentDescription("Speaker settings and help");
         more.setLayoutParams(new LinearLayout.LayoutParams(dp(56),dp(48)));
-        text(body,page.equals("sound")?"Sound":party?"Mix":"Speakers",32,TEXT,true);
-        String[] labels={"Speakers","Mix","Sound"}, pages={"speakers","party","sound"};
+        text(body,page.equals("sound")?"Sound":"Speakers",32,TEXT,true);
+        String[] labels={"Speakers","Sound"}, pages={"speakers","sound"};
         for(int i=0;i<labels.length;i++) {
             final String target=pages[i]; boolean selected=page.equals(target);
             Button tab=new Button(this); tab.setText(labels[i]); tab.setAllCaps(false); tab.setTextSize(14);
-            tab.setContentDescription(labels[i]+(selected?", selected":"")); tab.setSelected(selected);
-            tab.setTextColor(selected?BG:MUTED); tab.setBackground(background(selected?ACCENT:CARD));
+            tab.setStateListAnimator(null);tab.setContentDescription(labels[i]+(selected?", selected":"")); tab.setSelected(selected);
+            tab.setTextColor(selected?BG:MUTED); tab.setBackground(controlBackground(selected?ACCENT:CARD));
             LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(52),1); lp.setMargins(dp(3),0,dp(3),0); navigation.addView(tab,lp);
-            tab.setOnClickListener(v->{page=target;party=page.equals("party");render();scroll.post(()->scroll.scrollTo(0,0));});
+            tab.setOnClickListener(v->{page=target;render();scroll.post(()->scroll.scrollTo(0,0));});
         }
         if(busy || !status.isEmpty()) {
             TextView message=text(body,busy?"Connecting / updating…":status,13,MUTED,false);
@@ -116,8 +119,7 @@ public final class MainActivity extends Activity {
         }
         if(!connected) renderConnect();
         else if(page.equals("sound")) renderSound();
-        else if(party) renderParty();
-        else renderSpeaker();
+        else renderSpeakers();
         scroll.post(()->scroll.scrollTo(0,Math.min(position,Math.max(0,body.getHeight()-scroll.getHeight()))));
     }
     private void renderConnect() {
@@ -138,7 +140,9 @@ public final class MainActivity extends Activity {
                 for(BluetoothDevice device:devices) {
                     String name=deviceName(device);
                     if(devices.stream().filter(other->deviceName(other).equals(deviceName(device))).count()>1) name+=" · "+device.getAddress().substring(12);
-                    button(paired,name+"   →",true,()->connect(device,false));
+                    LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);paired.addView(row);
+                    row.addView(new SpeakerArtwork(this,appearance(device.getAddress(),"",-1).colour()),new LinearLayout.LayoutParams(dp(48),dp(64)));
+                    Button connect=button(row,name+"   →",true,()->connect(device,false));connect.setLayoutParams(new LinearLayout.LayoutParams(0,-2,1));
                 }
             }
         }
@@ -167,7 +171,54 @@ public final class MainActivity extends Activity {
             String key="speaker:"+member.address();
             if(!preferences.contains(key)) {editor.putString(key,"PartyUp receiver");updated=true;}
         }
-        if(updated)editor.apply();
+        if(SpeakerFinish.detected(controller.model,controller.finishCode)!=SpeakerFinish.UNKNOWN)editor.putInt("finish:"+controller.address,controller.finishCode);
+        for(Protocol.Member member:controller.members())if(SpeakerFinish.detected("",member.finishCode())!=SpeakerFinish.UNKNOWN)editor.putInt("finish:"+member.address(),member.finishCode());
+        editor.apply();
+    }
+    private SpeakerFinish.Finish appearance(String address,String model,int detected) {
+        int manual=getPreferences(0).getInt("colour:"+address,-1);
+        if(manual>=0 && manual<SpeakerFinish.PALETTE.length)return SpeakerFinish.PALETTE[manual];
+        return SpeakerFinish.detected(model,detected>=0?detected:getPreferences(0).getInt("finish:"+address,-1));
+    }
+    private void chooseColour(String address,String name,String model,int detected) {
+        CharSequence[] labels=new CharSequence[SpeakerFinish.PALETTE.length+1];labels[0]="Detected colour";
+        for(int i=0;i<SpeakerFinish.PALETTE.length;i++) {
+            android.text.SpannableString label=new android.text.SpannableString("●  "+SpeakerFinish.PALETTE[i].name());
+            label.setSpan(new android.text.style.ForegroundColorSpan(SpeakerFinish.PALETTE[i].colour()),0,1,0);labels[i+1]=label;
+        }
+        int selected=getPreferences(0).getInt("colour:"+address,-1)+1;
+        new AlertDialog.Builder(this).setTitle(name+" · Colour").setSingleChoiceItems(labels,selected,(dialog,which)->{
+            android.content.SharedPreferences.Editor edit=getPreferences(0).edit();
+            if(which==0)edit.remove("colour:"+address);else edit.putInt("colour:"+address,which-1);
+            edit.apply();dialog.dismiss();render();
+        }).setNegativeButton("Cancel",null).show();
+    }
+    private void battery(LinearLayout parent,int level) {
+        LinearLayout badge=new LinearLayout(this);badge.setGravity(Gravity.CENTER_VERTICAL);badge.setPadding(dp(10),dp(2),dp(10),dp(2));badge.setBackground(background(BG));
+        badge.addView(new BatteryIcon(this,level),new LinearLayout.LayoutParams(dp(28),dp(32)));
+        TextView number=text(badge,level<0?"—":level+"%",18,level>=0 && level<=10?0xffff8a90:level>=0 && level<=20?0xffffcc80:TEXT,true);
+        number.setPadding(dp(6),dp(4),0,dp(4));badge.setContentDescription(level<0?"Battery unavailable":"Battery "+level+" percent");parent.addView(badge);
+    }
+    private LinearLayout speakerCard(String address,String name,String model,String role,int charge,int finish,Integer level,java.util.function.IntConsumer action,boolean large) {
+        LinearLayout box=card();SpeakerFinish.Finish colour=appearance(address,model,finish);
+        LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);box.addView(heading);
+        if(!large) {
+            SpeakerArtwork thumbnail=new SpeakerArtwork(this,colour.colour());
+            thumbnail.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);thumbnail.setContentDescription("Change colour for "+name+", "+colour.name());
+            thumbnail.setOnClickListener(v->chooseColour(address,name,model,finish));
+            heading.addView(thumbnail,new LinearLayout.LayoutParams(dp(54),dp(72)));
+        }
+        LinearLayout title=new LinearLayout(this);title.setOrientation(LinearLayout.VERTICAL);heading.addView(title,new LinearLayout.LayoutParams(0,-2,1));
+        text(title,name,large?24:20,TEXT,true);text(title,large?role:role+" · "+colour.name(),12,MUTED,false);
+        battery(heading,charge);
+        if(large)box.addView(new SpeakerArtwork(this,colour.colour()),new LinearLayout.LayoutParams(-1,dp(125)));
+        if(large) {
+            Button colourButton=button(box,"●  "+colour.name()+"   ·   Colour",true,()->chooseColour(address,name,model,finish));
+            colourButton.setTextColor(TEXT);colourButton.setTextSize(13);colourButton.setContentDescription("Speaker colour: "+colour.name()+". Change colour for "+name);
+        }
+        if(level!=null)slider(box,address+"|Speaker volume",level,100,true,action);
+        else {text(box,"Volume  —",16,MUTED,true);}
+        return box;
     }
     private String deviceName(BluetoothDevice device) { return device.getName()==null?"Unnamed device":device.getName(); }
     private void connect(BluetoothDevice device,boolean receiver) {
@@ -202,7 +253,7 @@ public final class MainActivity extends Activity {
             .setPositiveButton("Done",null).show();
     }
     private void primary(LinearLayout parent,String title,Runnable action) {
-        Button b=button(parent,title,true,action); b.setTextColor(BG); b.setTypeface(Typeface.DEFAULT,Typeface.BOLD); b.setBackground(background(ACCENT));
+        Button b=button(parent,title,true,action); b.setTextColor(BG); b.setTypeface(Typeface.DEFAULT,Typeface.BOLD); b.setBackground(controlBackground(ACCENT));
     }
     private String levelLabel(String title,int value,int max) {
         if(max==255) {
@@ -213,32 +264,50 @@ public final class MainActivity extends Activity {
         return title.replace(" (%)","")+"  ·  "+value+(max==100?"%":"");
     }
     private void slider(LinearLayout parent,String title,int value,int max,boolean enabled,java.util.function.IntConsumer action) {
+        // Keys include the speaker identity even when the displayed label is shared.
         int shown=pendingLevels.getOrDefault(title,value);
-        TextView label=text(parent,levelLabel(title,shown,max),14,TEXT,true);
-        SeekBar bar=new SeekBar(this); bar.setMax(max); bar.setProgress(Math.max(0,shown)); bar.setEnabled(enabled && !busy);
-        bar.setProgressTintList(android.content.res.ColorStateList.valueOf(ACCENT)); bar.setThumbTintList(android.content.res.ColorStateList.valueOf(ACCENT));
-        bar.setContentDescription(title); parent.addView(bar,new LinearLayout.LayoutParams(-1,dp(52)));
+        LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);parent.addView(heading);
+        String display=title.contains("|")?title.substring(title.indexOf('|')+1):title;
+        TextView label=text(heading,display.replace(" (%)",""),15,MUTED,true);label.setLayoutParams(new LinearLayout.LayoutParams(0,-2,1));
+        TextView number=text(heading,levelLabel("",shown,max).replace("  ·  ",""),max==100?27:18,TEXT,true);
+        java.util.function.IntConsumer commit=progress->{pendingLevels.put(title,progress);action.accept(progress);};
+        SeekBar bar=new SeekBar(this) {
+            @Override public boolean performAccessibilityAction(int code,Bundle args) {
+                boolean handled=super.performAccessibilityAction(code,args);
+                if(handled && code==android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.getId() && !busy)commit.accept(getProgress());
+                return handled;
+            }
+            @Override public boolean onKeyUp(int key,KeyEvent event) {
+                boolean handled=super.onKeyUp(key,event);
+                if(!busy && (key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT))commit.accept(getProgress());
+                return handled;
+            }
+        };bar.setMax(max);bar.setProgress(Math.max(0,shown));bar.setEnabled(enabled && !busy);
+        bar.setProgressTintList(android.content.res.ColorStateList.valueOf(ACCENT));bar.setThumbTintList(android.content.res.ColorStateList.valueOf(ACCENT));
+        bar.setContentDescription(display);parent.addView(bar,new LinearLayout.LayoutParams(-1,dp(48)));
         bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            public void onProgressChanged(SeekBar s,int p,boolean user) { label.setText(levelLabel(title,p,max)); }
-            public void onStartTrackingTouch(SeekBar s) { scrubbing=true; }
-            public void onStopTrackingTouch(SeekBar s) { scrubbing=false;pendingLevels.put(title,s.getProgress());action.accept(s.getProgress()); }
+            public void onProgressChanged(SeekBar view,int progress,boolean user) {number.setText(levelLabel("",progress,max).replace("  ·  ",""));}
+            public void onStartTrackingTouch(SeekBar view) {scrubbing=true;}
+            public void onStopTrackingTouch(SeekBar view) {scrubbing=false;commit.accept(view.getProgress());}
         });
     }
-    private void renderSpeaker() {
-        LinearLayout hero=card();
-        text(hero,"●  CONNECTED",11,ACCENT,true).setLetterSpacing(.12f);
-        hero.addView(new SpeakerArtwork(this,false),new LinearLayout.LayoutParams(-1,dp(170)));
-        TextView name=text(hero,controller.name,27,TEXT,true); name.setGravity(Gravity.CENTER);
-        TextView details=text(hero,controller.model+"   ·   "+(controller.battery<0?"Battery —":controller.battery+"% battery"),14,MUTED,false); details.setGravity(Gravity.CENTER);
-        LinearLayout volume=card(); text(volume,"Volume",20,TEXT,true);
-        if(controller.volume>=0) slider(volume,(controller.broadcast&2)!=0?"Group (%)":"Speaker (%)",controller.volume,100,true,p->run("Volume set",c->c.volume(p)));
-        else text(volume,"Volume unavailable",14,MUTED,false);
-        LinearLayout quick=new LinearLayout(this); quick.setGravity(Gravity.CENTER_VERTICAL); volume.addView(quick);
-        Button find=button(quick,"Find speaker",true,()->run("Playing battery prompt",SpeakerController::identify));
-        LinearLayout.LayoutParams left=new LinearLayout.LayoutParams(0,dp(52),1);left.setMargins(0,dp(4),dp(5),0);find.setLayoutParams(left);
-        Button output=button(quick,"Audio output",true,this::bluetoothSettings);
-        LinearLayout.LayoutParams right=new LinearLayout.LayoutParams(0,dp(52),1);right.setMargins(dp(5),dp(4),0,0);output.setLayoutParams(right);
-        primary(body,"Mix speakers   →",()->{page="party";party=true;render();scroll.post(()->scroll.scrollTo(0,0));});
+    private void groupVolume() {
+        LinearLayout box=card();text(box,"PartyUp",12,ACCENT,true);
+        if(controller.volume>=0)slider(box,"Group volume",controller.volume,100,true,p->run("Group volume set",c->c.volume(p)));
+        else text(box,"Group volume  —",20,MUTED,true);
+    }
+    private void speakerCards(boolean large) {
+        boolean grouped=(controller.broadcast&2)!=0;
+        LinearLayout host=speakerCard(controller.address,controller.name,controller.model,grouped?"Host · "+controller.model:controller.model,
+            controller.battery,controller.finishCode,controller.volume>=0?controller.volume:null,
+            p->run("Speaker volume set",c->{if(grouped)c.hostVolume(p);else c.volume(p);}),large);
+        if(large)button(host,"Find speaker",true,()->run("Playing battery prompt",SpeakerController::identify));
+        for(Protocol.Member member:controller.members()) {
+            String name=names.getOrDefault(member.address(),"Speaker "+member.address().substring(12));
+            LinearLayout box=speakerCard(member.address(),name,"","Receiver",member.battery(),member.finishCode(),controller.memberLevel(member.address()),
+                p->run("Speaker volume set",c->c.memberVolume(member.address(),p)),false);
+            if(!large)button(box,"Remove speaker",true,()->run("Speaker removed",c->c.remove(member.address())));
+        }
     }
     private void firmware() {
         new AlertDialog.Builder(this).setTitle("Speaker firmware")
@@ -264,27 +333,33 @@ public final class MainActivity extends Activity {
                 Button option=button(options,(controller.eq==code?"✓  ":"")+labels[code],controller.eq>=0,
                     ()->run("Sound profile set",c->{c.preset(code);runOnUiThread(()->eqDirty=false);}));
                 LinearLayout.LayoutParams tile=new LinearLayout.LayoutParams(0,-2,1);tile.setMargins(dp(col==0?0:4),dp(4),dp(col==0?4:0),dp(4));option.setLayoutParams(tile);
-                if(controller.eq==code) {option.setBackground(background(ACCENT));option.setTextColor(BG);}
+                if(controller.eq==code) {option.setBackground(controlBackground(ACCENT));option.setTextColor(BG);}
             }
         }
         LinearLayout custom=card(); text(custom,"Custom EQ",21,TEXT,true);
-        text(custom,"Five bands · bass to treble",14,MUTED,false);
+        text(custom,"Relative gain · Bass → Treble",13,MUTED,false);
         if(!controller.customSupported) { text(custom,"Custom EQ is unavailable on this speaker.",14,MUTED,false); return; }
         if(!eqDirty || eqDraft==null) eqDraft=Arrays.copyOf(controller.bands,5);
         byte[] draft=eqDraft;
+        TextView eqState=text(custom,eqDirty?"Not applied":controller.eq==4?"Active on speaker":"Saved custom curve",12,MUTED,false);
+        EqualizerCurve curve=new EqualizerCurve(this,draft);custom.addView(curve,new LinearLayout.LayoutParams(-1,dp(115)));
         String[] frequencies={"60 Hz","300 Hz","1 kHz","3 kHz","12 kHz"};
 
         for(int i=0;i<5;i++) {
             final int index=i;
-            TextView label=text(custom,frequencies[i]+"  ·  "+String.format(java.util.Locale.ROOT,"%+.1f dB",draft[i]*12f/127),14,TEXT,true);
-            SeekBar bar=new SeekBar(this); bar.setMax(255); bar.setProgress(draft[i]+128); bar.setEnabled(!busy); bar.setContentDescription(frequencies[i]);
-            custom.addView(bar,new LinearLayout.LayoutParams(-1,dp(48)));
+            TextView label=text(custom,frequencies[i]+"  ·  "+String.format(java.util.Locale.ROOT,"%+d",Math.round(draft[i]*100f/(draft[i]<0?128:127))),14,TEXT,true);
+            SeekBar bar=new SeekBar(this); bar.setMax(255); bar.setProgress(draft[i]+128); bar.setEnabled(!busy); bar.setContentDescription(frequencies[i]);bar.setTag("eq-band-"+i);
+            FrameLayout track=new FrameLayout(this);custom.addView(track,new LinearLayout.LayoutParams(-1,dp(48)));
+            View zero=new View(this);zero.setBackgroundColor(MUTED);zero.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            track.addView(zero,new FrameLayout.LayoutParams(dp(2),dp(12),Gravity.CENTER));
+            track.addView(bar,new FrameLayout.LayoutParams(-1,-1));
             bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                public void onProgressChanged(SeekBar s,int p,boolean user) { draft[index]=(byte)(p-128); if(user) eqDirty=true;label.setText(frequencies[index]+"  ·  "+String.format(java.util.Locale.ROOT,"%+.1f dB",draft[index]*12f/127)); }
+                public void onProgressChanged(SeekBar s,int p,boolean user) { draft[index]=(byte)(p-128); if(user) {eqDirty=true;eqState.setText("Not applied");}curve.setBands(draft);label.setText(frequencies[index]+"  ·  "+String.format(java.util.Locale.ROOT,"%+d",Math.round(draft[index]*100f/(draft[index]<0?128:127)))); }
                 public void onStartTrackingTouch(SeekBar s) { scrubbing=true; } public void onStopTrackingTouch(SeekBar s) { scrubbing=false; }
             });
         }
         primary(custom,"Apply EQ",()->run("Custom EQ confirmed",c->{c.custom(draft.clone());runOnUiThread(()->eqDirty=false);}));
+        button(custom,"Reset to flat",true,()->{eqDraft=new byte[5];eqDirty=true;render();});
         button(custom,"Save profile",true,()->input("Name this sound profile","",name->{
             String key="profile:"+name.toLowerCase(java.util.Locale.ROOT);
             boolean reserved=Arrays.stream(labels).anyMatch(label->label.equalsIgnoreCase(name)) || name.equalsIgnoreCase("custom");
@@ -296,49 +371,43 @@ public final class MainActivity extends Activity {
             String[] value=saved.get(key).toString().split("\\|",2);
             if(value.length!=2) continue;
             button(custom,value[0],true,()->{
-                try { byte[] curve=android.util.Base64.decode(value[1],android.util.Base64.NO_WRAP); run("Saved profile confirmed",c->c.custom(curve)); }
+                try { byte[] savedCurve=android.util.Base64.decode(value[1],android.util.Base64.NO_WRAP); run("Saved profile confirmed",c->{c.custom(savedCurve);runOnUiThread(()->eqDirty=false);}); }
                 catch(IllegalArgumentException error) { status="Saved profile could not be read"; render(); }
             });
         }
     }
-    private void renderParty() {
-        List<Protocol.Member> members=controller.members(); boolean broadcasting=(controller.broadcast&2)!=0;
-        LinearLayout source=card(); text(source,"PHONE AUDIO",11,ACCENT,true).setLetterSpacing(.12f);
-        text(source,"Phone  →  "+controller.name,20,TEXT,true);
-        text(source,"Select your speaker in Android audio output.",13,MUTED,false);
-        text(source,broadcasting?"PartyUp · group active":"Single speaker · add more below",13,MUTED,false);
-        button(source,"Audio output  ↗",true,this::bluetoothSettings);
-        Button add=button(body,"+ Add speaker",controller.groupSupported,()->choose(true));
-        add.setTextColor(BG);add.setBackground(background(ACCENT));
-        if(!controller.groupSupported) text(body,"PartyUp unavailable on this speaker",13,MUTED,false);
-        LinearLayout group=card(); text(group,"Speakers",22,TEXT,true);
-        text(group,controller.name+"  ·  Host",16,TEXT,true);
-        if(broadcasting && !controller.inventoryKnown) text(group,"Waiting for group report…",13,MUTED,false);
-        if(controller.volume>=0) slider(group,broadcasting?"Group (%)":"Volume (%)",controller.volume,100,true,p->run("Volume set",c->c.volume(p)));
-        if(broadcasting) {
-            button(group,"Refresh speaker levels",true,()->run("Levels refreshed",SpeakerController::groupLevels));
-            if(controller.volume>=0) slider(group,controller.name+" (%)",controller.volume,100,true,p->run("Host level set",c->c.hostVolume(p)));
-        }
-        for(Protocol.Member member:members) {
-            String name=names.getOrDefault(member.address(),"Speaker "+member.address().substring(12));
-            LinearLayout receiver=card(); text(receiver,name,19,TEXT,true);
-            text(receiver,member.battery()<0?"Connected · Battery —":"Connected · "+member.battery()+"% battery",13,ACCENT,false);
-            Integer level=controller.memberLevel(member.address());
-            if(level!=null) slider(receiver,name+" (%)",level,100,true,p->run("Speaker level set",c->c.memberVolume(member.address(),p)));
-            button(receiver,"Remove speaker",true,()->run("Speaker removed",c->c.remove(member.address())));
-        }
+    private void renderSpeakers() {
+        List<Protocol.Member> members=controller.members();boolean broadcasting=(controller.broadcast&2)!=0;
+        text(body,broadcasting?(controller.inventoryKnown?"PartyUp · "+(members.size()+1)+" speakers":"PartyUp · Group active"):"Single speaker",14,MUTED,false);
+        LinearLayout quick=new LinearLayout(this);body.addView(quick);
+        Button add=button(quick,"+ Add speaker",controller.groupSupported,()->choose(true));add.setTextColor(BG);add.setBackground(controlBackground(ACCENT));
+        LinearLayout.LayoutParams addSize=new LinearLayout.LayoutParams(0,-2,1);addSize.setMargins(0,dp(4),dp(4),dp(4));add.setLayoutParams(addSize);
+        Button output=button(quick,"Audio output  ↗",true,this::bluetoothSettings);
+        LinearLayout.LayoutParams outputSize=new LinearLayout.LayoutParams(0,-2,1);outputSize.setMargins(dp(4),dp(4),0,dp(4));output.setLayoutParams(outputSize);
+        if(broadcasting)groupVolume();
+        if(!controller.groupSupported)text(body,"PartyUp unavailable on this speaker",13,MUTED,false);
+        if(broadcasting && !controller.inventoryKnown)text(body,"Waiting for group report…",13,MUTED,false);
+        speakerCards(!broadcasting);
         boolean pair=broadcasting && controller.inventoryKnown && members.size()==1;
         if(pair) {
-            LinearLayout mode=card(); text(mode,"Playback",20,TEXT,true);
-            button(mode,(controller.audioMode==0?"✓  ":"")+"Double Up",true,()->run("Double Up set",c->c.mode(false)));
-            button(mode,(controller.audioMode==0x50?"✓  ":"")+"Stereo",true,()->run("Stereo set",c->{c.mode(true);c.refresh();}));
+            LinearLayout mode=card();text(mode,"Playback",19,TEXT,true);
+            LinearLayout options=new LinearLayout(this);mode.addView(options);
+            for(int i=0;i<2;i++) {
+                final boolean stereo=i==1;boolean selected=controller.audioMode==(stereo?0x50:0);
+                Button option=button(options,(selected?"✓  ":"")+(stereo?"Stereo":"Double Up"),true,()->run(stereo?"Stereo set":"Double Up set",c->{c.mode(stereo);c.refresh();}));
+                LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);lp.setMargins(dp(i==0?0:4),dp(4),dp(i==0?4:0),dp(4));option.setLayoutParams(lp);
+                if(selected){option.setBackground(controlBackground(ACCENT));option.setTextColor(BG);}
+            }
             if(controller.audioMode==0x50 && controller.balanceSupported) {
                 slider(mode,"Balance",controller.balance+128,255,true,p->run("Balance set",c->c.balance(p-128)));
                 button(mode,"Centre",true,()->run("Balance centred",c->c.balance(0)));
             }
         }
-        if(broadcasting) button(body,"End group",true,()->new AlertDialog.Builder(this).setTitle("End group?")
-            .setNegativeButton("Cancel",null).setPositiveButton("End group",(d,w)->run("Group ended",SpeakerController::end)).show());
+        if(broadcasting) {
+            button(body,"Refresh speaker levels",true,()->run("Levels refreshed",SpeakerController::groupLevels));
+            button(body,"End group",true,()->new AlertDialog.Builder(this).setTitle("End group?")
+                .setNegativeButton("Cancel",null).setPositiveButton("End group",(d,w)->run("Group ended",SpeakerController::end)).show());
+        }
     }
     private void choose(boolean receiver) { choose(receiver,false); }
     private void choose(boolean receiver,boolean allPaired) {

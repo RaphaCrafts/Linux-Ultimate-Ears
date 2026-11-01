@@ -599,8 +599,10 @@ class Controller(QThread):
                 self.computer_mix.start(names)
             else:
                 self.computer_mix.stop()
-                for address in addresses:await self._group_controls(address)
+                # Receivers join through the host; their direct RFCOMM service
+                # may be unavailable while native audio is handing over.
                 host=addresses[0]
+                await self._group_controls(host)
                 for address in addresses[1:]:
                     await self._perform('group_add',host,address)
                     if self.speakers[host].error or address not in self.speakers[host].members:
@@ -769,18 +771,33 @@ class Controller(QThread):
                     raise
                 await asyncio.sleep(.3 * (attempt + 1))
 
+    async def _wait_group_ready(self,address):
+        delay=self.group_ready_at.get(address,0)-time.monotonic()
+        if delay>0:
+            self.status.emit('Waiting for the new PartyUp connection to settle…')
+            await asyncio.sleep(delay)
+
     async def _group_add(self, address, receiver):
         host = self.speakers[address]
         if receiver in host.members:
             self.status.emit('This speaker is already playing in the group.')
             return
         target = self.speakers.get(receiver)
-        if receiver == address or not target or not target.connected:
-            raise RuntimeError('Connect the other speaker first, then add it to PartyUp.')
-        if not host.features.get('group') or not target.features.get('group'):
+        if receiver == address or not target or not (target.paired or target.connected):
+            raise RuntimeError('Pair the other speaker first, then add it to PartyUp.')
+        if not host.features.get('group') or target.features.get('group') is False:
             raise RuntimeError('PartyUp is unavailable on one of these speakers.')
         if target.broadcast & 2:
             raise RuntimeError('End the other speaker’s group before adding it here.')
+        await self._wait_group_ready(address)
+        if target.sleeping:
+            if not target.wake_available:
+                raise RuntimeError('Turn on the other speaker or search for a fresh remote-wake signal first.')
+            self.status.emit('Waking '+target.name+' before joining…')
+            await self.bluez.wake(receiver)
+            await asyncio.sleep(1)
+            # A successful wake write is not proof of wake; the host must still
+            # confirm this receiver's membership. No receiver SPP socket is needed.
         key = (address, 0x418, receiver)
         future = self.loop.create_future()
         self.group_waiters[key] = future
@@ -806,6 +823,7 @@ class Controller(QThread):
             # Receiver handoff can still be settling after the join ACK/status.
             # Switching the host's mode immediately can drop the fresh member.
             self.group_ready_at[address]=time.monotonic()+6
+            target.sleeping=False
             if sys.platform=='win32' and receiver in self.sessions:
                 # This firmware relinquishes its direct Classic controls when
                 # becoming a native receiver. Do not retain a silently stalled
@@ -814,6 +832,9 @@ class Controller(QThread):
                 target.error=''
             self.publish()
             self.status.emit('Speaker joined PartyUp')
+        except TimeoutError:
+            self._lost(address,'Group change unconfirmed',interrupt=False)
+            raise RuntimeError('Group change unconfirmed. Reconnect to the host and check the speakers before retrying.') from None
         finally:
             self.group_waiters.pop(key, None)
             if not future.done():
@@ -828,6 +849,9 @@ class Controller(QThread):
             await asyncio.wait_for(future, 30)
             await self._read_state(address)
             self.status.emit('Speaker removed from PartyUp')
+        except TimeoutError:
+            self._lost(address,'Group change unconfirmed',interrupt=False)
+            raise RuntimeError('Group change unconfirmed. Reconnect to the host and check the speakers before retrying.') from None
         finally:
             self.group_waiters.pop(key, None)
             if not future.done():
@@ -840,12 +864,19 @@ class Controller(QThread):
         self.status.emit('PartyUp ended')
 
     async def _group_volume(self, address, percent):
+        await self._wait_group_ready(address)
+        s=self.speakers[address]
+        # The sync can push a balance-reset notification before its ACK.
+        previous_balance=s.balance
         await self._volume(address, percent)
         await self.sessions[address].request(0x41b)
-        s=self.speakers[address]
         for metadata in s.member_info.values():metadata.pop('volume',None)
-        if len(s.members)==1 and s.audio_mode==0x50 and s.balance is not None:
-            await self.sessions[address].request(0x19d,payload=bytes([s.balance&255]))
+        if len(s.members)==1 and s.audio_mode==0x50 and previous_balance is not None:
+            await self.sessions[address].request(0x19d,payload=bytes([previous_balance&255]))
+            value=await self.sessions[address].request(0x19b,0x19c)
+            if len(value)!=1:raise ProtocolError('Invalid balance reading')
+            s.balance=int.from_bytes(value,'big',signed=True)
+            self.publish()
         self.status.emit('Group volume synchronized')
 
     async def _balance(self,address,position):
@@ -875,10 +906,7 @@ class Controller(QThread):
     async def _party_mode(self,address,mode):
         s=self.speakers[address]
         if mode not in (0,0x50):raise ValueError('Unsupported PartyUp playback mode')
-        delay=self.group_ready_at.get(address,0)-time.monotonic()
-        if delay>0:
-            self.status.emit('Waiting for the new PartyUp connection to settle…')
-            await asyncio.sleep(delay)
+        await self._wait_group_ready(address)
         if not s.broadcast&2 or len(s.members)!=1:
             raise RuntimeError('Playback mode requires exactly two speakers in PartyUp.')
         session=self.sessions[address]
@@ -889,6 +917,10 @@ class Controller(QThread):
             s.members=[]
             self.publish()
             raise RuntimeError('The PartyUp group is no longer broadcasting.')
+        if s.audio_mode==mode:
+            self.publish()
+            self.status.emit('Playback mode is already selected')
+            return
         await self._busy_request(session,0x413,bytes([configuration[0],mode]))
         confirmed=await self._broadcast_config(session)
         if len(confirmed)!=2 or confirmed[0] not in (2,3):raise ProtocolError('Invalid PartyUp mode reading')
@@ -913,7 +945,8 @@ class Controller(QThread):
             await self.sessions[address].request(0x420 if write is None else 0x422,payload=payload)
             try:return await asyncio.wait_for(future,8)
             except TimeoutError:
-                raise RuntimeError('This speaker did not confirm its individual level. Group volume and two-speaker balance remain available.') from None
+                self._lost(address,'Receiver level unconfirmed',interrupt=False)
+                raise RuntimeError('Receiver level unconfirmed. Reconnect to the host before retrying.') from None
         finally:
             self.group_waiters.pop(key,None)
             if not future.done():future.cancel()
@@ -938,11 +971,15 @@ class Controller(QThread):
                 metadata['level_error']='The receiver’s direct controls stopped responding. Refresh levels to try the host proxy; group volume and stereo balance remain available.'
                 failures.append(error)
             except (RuntimeError,CommandError) as error:
+                if not host.connected:break
                 metadata=host.member_info.setdefault(receiver,{})
                 metadata.pop('volume',None)
                 metadata['level_error']=str(error)
                 failures.append(error)
             self.publish()
+        if not host.connected:
+            self.status.emit('Receiver levels unconfirmed. Reconnect to the host before retrying.')
+            return
         self.status.emit('Individual levels refreshed' if not failures else 'Some speakers do not expose an individual level. Use group volume or balance for those speakers.')
 
     async def _member_volume(self,address,receiver,percent,revision=None):
@@ -982,17 +1019,28 @@ class Controller(QThread):
             if len(payload)<9 or payload[8] not in (0,1):return False
             receiver=':'.join(f'{v:02X}' for v in payload[:6])
             attribute=int.from_bytes(payload[6:8],'big')
+            if attribute!=0x1e:return False
             key=(address,message.command,receiver,attribute)
             future=self.group_waiters.get(key)
-            if not future or future.done():return False
-            if not payload[8]:future.set_exception(RuntimeError('The receiver rejected its individual level command.'))
+            valid=(len(payload)==9 if not payload[8] or message.command==0x423
+                   else len(payload)==10 and payload[9]<=31)
+            if not valid:
+                if future and not future.done():future.set_exception(ProtocolError('Unsupported receiver volume reading'))
+                return False
+            if not future or future.done():
+                # Valid retransmissions still need an ACK; never recreate a member.
+                if receiver in s.members and message.command==0x421 and payload[8]:
+                    metadata=s.member_info.setdefault(receiver,{})
+                    metadata['volume']=round(payload[9]*100/31)
+                    metadata.pop('level_error',None)
+                    self.publish()
+                return True
+            if receiver not in s.members:future.set_exception(RuntimeError('The receiver left the group.'))
+            elif not payload[8]:future.set_exception(RuntimeError('The receiver rejected its individual level command.'))
             elif message.command==0x421:
-                if len(payload)!=10 or payload[9]>31:
-                    future.set_exception(ProtocolError('Unsupported receiver volume reading'))
-                else:
-                    s.member_info.setdefault(receiver,{})['volume']=round(payload[9]*100/31)
-                    s.member_info[receiver].pop('level_error',None)
-                    future.set_result(payload[9])
+                s.member_info.setdefault(receiver,{})['volume']=round(payload[9]*100/31)
+                s.member_info[receiver].pop('level_error',None)
+                future.set_result(payload[9])
             else:future.set_result(True)
             self.publish()
             return True
@@ -1011,8 +1059,10 @@ class Controller(QThread):
             if success:
                 if message.command == 0x418 and receiver not in s.members:
                     s.members.append(receiver)
+                    self.group_ready_at[address]=time.monotonic()+6
                 if message.command == 0x41a:
                     s.members = [m for m in s.members if m != receiver]
+                    s.member_info.pop(receiver,None)
                 self.publish()
             return True
         if message.command == 0x416:

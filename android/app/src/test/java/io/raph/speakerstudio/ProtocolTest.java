@@ -24,12 +24,12 @@ public class ProtocolTest {
     @Test public void inventoryOnlyIncludesPlayingReceivers() throws Exception {
         byte[] p=new byte[21]; p[0]=2;
         System.arraycopy(Protocol.mac("AA:BB:CC:DD:EE:FF"),0,p,1,6);
-        p[7]=75; p[8]=8;
+        p[7]=75; p[8]=8;p[9]=4;p[10]=0x31;
         System.arraycopy(Protocol.mac("11:22:33:44:55:66"),0,p,11,6);
         p[17]=50; p[18]=1; // nearby, not a member
         List<Protocol.Member> group=Protocol.members(p);
         assertEquals(1,group.size()); assertEquals("AA:BB:CC:DD:EE:FF",group.get(0).address());
-        assertEquals(75,group.get(0).battery());
+        assertEquals(75,group.get(0).battery());assertEquals(0x431,group.get(0).finishCode());
         assertThrows(IOException.class,()->Protocol.members(new byte[]{2,0}));
         assertThrows(IOException.class,()->Protocol.members(new byte[]{0,0}));
     }

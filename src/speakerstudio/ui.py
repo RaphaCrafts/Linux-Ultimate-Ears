@@ -869,7 +869,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         target=self.devices.get(address,{})
         if not host or host.get('busy') or target.get('busy'):return
         if address==self.group_host or address in host.get('members',[]):return
-        if not target.get('connected') or not target.get('features',{}).get('group') or target.get('broadcast',0)&2:return
+        if not (target.get('paired') or target.get('connected')) or target.get('features',{}).get('group') is False or target.get('broadcast',0)&2:return
         self.show_status('Joining '+target['name']+'…')
         self.party_action('group_add',address)
 
@@ -961,7 +961,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         host=self.devices.get(self.group_host)
         error=state.get('error') or (host.get('error','') if host else '')
         self.party_error.setText(error);self.party_error.setVisible(bool(error))
-        allowed=[d['address'] for d in self.devices.values() if host and d['address']!=host['address'] and d['address'] not in host.get('members',[]) and d['connected'] and d['features'].get('group') and not d['busy'] and not host['busy'] and not (d.get('broadcast',0)&2)]
+        allowed=[d['address'] for d in self.devices.values() if host and d['address']!=host['address'] and d['address'] not in host.get('members',[]) and (d.get('paired') or d['connected']) and d['features'].get('group') is not False and not d['busy'] and not host['busy'] and not (d.get('broadcast',0)&2)]
         self.play_area.set_targets(self.group_host,allowed)
         if self.party_dragging:return
         individual_levels=bool(host and host.get('broadcast',0)&2 and host.get('members'))
@@ -1017,7 +1017,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         active=bool(host.get('broadcast',0)&2)
         awaiting_members=active and not members and not host.get('group_status_known',False)
         self.group_status.setText('Demo group. No real devices are changed.' if self.demo else 'PartyUp continues when you quit the app. Use End group to stop it.' if active else 'Choose another connected speaker above to play together.')
-        self.party_info.setText(f"Host: {host['name']} · PartyUp active · waiting for member details" if awaiting_members else f"Host: {host['name']} · {len(members)} group members" if active else 'Choose a host, then add another connected speaker.')
+        self.party_info.setText(f"Host: {host['name']} · PartyUp active · waiting for member details" if awaiting_members else f"Host: {host['name']} · {len(members)} group members" if active else 'Choose a host, then add another paired speaker.')
         displayed=[host['address']]+members
         available=[d for d in self.devices.values() if d['address'] not in displayed]
         target=self.devices.get(host.get('group_target'))
@@ -1036,7 +1036,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         card_busy=host['busy'] and host.get('operation')!='balance'
         grid_signature=(host['address'],tuple(members),card_busy,host.get('group_target') if joining else None,
             tuple((d['address'],d['name'],d['connected'],d['battery'],d['volume'],d.get('broadcast',0),d['busy'] if d['address']!=host['address'] else card_busy,str(self.image_path(d))) for d in self.devices.values()),
-            json.dumps(host.get('member_info',{}),sort_keys=True))
+            json.dumps(host.get('member_info',{}),sort_keys=True),tuple(allowed))
         if grid_signature==self.party_grid_signature:return
         self.clear_party_cards()
         self.party_grid_signature=grid_signature
@@ -1106,7 +1106,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
                 thumb.setAlignment(Qt.AlignCenter)
                 box.addWidget(thumb)
             eligible=d['address'] in allowed
-            if d['connected'] and d['features'].get('group'):
+            if (d.get('paired') or d['connected']) and d['features'].get('group') is not False:
                 box.addWidget(text('Drag to play area' if eligible else 'Speaker busy' if d['busy'] else 'End its group first' if d.get('broadcast',0)&2 else 'Waiting for host','muted'))
                 action=button('Add to group',lambda checked=False,a=d['address']:self.join_speaker(a),True)
                 action.setEnabled(eligible)

@@ -42,13 +42,15 @@ final class Protocol {
         for (int i=offset; i<offset+6; i++) result.add(String.format(Locale.ROOT, "%02X", payload[i] & 255));
         return result.toString();
     }
-    record Member(String address, int battery) {}
+    record Member(String address, int battery,int finishCode) {
+        Member(String address,int battery) { this(address,battery,-1); }
+    }
     static List<Member> members(byte[] p) throws IOException {
         if (p.length == 0 || p.length != 1 + (p[0]&255)*10) throw new IOException("Invalid group inventory");
         List<Member> members = new ArrayList<>();
         for (int i=1; i<p.length; i+=10) {
             int state = u16(p, i+6), battery = (state >> 8) & 127;
-            if ((state & 15) == 8) members.add(new Member(address(p,i), battery <= 100 ? battery : -1));
+            if ((state & 15) == 8) members.add(new Member(address(p,i), battery <= 100 ? battery : -1,u16(p,i+8)));
         }
         return members;
     }
