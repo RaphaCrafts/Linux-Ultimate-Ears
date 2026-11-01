@@ -72,6 +72,18 @@ def test_windows_spp_discovery_connect_and_failure_cleanup(monkeypatch):
     assert device.closed and service.closed
     with pytest.raises(ValueError):asyncio.run(w.open_rfcomm('invalid'))
 
+    async def unreachable(self, *args):
+        error = OSError('A socket operation was attempted to an unreachable network.')
+        error.winerror = -2147014845
+        raise error
+    monkeypatch.setattr(Socket, 'connect_with_protection_level_async', unreachable)
+    device.closed = service.closed = False
+    with pytest.raises(ConnectionError, match='WSAENETUNREACH, 10051') as caught:
+        asyncio.run(w.open_rfcomm('00:11:22:33:44:55'))
+    assert 'pair it again' in str(caught.value)
+    assert isinstance(caught.value.__cause__, OSError)
+    assert device.closed and service.closed
+
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='Windows backend selection')
 def test_windows_rejects_computer_mix_before_touching_speakers():

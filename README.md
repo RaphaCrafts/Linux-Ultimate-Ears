@@ -61,6 +61,15 @@ this firmware; long playback stability and synchronization remain unmeasured.
 See the [Windows validation report](docs/windows-validation.md).
 Computer mix is available only on Linux.
 
+If wake works but controls fail, the BLE wake link may still work while Windows
+cannot open the separate Classic Bluetooth control connection. For a persistent
+`WSAENETUNREACH` / `10051` error, keep the speaker on and nearby and close other UE
+apps. If it still fails, remove the affected speaker in **Windows Settings →
+Bluetooth & devices**, put it in pairing mode, and pair it again. Then search
+again in Speaker studio. Re-pairing resolved this failure in an earlier hardware
+check; the error alone does not prove the saved pairing is stale. Pairing in Linux
+using the same adapter can also leave the two systems with different pairing keys.
+
 To explore without a speaker, run `Speaker-Studio.bat --demo`. For a quick UI
 check, run `Speaker-Studio.bat --smoke-test`. If setup fails, the console stays
 open with the error; check internet access and your Python installation.

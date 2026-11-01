@@ -248,8 +248,24 @@ async def open_rfcomm(address, channel=None):
             raise ConnectionError('Speaker control service unavailable. Turn it on, keep it nearby and close other UE apps.')
         service = result.services[0]
         socket = StreamSocket()
-        await asyncio.wait_for(socket.connect_with_protection_level_async(
-            service.connection_host_name, service.connection_service_name, service.protection_level), 15)
+        try:
+            await asyncio.wait_for(socket.connect_with_protection_level_async(
+                service.connection_host_name, service.connection_service_name, service.protection_level), 15)
+        except OSError as error:
+            # PyWinRT may expose HRESULT_FROM_WIN32(WSAENETUNREACH) as a
+            # signed winerror rather than the raw Winsock code (10051).
+            code = getattr(error, 'winerror', None)
+            if code is not None and (code & 0xffff) == 10051:
+                raise ConnectionError(
+                    'Windows found the speaker control service but could not reach it '
+                    '(WSAENETUNREACH, 10051). Wake uses a separate Bluetooth Low Energy link. '
+                    'Keep the speaker on and nearby, and close other UE apps. '
+                    'If it still fails, remove this speaker in Windows Settings > Bluetooth & devices, '
+                    'put it in pairing mode, then pair it again and search in Speaker studio. '
+                    'The saved pairing may no longer match, especially after pairing in Linux '
+                    'with the same Bluetooth adapter.'
+                ) from error
+            raise
         return WindowsStream(socket, device, service)
     except BaseException:
         for resource in (socket, service, device):

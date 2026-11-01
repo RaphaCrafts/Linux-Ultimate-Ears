@@ -323,6 +323,30 @@ def test_linked_speaker_connection_does_not_start_discovery():
     asyncio.run(scenario())
 
 
+def test_wake_failure_preserves_control_connection_recovery_detail(monkeypatch):
+    from speakerstudio import backend
+    from types import SimpleNamespace
+    async def scenario():
+        controller=Controller()
+        speaker=Speaker('test','','Test',paired=True,sleeping=True,wake_available=True)
+        controller.speakers['test']=speaker
+        attempts=[]
+        async def wake(address):pass
+        async def connect(address):
+            attempts.append(address)
+            raise ConnectionError('Windows could not reach controls. Remove the speaker and pair it again.')
+        async def no_delay(seconds):pass
+        controller.bluez=SimpleNamespace(wake=wake)
+        controller._connect=connect
+        monkeypatch.setattr(backend.asyncio,'sleep',no_delay)
+        await controller._perform('wake','test')
+        assert len(attempts)==4
+        assert 'wake request was sent' in speaker.error
+        assert 'pair it again' in speaker.error
+        assert not speaker.busy and not speaker.connected and not controller.waking
+    asyncio.run(scenario())
+
+
 def test_linux_refused_connection_explains_pairing_repair_without_retry(monkeypatch):
     from speakerstudio import backend
 

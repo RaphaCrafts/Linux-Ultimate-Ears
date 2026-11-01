@@ -304,7 +304,11 @@ class Controller(QThread):
                     self.status.emit(s.name+' is on and connected')
                     return
                 except (OSError,TimeoutError) as error:last_error=error
-            raise ConnectionError('The wake request was sent, but the speaker did not become reachable. Try its power button or check Bluetooth Smart in the phone app.') from last_error
+            detail = str(last_error) if last_error else ''
+            raise ConnectionError(
+                'The wake request was sent, but speaker controls could not connect. '
+                + (detail or 'Try its power button, close other UE apps and reconnect.')
+            ) from last_error
 
         finally:
             self.waking.discard(address)

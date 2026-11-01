@@ -203,6 +203,13 @@ def test_bluetooth_link_is_not_presented_as_fully_disconnected(tmp_path,monkeypa
     assert w.connect_button.text()=='Cancel' and w.connect_button.isEnabled()
     row.update(busy=False,operation='',error='The speaker did not reply')
     w.update_devices([row]);assert w.device_error.text()=='The speaker did not reply'
+    assert not w.device_error.isHidden()
+    assert 'Controls unavailable' in w.connection_label.text()
+    assert 'Controls unavailable' in w.list.item(0).text()
+    assert 'The speaker did not reply' in w.list.item(0).toolTip()
+    row['error']='Windows could not reach the control service'
+    w.update_devices([row])
+    assert row['error'] in w.list.item(0).toolTip()
     assert w.photo.height()==240
     w.close()
 

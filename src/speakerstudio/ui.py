@@ -625,15 +625,16 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         for d in devices:
             state = 'Waking…' if d['busy'] and d.get('operation')=='wake' else 'Connecting controls…' if d['busy'] and d.get('operation')=='connect' else 'Controls ready' if d['connected'] else 'Audio linked' if d.get('audio_connected') else 'Bluetooth linked' if d.get('bluez_connected') else 'Sleeping · wake available' if d.get('sleeping') and d.get('wake_available') else 'Saved · disconnected' if d['paired'] else 'Not paired'
             if d['address'] in grouped:state='In PartyUp'
+            if d.get('error') and not d['connected'] and not d['busy']:state='Controls unavailable'
             rows.append((d,state,self.image_path(d)))
-        sidebar_signature=tuple((d['address'],d['name'],state,str(image)) for d,state,image in rows)
+        sidebar_signature=tuple((d['address'],d['name'],state,str(image),d.get('error','')) for d,state,image in rows)
         if sidebar_signature!=self.sidebar_signature:
             self.sidebar_signature=sidebar_signature
             self.list.blockSignals(True)
             self.list.clear()
             for d,state,image in rows:
                 item = QListWidgetItem(f"{d['name']}\n{state}")
-                item.setToolTip(d['name']+' · '+state)
+                item.setToolTip(d['name']+' · '+state+('\n'+d['error'] if d.get('error') else ''))
                 item.setData(Qt.UserRole,d['address'])
                 if image:item.setIcon(QIcon(str(image)))
                 item.setSizeHint(QSize(150,64))
@@ -697,6 +698,8 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         elif d['connected']:
             status = 'Controls connected' + (' · Bluetooth audio connected' if d.get('audio_connected') else ' · audio not linked')
             if sys.platform == 'win32':status='Controls connected · choose audio in Windows Sound settings'
+        elif d.get('error'):
+            status = 'Controls unavailable · pairing saved' if d['paired'] else 'Controls unavailable · pair in Bluetooth settings'
         elif d.get('audio_connected'):
             status = 'Bluetooth audio connected · connect controls to adjust the speaker'
         elif d.get('bluez_connected'):

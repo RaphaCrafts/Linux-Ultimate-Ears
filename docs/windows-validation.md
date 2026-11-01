@@ -75,6 +75,26 @@ invalidating the host. Receiver proxy confirmation remains a firmware limitation
 
 ## Fixes covered by the audit
 
+### Connection failure follow-up (2026-11-01)
+
+A read-only check reproduced successful SPP discovery followed by a socket-open
+failure with signed WinRT HRESULT `-2147014845` (`0x80072743`, Winsock
+`WSAENETUNREACH` / `10051`). Fresh BLE signals reported both speakers awake.
+Another connection attempt returned no control service. Neither outcome verifies
+working controls, and the precise pairing/driver/radio cause remains unconfirmed.
+No pairing or speaker settings were changed during this check.
+
+The app now explains the unreachable control-link error, including re-pairing
+instructions, and preserves that detail when wake retries are exhausted. Failed
+controls appear as **Controls unavailable** in the speaker list and detail view;
+the list tooltip includes the error. Regression tests cover HRESULT translation,
+failure cleanup, wake error propagation, and visible failure state. Re-pairing and
+successful hardware reconnection remain to be verified for this occurrence.
+The full automated suite passed **145 tests**, with one POSIX-only test skipped
+on Windows.
+
+### Earlier audit fixes
+
 - Use `BluetoothDevice.device_information.pairing`, rather than the enumeration
   interface's pairing flag, to decide whether controls may connect.
 - Match renamed speakers using validated BLE manufacturer data and the exact
