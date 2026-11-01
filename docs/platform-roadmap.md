@@ -7,7 +7,9 @@ Updated 2026-10-24.
   starts only through an explicit action with two distinct available outputs.
 - **Android:** native phone interface and the same documented legacy speaker
   control commands. See the [feature matrix](../android/README.md). Physical
-  phone validation and a public-API-compatible BLE wake solution remain open.
+  long-duration phone validation and a public-API-compatible BLE wake solution
+  remain open. A ZenFone 11 Ultra completed a two-speaker host-mediated join
+  and initial smooth playback check in 0.3.1; see [Android validation](android-validation.md).
   Computer Mix depends on Linux PipeWire and is not portable as implemented.
 - **Windows:** experimental desktop source launch via `Speaker-Studio.bat`.
   The shared Qt interface and legacy command codec use native WinRT RFCOMM;

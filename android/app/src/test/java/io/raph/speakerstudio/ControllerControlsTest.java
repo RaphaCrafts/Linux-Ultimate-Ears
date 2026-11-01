@@ -9,11 +9,13 @@ import java.util.concurrent.*;
 
 public class ControllerControlsTest {
     static class Rig implements AutoCloseable {
-        final SpeakerController controller=new SpeakerController(()->{});
+        final SpeakerController controller;
         final PipedInputStream input=new PipedInputStream(), speakerInput=new PipedInputStream();
         final PipedOutputStream speakerOutput=new PipedOutputStream(input), output=new PipedOutputStream(speakerInput);
         final ExecutorService worker=Executors.newSingleThreadExecutor();
-        Rig() throws Exception {
+        Rig() throws Exception { this(new SpeakerController(()->{})); }
+        Rig(SpeakerController controller) throws Exception {
+            this.controller=controller;
             LegacySession session=new LegacySession(input,output,()->{input.close();output.close();},controller::notification,()->{});
             Field field=SpeakerController.class.getDeclaredField("session");field.setAccessible(true);field.set(controller,session);
         }

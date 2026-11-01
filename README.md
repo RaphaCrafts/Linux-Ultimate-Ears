@@ -382,10 +382,12 @@ reopening the app never start a mix; group playback needs an explicit action.
 [Download the Android APK](downloads/Speaker-Studio-Android.apk) ·
 [Setup, feature matrix and validation](android/README.md)
 
-Android 0.3.0 has a streamlined phone layout with Speakers, Mix and Sound tabs,
+Android 0.3.2 has a streamlined phone layout with Speakers, Mix and Sound tabs,
 quick volume and find controls, built-in and custom EQ, saved profiles, naming,
 firmware information, stereo balance and individual receiver levels where
 supported. It uses native PartyUp. Computer Mix remains Linux-only; remote BLE
 wake is implemented on Linux and Windows.
-Android hardware/audio validation is still pending. See the
-[platform scope](docs/platform-roadmap.md) for Windows validation limits.
+A ZenFone 11 Ultra has completed a physical two-speaker join and initial smooth
+playback check; long-duration stability remains unverified. See
+[Android validation](docs/android-validation.md) and the
+[platform scope](docs/platform-roadmap.md) for validation limits.

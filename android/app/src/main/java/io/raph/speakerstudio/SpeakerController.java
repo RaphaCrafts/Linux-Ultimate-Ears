@@ -11,6 +11,10 @@ import java.util.concurrent.*;
 final class SpeakerController implements Closeable {
     private static final UUID SPP = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb");
     private final Runnable changed;
+    private final java.util.function.LongSupplier monotonic;
+    private final Sleeper sleeper;
+    private volatile long groupReadyAt;
+    interface Sleeper { void sleep(long milliseconds) throws InterruptedException; }
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
     private final Map<String, CompletableFuture<Void>> events = new ConcurrentHashMap<>();
     private final Map<String, Protocol.Member> members = new ConcurrentHashMap<>();
@@ -25,7 +29,25 @@ final class SpeakerController implements Closeable {
     private final Map<String,Integer> levels=new ConcurrentHashMap<>();
     private final Map<String,CompletableFuture<Integer>> attributes=new ConcurrentHashMap<>();
     volatile boolean inventoryKnown=false, groupSupported=false;
-    SpeakerController(Runnable changed) { this.changed=changed; }
+    SpeakerController(Runnable changed) { this(changed,()->System.nanoTime()/1_000_000,Thread::sleep); }
+    SpeakerController(Runnable changed,java.util.function.LongSupplier monotonic,Sleeper sleeper) {
+        this.changed=changed; this.monotonic=monotonic; this.sleeper=sleeper;
+    }
+    private void groupSettling() { groupReadyAt=monotonic.getAsLong()+6000; }
+    private void awaitGroupReady() throws InterruptedException {
+        long remaining;
+        while((remaining=groupReadyAt-monotonic.getAsLong())>0) sleeper.sleep(remaining);
+    }
+    private void groupSet(LegacySession session,int command,byte... payload) throws Exception {
+        for(int attempt=0;;attempt++) {
+            try { session.set(command,payload); return; }
+            catch(LegacySession.CommandError error) {
+                // Only an explicit BUSY rejection is safe to resend, never a timeout.
+                if(error.status!=9 || attempt==2) throw error;
+                sleeper.sleep(300L*(attempt+1));
+            }
+        }
+    }
     boolean connected() { LegacySession current=session; return current!=null && current.isOpen(); }
     List<Protocol.Member> members() {
         List<Protocol.Member> result = new ArrayList<>(members.values());
@@ -70,7 +92,7 @@ final class SpeakerController implements Closeable {
         byte[] p=null;
         for (int i=0; i<8; i++) {
             try { p=s.query(0x414,0x415); break; }
-            catch (LegacySession.CommandError e) { if (e.status!=9 || i==7) throw e; Thread.sleep(350); }
+            catch (LegacySession.CommandError e) { if (e.status!=9 || i==7) throw e; sleeper.sleep(350); }
         }
         if (p==null || p.length!=2 || (p[0]&255)>3) throw new IOException("Invalid group configuration");
         broadcast=p[0]&255; audioMode=p[1]&255;
@@ -167,30 +189,31 @@ final class SpeakerController implements Closeable {
         if(p.length!=1 || (p[0]&255)>steps) throw new IOException("Invalid volume reading");
         volume=Math.round((p[0]&255)*100f/steps);
     }
-    void add(BluetoothDevice receiver) throws Exception {
+    void add(BluetoothDevice receiver) throws Exception { add(receiver.getAddress()); }
+    void add(String target) throws Exception {
+        Protocol.mac(target); // Reject invalid targets before sending any command.
+        awaitGroupReady();
         LegacySession s=requireSession();
         if (!groupSupported) throw new IOException("PartyUp is unavailable on this host");
-        String target=receiver.getAddress();
         if(target.equals(address) || members.containsKey(target)) throw new IOException("Speaker already in this group");
-        // Validate actual hardware identity and capability; names and artwork are not evidence.
-        try (LegacySession probe=open(receiver,false)) {
-            Protocol.model(probe.query(6,7)); byte[] p=probe.query(0x414,0x415);
-            if(p.length!=2 || (p[0]&255)>3) throw new IOException("Invalid receiver configuration");
-            if((p[0]&2)!=0) throw new IOException("End the receiver's existing group first");
-        }
+        // Joining is a host operation. A receiver may withhold its direct SPP
+        // service; requiring that extra socket prevents an otherwise valid join.
+        // Only the host's completion/inventory establishes actual membership.
         config(s);
+        if(members.containsKey(target)) return;
         if ((broadcast&2)!=0 && audioMode!=0)
             throw new IOException("Select Double Up before adding another receiver");
-        if ((broadcast&2)==0) { s.set(0x413,(byte)3,(byte)0); config(s); }
+        if ((broadcast&2)==0) { groupSet(s,0x413,(byte)3,(byte)0); config(s); }
         if ((broadcast&2)==0) throw new IOException("Host did not start broadcasting");
         byte[] payload=Arrays.copyOf(Protocol.mac(target),7); payload[6]=2;
         groupChange(s,0x417,0x418,target,payload);
+        groupSettling();
     }
     void remove(String target) throws Exception { groupChange(requireSession(),0x419,0x41a,target,Protocol.mac(target)); }
     private void groupChange(LegacySession s,int command,int event,String target,byte[] payload) throws Exception {
         String key=event+":"+target; CompletableFuture<Void> completion=new CompletableFuture<>(); events.put(key,completion);
         try {
-            s.set(command,payload); completion.get(30,TimeUnit.SECONDS);
+            groupSet(s,command,payload); completion.get(30,TimeUnit.SECONDS);
         } catch(TimeoutException e) {
             // No definitive completion: force a fresh control connection before another mutation.
             s.close(); throw new IOException("Group change unconfirmed. Reconnect and check the speakers before retrying.",e);
@@ -198,19 +221,23 @@ final class SpeakerController implements Closeable {
         finally { events.remove(key); changed.run(); }
     }
     void mode(boolean stereo) throws Exception {
+        awaitGroupReady();
         LegacySession s=requireSession(); config(s);
         if ((broadcast&2)==0 || !inventoryKnown || members.size()!=1)
             throw new IOException("Mode selection needs exactly one confirmed receiver");
         int requested=stereo?0x50:0;
-        s.set(0x413,(byte)broadcast,(byte)requested); config(s);
+        // Rewriting the current mode needlessly reconfigures the live broadcast.
+        if(audioMode==requested) return;
+        groupSet(s,0x413,(byte)broadcast,(byte)requested); config(s);
         if(audioMode!=requested || (broadcast&2)==0) throw new IOException("Speaker did not confirm playback mode");
         changed.run();
     }
     void end() throws Exception {
-        LegacySession s=requireSession(); s.set(0x413,(byte)0,(byte)0); config(s);
+        LegacySession s=requireSession(); groupSet(s,0x413,(byte)0,(byte)0); config(s);
         if(broadcast!=0) throw new IOException("Speaker did not confirm group ended"); changed.run();
     }
     void volume(int percent) throws Exception {
+        awaitGroupReady();
         LegacySession s=requireSession(); int raw=Math.round(Math.max(0,Math.min(100,percent))*steps/100f);
         int previousBalance=balance;
         s.set(steps==31?0x18d:0x190,(byte)raw);
@@ -226,7 +253,23 @@ final class SpeakerController implements Closeable {
             if(p.length<9 || (p[8]!=0 && p[8]!=1)) return false;
             String target=Protocol.address(p,0); int attr=Protocol.u16(p,6);
             CompletableFuture<Integer> done=attributes.get(m.command()+":"+target);
-            if(attr!=0x1e || done==null || done.isDone()) return false;
+            if(attr!=0x1e) return false;
+            boolean valid=p[8]==0?p.length==9:m.command()==0x421?p.length==10 && (p[9]&255)<=31:p.length==9;
+            if(!valid) {
+                if(done!=null && !done.isDone()) done.completeExceptionally(new IOException("Invalid receiver level result"));
+                return false;
+            }
+            // A valid duplicate/unsolicited result still needs its ACK. It must not
+            // complete another receiver's pending operation or resurrect a member.
+            if(done==null || done.isDone()) {
+                if(m.command()==0x421 && p[8]==1 && members.containsKey(target)) {
+                    levels.put(target,Math.round((p[9]&255)*100f/31)); changed.run();
+                }
+                return true;
+            }
+            if(!members.containsKey(target)) {
+                done.completeExceptionally(new IOException("Receiver left the group")); return true;
+            }
             if(p[8]==0) done.completeExceptionally(new IOException("Receiver does not expose individual volume"));
             else if(m.command()==0x421) {
                 if(p.length!=10 || (p[9]&255)>31) done.completeExceptionally(new IOException("Invalid receiver level"));
@@ -248,7 +291,7 @@ final class SpeakerController implements Closeable {
             String target=Protocol.address(p,0); CompletableFuture<Void> waiter=events.get(m.command()+":"+target);
             // Only inventory records establish a complete inventory. Completion proves this member alone.
             if(p[6]==0) {
-                if(m.command()==0x418) members.putIfAbsent(target,new Protocol.Member(target,-1)); else { members.remove(target); levels.remove(target); }
+                if(m.command()==0x418) { if(members.putIfAbsent(target,new Protocol.Member(target,-1))==null)groupSettling(); } else { members.remove(target); levels.remove(target); }
                 if(waiter!=null) waiter.complete(null);
             } else if(waiter!=null) waiter.completeExceptionally(new IOException(switch(p[6]&255) {
                 case 3 -> "Press the receiver's pairing button twice, then retry";
@@ -262,7 +305,7 @@ final class SpeakerController implements Closeable {
     void disconnect() {
         LegacySession old=session; session=null; if(old!=null) old.close();
         BluetoothSocket socket=connecting; if(socket!=null) try { socket.close(); } catch(IOException ignored) {}
-        members.clear(); levels.clear(); inventoryKnown=false; groupSupported=false; broadcast=0; volume=-1; battery=-1; model="";
+        members.clear(); levels.clear(); groupReadyAt=0; inventoryKnown=false; groupSupported=false; broadcast=0; volume=-1; battery=-1; model="";
         eq=-1; bands=null; customSupported=false; renameSupported=false; balanceSupported=false; firmware="";
         changed.run();
     }

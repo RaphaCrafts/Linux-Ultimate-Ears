@@ -1,10 +1,15 @@
 # Speaker Studio for Android
 
-Native Android companion for Speaker Studio, redesigned in **0.3.0**.
+Native Android companion for Speaker Studio, redesigned in 0.3.0; current build
+**0.3.2** includes the receiver-join fix, group-control timing and a UE-only main
+speaker list.
 A persistent bottom bar switches between **Speakers**, **Mix**, and **Sound**.
 The charcoal and lime interface puts volume, battery and quick actions on the
 speaker screen, PartyUp and individual levels in Mix, and profiles and EQ in
-Sound. Paired devices appear directly on the connection screen. The **•••** menu
+Sound. Recognized and previously confirmed UE speakers appear on the connection screen.
+Use **Add paired speaker** once for a custom name; confirmed hosts and group
+receivers are remembered locally. Other Bluetooth devices stay in that separate
+chooser. Names are discovery hints; protocol replies still gate controls. The **•••** menu
 holds rename, refresh, firmware, change speaker, release controls and power off.
 Explanations are kept in the menu’s Phone mix & wake dialog and this guide.
 No vendor APK code or product photography is bundled.
@@ -34,7 +39,7 @@ button twice and retry. A queued command alone never marks a join successful.
 
 ## Controls and desktop parity
 
-| Capability | Android 0.3.0 |
+| Capability | Android 0.3.2 |
 | --- | --- |
 | Battery, volume, installed firmware | Read from the connected host; explicit refresh |
 | Rename, battery announcement, power off | Implemented with the desktop protocol |
@@ -108,11 +113,12 @@ The emulator smoke check navigates the bottom tabs, checks primary controls,
 verifies Stereo stays hidden until group inventory is complete, and opens the
 settings menu. Updated screenshots use simulated readings.
 The API 35 target retains an `OldTargetApi` advisory. Emulator screenshots use
-**simulated readings**, not a physical speaker connection. No physical Android
-phone or Android speaker audio was tested. Group audio, receiver levels, custom
-EQ and rename should be checked on a phone before relying on them. Earlier Linux
-hardware observations do not establish Android audio behavior or resolve the
-previously observed native PartyUp stutter.
+**simulated readings**, not a physical speaker connection. On the connected ZenFone 11 Ultra (Android 16), 0.3.1 successfully joined the
+physical two-speaker group after removing the failed receiver-control preflight.
+The user reported both speakers playing smoothly so far. Long-duration playback,
+stereo, receiver levels, custom EQ and rename still need phone validation. See
+[the Android validation report](../docs/android-validation.md) for the observed
+join failure, fixes, independent-stream investigation and testing limits.
 
 Hardware checklist: confirm the phone media route, join a pair, check Double Up,
 distinct stereo channels and balance, refresh individual levels, rename and

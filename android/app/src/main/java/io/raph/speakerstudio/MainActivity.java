@@ -94,6 +94,7 @@ public final class MainActivity extends Activity {
         int position=scroll.getScrollY();
         body.removeAllViews(); navigation.removeAllViews(); boolean connected=controller.connected();
         if(!connected) { eqDirty=false;eqDraft=null;pendingLevels.clear(); }
+        else rememberSpeakers();
         LinearLayout heading=new LinearLayout(this); heading.setGravity(Gravity.CENTER_VERTICAL); body.addView(heading);
         TextView brand=text(heading,"SPEAKER / STUDIO",12,ACCENT,true); brand.setLetterSpacing(.12f);
         brand.setLayoutParams(new LinearLayout.LayoutParams(0,-2,1));
@@ -132,7 +133,8 @@ public final class MainActivity extends Activity {
             else if(!bt.isEnabled()) primary(paired,"Turn on Bluetooth",()->startActivity(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)));
             else {
                 List<BluetoothDevice> devices=pairedDevices();
-                if(devices.isEmpty()) text(paired,"No paired speakers yet",14,MUTED,false);
+                devices.removeIf(device->!knownSpeaker(device));
+                if(devices.isEmpty()) text(paired,"No saved UE speakers yet",14,MUTED,false);
                 for(BluetoothDevice device:devices) {
                     String name=deviceName(device);
                     if(devices.stream().filter(other->deviceName(other).equals(deviceName(device))).count()>1) name+=" · "+device.getAddress().substring(12);
@@ -140,7 +142,8 @@ public final class MainActivity extends Activity {
                 }
             }
         }
-        button(paired,"+ Pair a speaker",true,this::bluetoothSettings);
+        button(paired,"Add paired speaker",true,()->choose(false,true));
+        button(paired,"+ Pair a new speaker",true,this::bluetoothSettings);
     }
     private void bluetoothSettings() { startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS)); }
     private List<BluetoothDevice> pairedDevices() {
@@ -149,6 +152,22 @@ public final class MainActivity extends Activity {
         devices.sort(Comparator.comparing(this::deviceName));
         for(BluetoothDevice device:devices) names.put(device.getAddress(),deviceName(device));
         return devices;
+    }
+    private boolean knownSpeaker(BluetoothDevice device) {
+        return SpeakerDirectory.visible(device.getName(),getPreferences(0).contains("speaker:"+device.getAddress()));
+    }
+    private void rememberSpeakers() {
+        if(controller.model.isEmpty()) return;
+        android.content.SharedPreferences preferences=getPreferences(0);
+        android.content.SharedPreferences.Editor editor=preferences.edit();
+        String host="speaker:"+controller.address;
+        boolean updated=!preferences.contains(host);
+        if(updated)editor.putString(host,controller.model);
+        for(Protocol.Member member:controller.members()) {
+            String key="speaker:"+member.address();
+            if(!preferences.contains(key)) {editor.putString(key,"PartyUp receiver");updated=true;}
+        }
+        if(updated)editor.apply();
     }
     private String deviceName(BluetoothDevice device) { return device.getName()==null?"Unnamed device":device.getName(); }
     private void connect(BluetoothDevice device,boolean receiver) {
@@ -321,13 +340,15 @@ public final class MainActivity extends Activity {
         if(broadcasting) button(body,"End group",true,()->new AlertDialog.Builder(this).setTitle("End group?")
             .setNegativeButton("Cancel",null).setPositiveButton("End group",(d,w)->run("Group ended",SpeakerController::end)).show());
     }
-    private void choose(boolean receiver) {
+    private void choose(boolean receiver) { choose(receiver,false); }
+    private void choose(boolean receiver,boolean allPaired) {
         if(!permitted()) { requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT},1); return; }
         try {
             BluetoothAdapter bt=adapter();
             if(bt==null) { status="This device has no Bluetooth adapter."; render(); return; }
             if(!bt.isEnabled()) { startActivity(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)); return; }
             List<BluetoothDevice> devices=pairedDevices();
+            if(!allPaired) devices.removeIf(d->!knownSpeaker(d));
             devices.removeIf(d->receiver && (d.getAddress().equals(controller.address) || controller.members().stream().anyMatch(m->m.address().equals(d.getAddress()))));
             devices.sort(Comparator.comparing(d->d.getName()==null?d.getAddress():d.getName()));
             String[] labels=new String[devices.size()];
@@ -337,8 +358,11 @@ public final class MainActivity extends Activity {
                 final String label=name;
                 if(devices.stream().filter(other->deviceName(other).equals(label)).count()>1) labels[i]+=" · "+d.getAddress().substring(12);
             }
-            if(devices.isEmpty()) { status="No paired "+(receiver?"receivers":"devices")+". Pair speakers in Bluetooth settings first."; render(); return; }
-            new AlertDialog.Builder(this).setTitle(receiver?"Add speaker":"Choose speaker")
+            if(devices.isEmpty() && !allPaired) {choose(receiver,true);return;}
+            if(devices.isEmpty()) { status="No paired speakers available. Pair one in Bluetooth settings."; render(); return; }
+            AlertDialog.Builder picker=new AlertDialog.Builder(this).setTitle(allPaired?"Choose a paired speaker":receiver?"Add speaker":"Choose speaker");
+            if(!allPaired)picker.setNeutralButton("Other paired speakers",(d,w)->choose(receiver,true));
+            picker
                 .setItems(labels,(dialog,index)-> {
                     BluetoothDevice d=devices.get(index);
                     connect(d,receiver);
