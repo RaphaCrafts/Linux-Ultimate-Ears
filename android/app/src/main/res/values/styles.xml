@@ -1,8 +1,12 @@
 <resources>
     <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#70E5CF</item>
+        <item name="android:colorAccent">#D5F578</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowBackground">#10171C</item>
+        <item name="android:colorBackgroundFloating">#1C2024</item>
+        <item name="android:colorButtonNormal">#2A3035</item>
+        <item name="android:textColorPrimary">#F4F5F0</item>
+        <item name="android:textColorSecondary">#A9AFB4</item>
+        <item name="android:windowBackground">#101214</item>
     </style>
 </resources>

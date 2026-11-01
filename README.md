@@ -382,9 +382,10 @@ reopening the app never start a mix; group playback needs an explicit action.
 [Download the Android APK](downloads/Speaker-Studio-Android.apk) ·
 [Setup, feature matrix and validation](android/README.md)
 
-Android 0.2.0 has a phone layout with Speakers, Sound and PartyUp tabs, built-in
-and custom EQ, saved profiles, naming, firmware information, stereo balance and
-individual receiver levels where supported. It uses native PartyUp. Computer Mix
-remains Linux-only; remote BLE wake is implemented on Linux and Windows.
+Android 0.3.0 has a streamlined phone layout with Speakers, Mix and Sound tabs,
+quick volume and find controls, built-in and custom EQ, saved profiles, naming,
+firmware information, stereo balance and individual receiver levels where
+supported. It uses native PartyUp. Computer Mix remains Linux-only; remote BLE
+wake is implemented on Linux and Windows.
 Android hardware/audio validation is still pending. See the
 [platform scope](docs/platform-roadmap.md) for Windows validation limits.

@@ -4,6 +4,8 @@ import android.app.*;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.os.Bundle;
+import android.view.*;
+import android.widget.*;
 import java.io.*;
 import java.lang.reflect.*;
 
@@ -29,18 +31,50 @@ public final class PreviewInstrumentation extends Instrumentation {
             c.notification(new Protocol.Message(0x416,inventory));
             Field status=MainActivity.class.getDeclaredField("status");status.setAccessible(true);status.set(screen,"Preview · simulated speaker readings");
             Method render=MainActivity.class.getDeclaredMethod("render");render.setAccessible(true);
-            Field page=MainActivity.class.getDeclaredField("page"), party=MainActivity.class.getDeclaredField("party");page.setAccessible(true);party.setAccessible(true);
-            for(String tab:new String[]{"speakers","sound","party"}) {
-                runOnMainSync(()->{try {page.set(screen,tab);party.set(screen,tab.equals("party"));render.invoke(screen);}catch(Exception e){throw new RuntimeException(e);}});
-                waitForIdleSync(); capture("android-"+tab);
+            runOnMainSync(()->{try {render.invoke(screen);}catch(Exception e){throw new RuntimeException(e);}});
+            for(String tab:new String[]{"Speakers","Mix","Sound"}) {
+                tap(screen,tab);
+                waitForIdleSync();
+                String required=tab.equals("Speakers")?"Find speaker":tab.equals("Mix")?"+ Add speaker":"Apply EQ";
+                if(findButton(screen.getWindow().getDecorView(),required)==null) throw new AssertionError("Missing control: "+required);
+                capture("android-"+(tab.equals("Mix")?"party":tab.toLowerCase(java.util.Locale.ROOT)));
+                if(!tab.equals("Speakers")) {
+                    runOnMainSync(()->{
+                        ScrollView scroll=(ScrollView)((android.view.ViewGroup)screen.findViewById(android.R.id.content)).getChildAt(0).findViewWithTag("content-scroll");
+                        scroll.fullScroll(View.FOCUS_DOWN);
+                    });
+                    waitForIdleSync();capture("android-"+tab.toLowerCase(java.util.Locale.ROOT)+"-controls");
+                }
             }
-            result.putString("stream","Phone connection, speaker, sound and PartyUp screens rendered successfully.\n");
+            tap(screen,"Mix");
+            if(findButton(screen.getWindow().getDecorView(),"✓  Stereo")==null) throw new AssertionError("Confirmed pair has no stereo control");
+            // Incomplete inventory must never offer Stereo, even when a member was reported.
+            runOnMainSync(()->{c.inventoryKnown=false;try{render.invoke(screen);}catch(Exception e){throw new RuntimeException(e);}});
+            if(findButton(screen.getWindow().getDecorView(),"✓  Stereo")!=null) throw new AssertionError("Stereo offered without complete inventory");
+            runOnMainSync(()->{c.inventoryKnown=true;try{render.invoke(screen);}catch(Exception e){throw new RuntimeException(e);}});
+            tap(screen,"Speakers"); tap(screen,"•••");waitForIdleSync();capture("android-settings");
+            result.putString("stream","Connection, tab navigation, primary controls, stereo gating and settings passed.\n");
             finish(Activity.RESULT_OK,result);
-        } catch(Exception e) { result.putString("stream",e.toString());finish(Activity.RESULT_CANCELED,result); }
+        } catch(Throwable e) { result.putString("stream",e.toString());finish(Activity.RESULT_CANCELED,result); }
         finally {
             if(fake!=null)fake.close();if(keepAlive!=null)try{keepAlive.close();}catch(IOException ignored){}
             if(activity!=null) { MainActivity screen=activity;runOnMainSync(screen::finish); }
         }
+    }
+    private Button findButton(View view,String label) {
+        if(view instanceof Button && label.contentEquals(((Button)view).getText())) return (Button)view;
+        if(view instanceof ViewGroup) for(int i=0;i<((ViewGroup)view).getChildCount();i++) {
+            Button found=findButton(((ViewGroup)view).getChildAt(i),label);if(found!=null)return found;
+        }
+        return null;
+    }
+    private void tap(MainActivity screen,String label) {
+        runOnMainSync(()->{
+            Button button=findButton(screen.getWindow().getDecorView(),label);
+            if(button==null || !button.isEnabled()) throw new AssertionError("Unavailable button: "+label);
+            button.performClick();
+        });
+        waitForIdleSync();
     }
     private void capture(String name) throws Exception {
         // Wait for a composited frame after the main thread has become idle.

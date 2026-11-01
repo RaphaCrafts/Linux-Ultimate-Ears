@@ -1,11 +1,16 @@
 # Speaker Studio for Android
 
-Native Android companion for Speaker Studio, redesigned for a phone in 0.2.0.
-A persistent bottom bar switches between **Speakers**, **Sound**, and **PartyUp**.
-The teal and ink interface uses original scalable speaker illustrations, readable
-cards, and touch controls. No vendor APK code or product photography is bundled.
+Native Android companion for Speaker Studio, redesigned in **0.3.0**.
+A persistent bottom bar switches between **Speakers**, **Mix**, and **Sound**.
+The charcoal and lime interface puts volume, battery and quick actions on the
+speaker screen, PartyUp and individual levels in Mix, and profiles and EQ in
+Sound. Paired devices appear directly on the connection screen. The **•••** menu
+holds rename, refresh, firmware, change speaker, release controls and power off.
+Explanations are kept in the menu’s Phone mix & wake dialog and this guide.
+No vendor APK code or product photography is bundled.
 
 <img src="../docs/screenshots/android-speakers.png" width="240" alt="Android speaker screen with simulated readings">
+<img src="../docs/screenshots/android-party.png" width="240" alt="Android Mix screen with simulated readings">
 <img src="../docs/screenshots/android-sound.png" width="240" alt="Android sound screen with simulated readings">
 
 ## Install
@@ -19,7 +24,7 @@ installation, not a Play Store release. Its checksum is in
 1. Turn on the speakers and pair each in Android Bluetooth settings.
 2. Connect **media audio to the intended host** in Android's audio controls.
 3. Open Speaker Studio, allow Nearby devices, and choose that host.
-4. In **PartyUp**, add paired receivers and wait for each confirmed join.
+4. In **Mix**, add paired receivers and wait for each confirmed join.
 5. Play music from your usual media app. Release controls or leave the app to
    close the control channel while keeping the speaker group playing.
 
@@ -29,7 +34,7 @@ button twice and retry. A queued command alone never marks a join successful.
 
 ## Controls and desktop parity
 
-| Capability | Android 0.2.0 |
+| Capability | Android 0.3.0 |
 | --- | --- |
 | Battery, volume, installed firmware | Read from the connected host; explicit refresh |
 | Rename, battery announcement, power off | Implemented with the desktop protocol |
@@ -87,8 +92,8 @@ outputs and signing keys are ignored. No new third-party runtime dependency is
 needed for the redesign.
 
 `PreviewInstrumentation` is an emulator-only visual smoke check. It injects a fake
-in-memory transport, renders connection / speaker / sound / group views, and saves
-PNGs under the test app's external files directory. It never sends Bluetooth
+in-memory transport, renders connection / speaker / sound / group / settings
+views, and saves PNGs under the test app's external files directory. It never sends Bluetooth
 commands and is packaged only in the test APK:
 
 ```sh
@@ -98,7 +103,10 @@ adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb shell am instrument -w io.raph.speakerstudio.test/io.raph.speakerstudio.PreviewInstrumentation
 ```
 
-2026-10-24 validation: APK assembly, JVM protocol/control tests and lint pass.
+2026-11-01 validation: APK assembly, JVM protocol/control tests and lint pass.
+The emulator smoke check navigates the bottom tabs, checks primary controls,
+verifies Stereo stays hidden until group inventory is complete, and opens the
+settings menu. Updated screenshots use simulated readings.
 The API 35 target retains an `OldTargetApi` advisory. Emulator screenshots use
 **simulated readings**, not a physical speaker connection. No physical Android
 phone or Android speaker audio was tested. Group audio, receiver levels, custom
