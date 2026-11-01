@@ -4,9 +4,14 @@ import android.content.Context;
 import android.graphics.*;
 import android.view.View;
 
-/** Original vector illustration; scales cleanly at every phone density. */
+/** Shared product photograph with an original vector fallback for unknown finishes. */
 final class SpeakerArtwork extends View {
     private final Paint paint=new Paint(3);
+    private Bitmap photo;
+    private final RectF photoBounds=new RectF();
+    private static final android.util.LruCache<String,Bitmap> PHOTOS=new android.util.LruCache<>(8*1024*1024) {
+        @Override protected int sizeOf(String key,Bitmap value){return value.getByteCount();}
+    };
     private final boolean pair;
     private int speakerColour=0xff147d80;
     private Shader bodyShader,glowShader;
@@ -21,8 +26,23 @@ final class SpeakerArtwork extends View {
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
     }
     SpeakerArtwork(Context context,int colour) { this(context,false);speakerColour=colour;palette(); }
+    SpeakerArtwork(Context context,int colour,String asset) {
+        this(context,colour);
+        if(asset!=null) {
+            photo=PHOTOS.get(asset);
+            if(photo==null)try(java.io.InputStream input=context.getAssets().open(asset)) {
+                photo=BitmapFactory.decodeStream(input);if(photo!=null)PHOTOS.put(asset,photo);
+            }catch(java.io.IOException ignored){}
+        }
+    }
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+        if(photo!=null) {
+            float scale=Math.min(getWidth()/(float)photo.getWidth(),getHeight()/(float)photo.getHeight());
+            float width=photo.getWidth()*scale,height=photo.getHeight()*scale;
+            photoBounds.set((getWidth()-width)/2,(getHeight()-height)/2,(getWidth()+width)/2,(getHeight()+height)/2);
+            canvas.drawBitmap(photo,null,photoBounds,paint);return;
+        }
         float scale=Math.min(getWidth()/(getWidth()<getHeight()?130f:360f),getHeight()/230f);
         canvas.save(); canvas.translate(getWidth()/2f,getHeight()/2f); canvas.scale(scale,scale);
         paint.setShader(glowShader);

@@ -13,6 +13,10 @@ final class SpeakerController implements Closeable {
     private final Runnable changed;
     private final java.util.function.LongSupplier monotonic;
     private final Sleeper sleeper;
+    private final long receiverTimeout;
+    private final Set<String> unresolvedReceivers=ConcurrentHashMap.newKeySet();
+    private final Map<String,String> levelProblems=new ConcurrentHashMap<>();
+    static final class LevelUnavailable extends IOException {LevelUnavailable(String message){super(message);}}
     private volatile long groupReadyAt;
     interface Sleeper { void sleep(long milliseconds) throws InterruptedException; }
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor();
@@ -32,7 +36,10 @@ final class SpeakerController implements Closeable {
     volatile boolean inventoryKnown=false, groupSupported=false;
     SpeakerController(Runnable changed) { this(changed,()->System.nanoTime()/1_000_000,Thread::sleep); }
     SpeakerController(Runnable changed,java.util.function.LongSupplier monotonic,Sleeper sleeper) {
-        this.changed=changed; this.monotonic=monotonic; this.sleeper=sleeper;
+        this(changed,monotonic,sleeper,8000);
+    }
+    SpeakerController(Runnable changed,java.util.function.LongSupplier monotonic,Sleeper sleeper,long receiverTimeout) {
+        this.changed=changed;this.monotonic=monotonic;this.sleeper=sleeper;this.receiverTimeout=receiverTimeout;
     }
     private void groupSettling() { groupReadyAt=monotonic.getAsLong()+6000; }
     private void awaitGroupReady() throws InterruptedException {
@@ -165,24 +172,36 @@ final class SpeakerController implements Closeable {
         if(p.length!=1) throw new IOException("Invalid balance reading"); balance=p[0]; changed.run();
     }
     Integer memberLevel(String target) { return levels.get(target); }
+    String memberLevelProblem(String target) {return levelProblems.getOrDefault(target,"Individual level not read");}
     private int attribute(String target,Integer value) throws Exception {
         LegacySession s=requireSession();
         if((broadcast&2)==0 || !members.containsKey(target)) throw new IOException("Receiver is no longer in this group");
+        if(unresolvedReceivers.contains(target))throw new LevelUnavailable("Individual read unavailable until controls reconnect");
         int event=value==null?0x421:0x423; String key=event+":"+target;
         CompletableFuture<Integer> done=new CompletableFuture<>(); attributes.put(key,done);
         byte[] payload=Arrays.copyOf(Protocol.mac(target),value==null?8:9); payload[6]=0; payload[7]=0x1e;
         if(value!=null) payload[8]=value.byteValue();
-        try { s.set(value==null?0x420:0x422,payload); return done.get(8,TimeUnit.SECONDS); }
-        catch(TimeoutException e) { s.close(); throw new IOException("Receiver level unconfirmed. Reconnect before retrying.",e); }
-        catch(ExecutionException e) { throw new IOException(e.getCause().getMessage(),e.getCause()); }
+        try { s.set(value==null?0x420:0x422,payload); return done.get(receiverTimeout,TimeUnit.MILLISECONDS); }
+        catch(TimeoutException e) {
+            // The queue ACK completed. Quarantine this receiver's unsequenced
+            // results, while leaving unrelated host controls and audio usable.
+            unresolvedReceivers.add(target);levels.remove(target);
+            throw new LevelUnavailable("Individual volume not reported");
+        }
+        catch(ExecutionException e) { if(e.getCause() instanceof LevelUnavailable unavailable)throw unavailable;throw new IOException(e.getCause().getMessage(),e.getCause()); }
         finally { attributes.remove(key); }
     }
     void groupLevels() throws Exception {
+        awaitGroupReady();
         readVolume(requireSession());
-        for(Protocol.Member member:members()) {
-            try { attribute(member.address(),null); }
-            catch(LegacySession.CommandError e) { if(e.status!=1) throw e; levels.remove(member.address()); }
-        }
+        for(Protocol.Member member:members()) readMemberLevel(member.address());
+        changed.run();
+    }
+    void readMemberLevel(String target) throws Exception {
+        awaitGroupReady();
+        try { attribute(target,null); }
+        catch(LevelUnavailable e) {levels.remove(target);levelProblems.put(target,e.getMessage());}
+        catch(LegacySession.CommandError e) {if(e.status!=1)throw e;levels.remove(target);levelProblems.put(target,"Individual volume unsupported");}
         changed.run();
     }
     void memberVolume(String target,int percent) throws Exception {
@@ -253,7 +272,7 @@ final class SpeakerController implements Closeable {
         LegacySession s=requireSession(); int raw=Math.round(Math.max(0,Math.min(100,percent))*steps/100f);
         int previousBalance=balance;
         s.set(steps==31?0x18d:0x190,(byte)raw);
-        if ((broadcast&2)!=0) s.set(0x41b);
+        if ((broadcast&2)!=0) {s.set(0x41b);levels.clear();}
         if((broadcast&2)!=0 && audioMode==0x50 && balanceSupported) s.set(0x19d,(byte)previousBalance);
         readVolume(s); changed.run();
     }
@@ -271,6 +290,7 @@ final class SpeakerController implements Closeable {
                 if(done!=null && !done.isDone()) done.completeExceptionally(new IOException("Invalid receiver level result"));
                 return false;
             }
+            if(unresolvedReceivers.contains(target))return true;
             // A valid duplicate/unsolicited result still needs its ACK. It must not
             // complete another receiver's pending operation or resurrect a member.
             if(done==null || done.isDone()) {
@@ -282,10 +302,10 @@ final class SpeakerController implements Closeable {
             if(!members.containsKey(target)) {
                 done.completeExceptionally(new IOException("Receiver left the group")); return true;
             }
-            if(p[8]==0) done.completeExceptionally(new IOException("Receiver does not expose individual volume"));
+            if(p[8]==0) done.completeExceptionally(new LevelUnavailable("Individual volume unsupported"));
             else if(m.command()==0x421) {
                 if(p.length!=10 || (p[9]&255)>31) done.completeExceptionally(new IOException("Invalid receiver level"));
-                else { levels.put(target,Math.round((p[9]&255)*100f/31)); done.complete(p[9]&255); }
+                else { levels.put(target,Math.round((p[9]&255)*100f/31));levelProblems.remove(target); done.complete(p[9]&255); }
             } else done.complete(0);
             changed.run(); return true;
         }
@@ -303,7 +323,7 @@ final class SpeakerController implements Closeable {
             String target=Protocol.address(p,0); CompletableFuture<Void> waiter=events.get(m.command()+":"+target);
             // Only inventory records establish a complete inventory. Completion proves this member alone.
             if(p[6]==0) {
-                if(m.command()==0x418) { if(members.putIfAbsent(target,new Protocol.Member(target,-1))==null)groupSettling(); } else { members.remove(target); levels.remove(target); }
+                if(m.command()==0x418) { if(members.putIfAbsent(target,new Protocol.Member(target,-1))==null)groupSettling(); } else { members.remove(target); levels.remove(target);levelProblems.remove(target); }
                 if(waiter!=null) waiter.complete(null);
             } else if(waiter!=null) waiter.completeExceptionally(new IOException(switch(p[6]&255) {
                 case 3 -> "Press the receiver's pairing button twice, then retry";
@@ -317,7 +337,7 @@ final class SpeakerController implements Closeable {
     void disconnect() {
         LegacySession old=session; session=null; if(old!=null) old.close();
         BluetoothSocket socket=connecting; if(socket!=null) try { socket.close(); } catch(IOException ignored) {}
-        members.clear(); levels.clear(); groupReadyAt=0; inventoryKnown=false; groupSupported=false; broadcast=0; volume=-1; battery=-1; model="";
+        members.clear(); levels.clear();unresolvedReceivers.clear();levelProblems.clear(); groupReadyAt=0; inventoryKnown=false; groupSupported=false; broadcast=0; volume=-1; battery=-1; model="";
         finishCode=-1; eq=-1; bands=null; customSupported=false; renameSupported=false; balanceSupported=false; firmware="";
         changed.run();
     }

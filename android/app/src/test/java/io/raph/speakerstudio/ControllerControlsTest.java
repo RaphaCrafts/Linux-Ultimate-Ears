@@ -66,6 +66,33 @@ public class ControllerControlsTest {
             r.controller.volume(50);peer.get(2,TimeUnit.SECONDS);assertEquals(52,r.controller.volume);
         }
     }
+    @Test public void receiverResultTimeoutPreservesHostAndRejectsLateLevel() throws Exception {
+        java.util.concurrent.atomic.AtomicLong clock=new java.util.concurrent.atomic.AtomicLong(10000);
+        SpeakerController c=new SpeakerController(()->{},clock::get,clock::addAndGet,25);
+        try(Rig r=new Rig(c)) {
+            String target="00:11:22:33:44:66";
+            c.broadcast=3;c.inventoryKnown=true;
+            CountDownLatch lateAck=new CountDownLatch(1);
+            c.notification(new Protocol.Message(0x418,Arrays.copyOf(Protocol.mac(target),7)));
+            Future<?> peer=r.worker.submit(()->{try {
+                byte[] request=Arrays.copyOf(Protocol.mac(target),8);request[7]=0x1e;
+                r.ack(0x420,request);
+                Thread.sleep(80);
+                byte[] result=Arrays.copyOf(request,10);result[8]=1;result[9]=16;
+                r.speakerOutput.write(new Protocol.Message(0x421,result).encode());r.speakerOutput.flush();
+                assertEquals(0,Protocol.read(r.speakerInput).command());lateAck.countDown();
+                r.ack(0x18d,(byte)16);
+                r.reply(0x18e,new byte[0],0x18f,(byte)16);
+            }catch(Exception e){throw new RuntimeException(e);}});
+            c.readMemberLevel(target);
+            assertTrue(c.connected());assertNull(c.memberLevel(target));
+            assertEquals("Individual volume not reported",c.memberLevelProblem(target));
+            c.readMemberLevel(target); // No second request may reuse an unsequenced late reply.
+            assertTrue(lateAck.await(2,TimeUnit.SECONDS));
+            c.hostVolume(50);peer.get(2,TimeUnit.SECONDS);
+            assertTrue(c.connected());assertNull(c.memberLevel(target));assertEquals(52,c.volume);
+        }
+    }
     @Test public void unconfirmedReceiverLevelCannotBeWritten() throws Exception {
         try(Rig r=new Rig()) {
             assertThrows(IOException.class,()->r.controller.memberVolume("00:11:22:33:44:66",80));

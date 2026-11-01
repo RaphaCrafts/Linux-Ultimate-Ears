@@ -54,7 +54,8 @@ public final class MainActivity extends Activity {
         super.onStart(); active=true; busy=false;
         scrubbing=false;eqDirty=false;eqDraft=null;pendingLevels.clear();
         controller=new SpeakerController(() -> runOnUiThread(() -> { if(active && !busy && !scrubbing) render(); }));
-        worker=Executors.newSingleThreadExecutor(); render();
+        worker=Executors.newSingleThreadExecutor();render();
+        restoreLastHost();
     }
     @Override protected void onStop() {
         active=false;
@@ -141,7 +142,7 @@ public final class MainActivity extends Activity {
                     String name=deviceName(device);
                     if(devices.stream().filter(other->deviceName(other).equals(deviceName(device))).count()>1) name+=" · "+device.getAddress().substring(12);
                     LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);paired.addView(row);
-                    row.addView(new SpeakerArtwork(this,appearance(device.getAddress(),"",-1).colour()),new LinearLayout.LayoutParams(dp(48),dp(64)));
+                    row.addView(artwork(device.getAddress(),"",-1),new LinearLayout.LayoutParams(dp(48),dp(64)));
                     Button connect=button(row,name+"   →",true,()->connect(device,false));connect.setLayoutParams(new LinearLayout.LayoutParams(0,-2,1));
                 }
             }
@@ -203,27 +204,59 @@ public final class MainActivity extends Activity {
         LinearLayout box=card();SpeakerFinish.Finish colour=appearance(address,model,finish);
         LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);box.addView(heading);
         if(!large) {
-            SpeakerArtwork thumbnail=new SpeakerArtwork(this,colour.colour());
+            SpeakerArtwork thumbnail=artwork(address,model,finish);
             thumbnail.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);thumbnail.setContentDescription("Change colour for "+name+", "+colour.name());
             thumbnail.setOnClickListener(v->chooseColour(address,name,model,finish));
-            heading.addView(thumbnail,new LinearLayout.LayoutParams(dp(54),dp(72)));
+            heading.addView(thumbnail,new LinearLayout.LayoutParams(dp(64),dp(84)));
         }
         LinearLayout title=new LinearLayout(this);title.setOrientation(LinearLayout.VERTICAL);heading.addView(title,new LinearLayout.LayoutParams(0,-2,1));
         text(title,name,large?24:20,TEXT,true);text(title,large?role:role+" · "+colour.name(),12,MUTED,false);
         battery(heading,charge);
-        if(large)box.addView(new SpeakerArtwork(this,colour.colour()),new LinearLayout.LayoutParams(-1,dp(125)));
+        if(large)box.addView(artwork(address,model,finish),new LinearLayout.LayoutParams(-1,dp(125)));
         if(large) {
             Button colourButton=button(box,"●  "+colour.name()+"   ·   Colour",true,()->chooseColour(address,name,model,finish));
             colourButton.setTextColor(TEXT);colourButton.setTextSize(13);colourButton.setContentDescription("Speaker colour: "+colour.name()+". Change colour for "+name);
         }
         if(level!=null)slider(box,address+"|Speaker volume",level,100,true,action);
-        else {text(box,"Volume  —",16,MUTED,true);}
+        else if(model.isEmpty() && (controller.broadcast&2)!=0 && controller.volume>=0) {
+            LinearLayout valueRow=new LinearLayout(this);valueRow.setGravity(Gravity.CENTER_VERTICAL);box.addView(valueRow);
+            TextView label=text(valueRow,"Group volume",14,MUTED,true);label.setLayoutParams(new LinearLayout.LayoutParams(0,-2,1));
+            text(valueRow,controller.volume+"%",27,TEXT,true);
+            text(box,controller.memberLevelProblem(address),12,MUTED,false);
+            button(box,"Read individual level",true,()->run("Individual level checked",c->c.readMemberLevel(address)));
+        } else text(box,"Volume  —",16,MUTED,true);
         return box;
+    }
+    private SpeakerArtwork artwork(String address,String model,int finish) {
+        int code=finish>=0?finish:getPreferences(0).getInt("finish:"+address,-1);
+        String known=model.isEmpty()?getPreferences(0).getString("speaker:"+address,""):model;
+        if(known.equals("PartyUp receiver"))known="";
+        String photo=SpeakerPhotos.path(known,code,getPreferences(0).getInt("colour:"+address,-1));
+        return new SpeakerArtwork(this,appearance(address,model,finish).colour(),photo);
+    }
+    private void readReceiverLevels() {run("Individual levels checked",SpeakerController::groupLevels);}
+    private void restoreLastHost() {
+        if(!permitted() || !getPreferences(0).getBoolean("resume-controls",true))return;
+        BluetoothAdapter bt=adapter();if(bt==null || !bt.isEnabled())return;
+        List<BluetoothDevice> paired=pairedDevices();List<String> available=new ArrayList<>();
+        android.media.AudioManager audio=getSystemService(android.media.AudioManager.class);
+        if(audio==null)return;
+        for(android.media.AudioDeviceInfo output:audio.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)) {
+            if(output.getType()!=android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)continue;
+            for(BluetoothDevice device:paired) {
+                String outputAddress=Build.VERSION.SDK_INT>=28?output.getAddress():"";
+                boolean matches=device.getAddress().equalsIgnoreCase(outputAddress);
+                if(outputAddress.isEmpty())matches=deviceName(device).contentEquals(output.getProductName()) && paired.stream().filter(d->deviceName(d).equals(deviceName(device))).count()==1;
+                if(matches && getPreferences(0).contains("speaker:"+device.getAddress()) && !available.contains(device.getAddress()))available.add(device.getAddress());
+            }
+        }
+        String target=ResumePolicy.choose(getPreferences(0).getString("last-host",""),true,available);
+        if(target!=null)for(BluetoothDevice device:paired)if(device.getAddress().equals(target)){connect(device,false);break;}
     }
     private String deviceName(BluetoothDevice device) { return device.getName()==null?"Unnamed device":device.getName(); }
     private void connect(BluetoothDevice device,boolean receiver) {
         run(receiver?"Speaker added":"Connected",c->{
-            if(receiver)c.add(device);else { c.connect(device);runOnUiThread(()->eqDirty=false); }
+            if(receiver)c.add(device);else { c.connect(device);runOnUiThread(()->{eqDirty=false;getPreferences(0).edit().putString("last-host",device.getAddress()).putBoolean("resume-controls",true).apply();}); }
         });
     }
     private void settings() {
@@ -240,9 +273,9 @@ public final class MainActivity extends Activity {
                 case 3: firmware();break;
                 case 4: choose(false);break;
                 case 5: bluetoothSettings();break;
-                case 6: run("Controls released",SpeakerController::disconnect);break;
+                case 6: getPreferences(0).edit().putBoolean("resume-controls",false).apply();run("Controls released",SpeakerController::disconnect);break;
                 case 7: new AlertDialog.Builder(this).setTitle("Turn off "+controller.name+"?")
-                    .setNegativeButton("Cancel",null).setPositiveButton("Turn off",(d,w)->run("Speaker turned off",SpeakerController::powerOff)).show();break;
+                    .setNegativeButton("Cancel",null).setPositiveButton("Turn off",(d,w)->run("Speaker turned off",c->{c.powerOff();getPreferences(0).edit().putBoolean("resume-controls",false).apply();})).show();break;
                 default: platformInfo();
             }
         }).show();
@@ -295,6 +328,7 @@ public final class MainActivity extends Activity {
         LinearLayout box=card();text(box,"PartyUp",12,ACCENT,true);
         if(controller.volume>=0)slider(box,"Group volume",controller.volume,100,true,p->run("Group volume set",c->c.volume(p)));
         else text(box,"Group volume  —",20,MUTED,true);
+        if(!controller.members().isEmpty())button(box,"Read individual levels",true,this::readReceiverLevels);
     }
     private void speakerCards(boolean large) {
         boolean grouped=(controller.broadcast&2)!=0;
@@ -404,7 +438,6 @@ public final class MainActivity extends Activity {
             }
         }
         if(broadcasting) {
-            button(body,"Refresh speaker levels",true,()->run("Levels refreshed",SpeakerController::groupLevels));
             button(body,"End group",true,()->new AlertDialog.Builder(this).setTitle("End group?")
                 .setNegativeButton("Cancel",null).setPositiveButton("End group",(d,w)->run("Group ended",SpeakerController::end)).show());
         }

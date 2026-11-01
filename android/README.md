@@ -1,8 +1,8 @@
 # Speaker Studio for Android
 
-Native Android companion for Speaker Studio, current build **0.4.0**.
+Native Android companion for Speaker Studio, current build **0.4.1**.
 Speakers and Sound use consistent speaker cards, battery indicators, volume
-readouts and controls. Known finish codes colour the artwork and are remembered
+readouts and controls. Known finish codes select the same product photographs as Linux and are remembered
 per speaker. Tap **Colour** to choose a local override or return to detection.
 Custom names and colours survive reconnects and app restarts.
 
@@ -13,12 +13,17 @@ sends it to the speaker. Drafts survive tab changes within the control session.
 
 The single **Speakers** tab handles a standalone speaker or an expanding PartyUp
 group. Adding receivers brings up group volume and playback-mode controls.
-There is no separate Mix tab.
+There is no separate Mix tab. On launch, the app restores controls for a previously
+confirmed UE speaker already exposed as a connected phone Bluetooth audio output,
+then reads its existing group. It does not wake a disconnected speaker or create
+a group. **Release controls** disables automatic recovery until the next manual
+connection. Ambiguous connected outputs require choosing a speaker.
 
 The main list shows recognized and previously confirmed UE speakers. Use
 **Add paired speaker** once for a custom name. The **•••** menu holds rename,
-refresh, firmware, change speaker, release controls and power off. No vendor APK
-code or product photography is bundled.
+refresh, firmware, change speaker, release controls and power off. No vendor APK code is bundled. Product photographs, provenance and rights notices
+are shared with the desktop catalogue in `assets/speakers/`. Unknown finishes use
+the original illustration.
 
 <img src="../docs/screenshots/android-standalone.png" width="240" alt="Standalone speaker with simulated readings">
 <img src="../docs/screenshots/android-speakers.png" width="240" alt="Unified speaker group with simulated readings">
@@ -45,7 +50,7 @@ button twice and retry. A queued command alone never marks a join successful.
 
 ## Controls and desktop parity
 
-| Capability | Android 0.4.0 |
+| Capability | Android 0.4.1 |
 | --- | --- |
 | Battery, volume, installed firmware | Read from the connected host; explicit refresh |
 | Rename, battery announcement, power off | Implemented with the desktop protocol |
@@ -65,8 +70,11 @@ Unsupported capabilities remain unavailable. Stereo requires exactly one receive
 and a complete inventory from the host; a join event alone cannot prove inventory
 completeness. No undocumented inventory request is invented. Individual receiver
 sliders appear only after an actual level is returned, and writes wait for a
-correlated receiver result and readback. A command timeout closes controls to
-prevent late replies being reused. Volume edits hold their pending value until
+correlated receiver result and readback. A queue-ACK timeout closes controls to prevent late replies being reused.
+A missing optional receiver result leaves host controls connected and quarantines
+that receiver’s late results until controls reconnect. When no individual reading
+is available, its card explicitly shows the host-referenced **Group volume**,
+not an inferred independent level. **Read individual level** requests a real reading. Volume edits hold their pending value until
 completion; custom EQ drafts survive tab changes and notifications.
 
 The five-band labels show signed relative gain on a -100 to +100 scale;
@@ -115,13 +123,13 @@ adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb shell am instrument -w io.raph.speakerstudio.test/io.raph.speakerstudio.PreviewInstrumentation
 ```
 
-2026-11-01 validation: APK assembly, 31 JVM protocol/control/appearance tests and
+2026-11-01 validation: APK assembly, 36 JVM protocol/control/appearance/recovery tests and
 lint pass.
 The emulator smoke check navigates the bottom tabs, checks primary controls,
 verifies Stereo stays hidden until group inventory is complete, and checks colour
 persistence, EQ drafts, accessible adjustments, long names and missing readings.
 Layouts were visually checked with enlarged text. Updated screenshots use
-simulated readings. On the ZenFone, 0.4.0 detected and saved the pink host and
+simulated readings. On the ZenFone, 0.4.1 detected and saved the pink host and
 purple receiver finishes without changing the group or its levels.
 The API 35 target retains an `OldTargetApi` advisory. Emulator screenshots use
 **simulated readings**, not a physical speaker connection. On the connected

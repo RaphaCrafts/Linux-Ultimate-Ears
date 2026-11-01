@@ -149,3 +149,42 @@ in the private appearance directory. No group membership, volume or EQ write
 was performed for that appearance check. Actual EQ edits and manual colour
 selection were exercised in the fake-transport emulator, not asserted as new
 physical-speaker audio validation.
+
+
+## Android 0.4.1: existing sessions and receiver readings
+
+The shared desktop product catalogue is now packaged as Android assets, including
+its provenance and rights notices. Known model/finish combinations select the
+same original WebP photographs; unknown finishes retain the vector fallback.
+No vendor APK code or new Bluetooth scan permission is included.
+
+On launch, connected A2DP outputs are matched against previously confirmed UE
+speakers. The remembered host is preferred; an ambiguous selection is left to
+the user. Reopening controls reads the existing native group without joining,
+waking or changing volume. Explicit Release controls disables recovery until a
+manual connection. On the ZenFone, closing the app process and reopening restored
+the pink host, purple receiver, saved finishes, batteries and existing group
+without selecting a speaker.
+
+The physical host accepted the receiver volume query (0x0420, attribute 0x001e)
+but returned no 0x0421 result in the eight-second window. Both speakers were
+reported audible while the receiver BLE advertisement volume field was zero;
+that field is therefore not used as an effective PartyUp volume. GATT metadata
+discovery established no supported independent volume read for this legacy
+family. This does not establish that all firmware lacks such a read.
+
+Receiver cards without a real proxy reading explicitly show the host-referenced
+Group volume and the individual-read state. This is not a measurement of the
+receiver’s independent level. Queue-ACK timeouts still invalidate the transport;
+an ACKed optional receiver read with no completion instead quarantines late
+receiver results until reconnection, preserving unrelated host controls. On the
+ZenFone, the new optional read displayed “Individual volume not reported” after
+the deadline while both speaker cards and group controls remained available.
+A subsequent read-only host/group refresh succeeded on the same connection.
+
+Validation: 36 JVM tests and Android assembly/lint pass, including timeout
+isolation, late-result rejection, exact photo selection and recovery policy.
+The emulator smoke check passes with bundled photo decoding and the optional
+individual-read controls in addition to existing appearance/EQ/accessibility
+checks. Screenshots continue to use simulated readings. The existing
+OldTargetApi lint advisory remains.

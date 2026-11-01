@@ -389,7 +389,8 @@ reopening the app never start a mix; group playback needs an explicit action.
 [Download the Android APK](downloads/Speaker-Studio-Android.apk) ·
 [Setup, feature matrix and validation](android/README.md)
 
-Android 0.4.0 has a consistent phone layout with Speakers and Sound tabs,
+Android 0.4.1 restores an existing connected speaker session on launch and uses
+the same real speaker photographs as Linux. It has a consistent phone layout with Speakers and Sound tabs,
 remembered speaker colours, clear battery/volume displays, an EQ curve preview,
 built-in and custom EQ, saved profiles, naming,
 firmware information, stereo balance and individual receiver levels where

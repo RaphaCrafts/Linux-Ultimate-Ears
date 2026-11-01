@@ -19,6 +19,11 @@ public final class PreviewInstrumentation extends Instrumentation {
             activity=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
             MainActivity screen=activity;
             waitForIdleSync(); capture("android-connect");
+            for(String asset:new String[]{SpeakerPhotos.path("MEGABOOM 3",0x431,-1),SpeakerPhotos.path("",0x119,-1)}) {
+                try(InputStream stream=screen.getAssets().open(asset)) {
+                    if(android.graphics.BitmapFactory.decodeStream(stream)==null)throw new AssertionError("Missing product photograph: "+asset);
+                }
+            }
             Field controllerField=MainActivity.class.getDeclaredField("controller"); controllerField.setAccessible(true);
             SpeakerController c=(SpeakerController)controllerField.get(screen);
             PipedInputStream input=new PipedInputStream(); keepAlive=new PipedOutputStream(input);
@@ -36,6 +41,12 @@ public final class PreviewInstrumentation extends Instrumentation {
             Field status=MainActivity.class.getDeclaredField("status");status.setAccessible(true);status.set(screen,"Preview · simulated speaker readings");
             Method render=MainActivity.class.getDeclaredMethod("render");render.setAccessible(true);
             runOnMainSync(()->{try {render.invoke(screen);}catch(Exception e){throw new RuntimeException(e);}});
+            Field levels=SpeakerController.class.getDeclaredField("levels");levels.setAccessible(true);
+            ((java.util.Map<?,?>)levels.get(c)).clear();
+            runOnMainSync(()->{try {render.invoke(screen);}catch(Exception e){throw new RuntimeException(e);}});
+            if(findButton(screen.getWindow().getDecorView(),"Read individual level")==null)throw new AssertionError("Missing optional receiver read");
+            capture("android-group-reference");
+            c.notification(new Protocol.Message(0x421,level));
             if(screen.getPreferences(0).getInt("finish:"+c.address,-1)!=0x119)throw new AssertionError("Detected finish was not saved");
             runOnMainSync(()->screen.getPreferences(0).edit().putInt("colour:"+c.address,8).apply());
             Method appearance=MainActivity.class.getDeclaredMethod("appearance",String.class,String.class,int.class);appearance.setAccessible(true);
