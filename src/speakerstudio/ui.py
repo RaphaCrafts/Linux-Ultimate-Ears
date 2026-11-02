@@ -1199,8 +1199,8 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         self.play_area.set_targets(self.group_host,allowed)
         error=state.get('error','')
         self.party_error.setText(error);self.party_error.setVisible(bool(error))
-        self.party_info.setText('Computer mix · playing through Linux' if state.get('running') else 'Connecting the selected speakers…' if switching else 'Computer mix · choose two speakers')
-        self.play_hint.setText('Connecting Linux audio to each speaker…' if switching else 'Both speakers receive sound directly from Linux.' if state.get('running') else 'Drag a paired speaker here. Linux connects it automatically.')
+        self.party_info.setText('Computer mix · another Linux output is selected' if state.get('running') and state.get('routed') is False else 'Computer mix · output available' if state.get('running') else 'Connecting the selected speakers…' if switching else 'Computer mix · choose two speakers')
+        self.play_hint.setText('Connecting Linux audio to each speaker…' if switching else 'Select Speaker studio · Computer mix in Linux Sound settings to use both speakers.' if state.get('running') and state.get('routed') is False else 'Linux output: Speaker studio · Computer mix. Apps with a separate output choice must also use this output.' if state.get('running') else 'Drag a paired speaker here. Linux connects it automatically.')
         self.group_status.setText('Adjust each speaker’s volume to balance the sound. Automatic timing compensation is enabled.')
         self.update_computer_levels()
         if self.party_dragging or any(slider.isSliderDown() for slider in self.computer_sliders.values()):return

@@ -500,3 +500,27 @@ stereo balance validation/readback, stereo balance retained across group-volume
 changes, and refusing writes to unconfirmed receiver levels. Phone previews use a
 fake transport injected by an emulator-only instrumentation APK. They do not
 certify Android Bluetooth behavior. Physical Android validation remains pending.
+
+
+## Playback transition recovery (0.1.20)
+
+PartyUp shutdown now polls for confirmed standalone mode after its setter ACK,
+without resending the mode setter. Native receivers release their direct control
+sockets; transitions read the host first and reopen a stale host control session
+once. A playback switch owns audio reconciliation until it finishes.
+
+Returning to native PartyUp explicitly selects the host's PipeWire sink. If a
+BlueZ audio link exists but its PipeWire output fails to appear, the switch
+reopens only the missing speaker's A2DP profile once and waits again. No Bluetooth
+adapter or audio service restart is involved. A lost Computer mix keeps its
+speaker selection for Retry; inventory refresh alone does not restart playback.
+The interface distinguishes an available mix from a different system default
+output. Applications with a pinned output may still need their output changed.
+
+Regression tests exercise delayed shutdown confirmation, stale controls, lingering
+receiver audio, missing-output recovery, native output selection, mode-switch
+ownership, and actual-default metadata. Live read-only inspection on 2026-11-02
+found no Bluetooth speaker sinks. Audible transitions, reconnect reliability on
+the physical pair, and long-duration synchronization remain unverified for this
+update. Speaker Studio's virtual output exists only while Computer mix is running;
+native PartyUp uses the host speaker's own Linux output.

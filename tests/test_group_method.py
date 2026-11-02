@@ -25,6 +25,7 @@ class Mix:
 
 def setup(monkeypatch):
     c=Controller();calls=[];c.computer_mix=Mix(calls)
+    monkeypatch.setattr('speakerstudio.backend.select_output',lambda name:calls.append(('route',name)))
     host=Speaker(HOST,'/host','Pink',paired=True,connected=True,audio_connected=True,broadcast=3,members=[RECEIVER],features={'group':True})
     receiver=Speaker(RECEIVER,'/receiver','Purple',paired=True,connected=False)
     c.speakers={HOST:host,RECEIVER:receiver}
@@ -213,4 +214,110 @@ def test_native_round_trip_restores_prior_stereo_mode(monkeypatch):
         c._group_add=join;c._party_mode=mode
         await c._group_method('native',json.dumps([HOST,RECEIVER]))
         assert ('mode',0x50) in calls and not c.computer_mix.active
+    asyncio.run(scenario())
+
+
+def test_computer_switch_never_probes_receiver_with_lingering_audio(monkeypatch):
+    async def scenario():
+        c,calls,host,receiver=setup(monkeypatch)
+        receiver.audio_connected=True;receiver.connected=True
+        await c._group_method('computer',json.dumps([HOST,RECEIVER]))
+        assert c.computer_mix.active
+        assert ('controls',RECEIVER) not in calls
+        assert not receiver.connected and not receiver.error
+    asyncio.run(scenario())
+
+
+def test_native_switch_explicitly_routes_audio_to_host(monkeypatch):
+    async def scenario():
+        c,calls,host,receiver=setup(monkeypatch)
+        async def join(address,target):host.members=[target];host.broadcast=3
+        c._group_add=join
+        await c._group_method('native',json.dumps([HOST,RECEIVER]))
+        assert calls.index(('audio',HOST))<calls.index(('route',node(HOST)['info']['props']['node.name']))
+    asyncio.run(scenario())
+
+
+def test_missing_output_recovers_only_affected_profile_once(monkeypatch):
+    async def scenario():
+        c,calls,host,receiver=setup(monkeypatch)
+        monkeypatch.setattr('speakerstudio.backend.audio_snapshot',lambda:[node(HOST)])
+        attempts=[]
+        async def outputs(addresses):
+            attempts.append(list(addresses))
+            if len(attempts)==1:raise ConnectionError('Missing receiver')
+            return ['host-output','receiver-output']
+        async def disconnect(address):calls.append(('disconnect_audio',address))
+        c._wait_group_outputs=outputs;c.bluez.disconnect_audio=disconnect
+        assert await c._recover_group_outputs([HOST,RECEIVER])==['host-output','receiver-output']
+        assert ('disconnect_audio',RECEIVER) in calls and ('audio',RECEIVER) in calls
+        assert ('disconnect_audio',HOST) not in calls and not c.connecting
+        assert len(attempts)==2
+    asyncio.run(scenario())
+
+
+def test_ungroup_waits_for_confirmed_standalone_before_reading_state(monkeypatch):
+    async def scenario():
+        c=Controller();calls=[];readings=iter([b'\x03\x00',b'\x02\x00',b'\x00\x00'])
+        class Session:
+            async def request(self,command,response=0,payload=b''):
+                calls.append((command,payload))
+                if command==0x414:return next(readings)
+        c.sessions[HOST]=Session()
+        async def read(address):calls.append(('read',address))
+        async def sleep(delay):pass
+        c._read_state=read
+        monkeypatch.setattr('speakerstudio.backend.asyncio.sleep',sleep)
+        await c._ungroup(HOST)
+        assert calls==[(0x413,b'\0\0'),(0x414,b''),(0x414,b''),(0x414,b''),('read',HOST)]
+    asyncio.run(scenario())
+
+
+def test_background_reconciliation_does_not_interrupt_mode_switch(monkeypatch):
+    c=Controller();c.group_switching=True
+    monkeypatch.setattr(c.computer_mix,'reconcile',lambda:pytest.fail('Transition owns audio cleanup'))
+    c._reconcile_computer_mix()
+
+
+def test_stale_host_controls_are_reopened_before_mode_change():
+    async def scenario():
+        c=Controller();host=Speaker(HOST,'/host','Host',paired=True,connected=True)
+        c.speakers[HOST]=host;calls=[]
+        async def refresh(address):calls.append('refresh');raise RuntimeError('Stale control channel')
+        async def connect(address):calls.append('connect');host.connected=True
+        c._refresh=refresh;c._connect_or_wake=connect
+        await c._group_controls(HOST,refresh=True)
+        assert calls==['refresh','connect'] and host.connected and not host.error
+    asyncio.run(scenario())
+
+
+def test_bluez_profile_recovery_waits_for_disconnect_before_reconnect(monkeypatch):
+    async def scenario():
+        calls=[]
+        class Audio(BlueZ):
+            polls=0
+            async def devices(self):
+                self.polls+=1
+                return [{'address':RECEIVER,'path':'/paired','paired':True,'audio_connected':self.polls<3}],[]
+            async def interface(self,*args):return self
+            async def call_disconnect_profile(self,uuid):calls.append(uuid)
+        async def sleep(delay):pass
+        monkeypatch.setattr('speakerstudio.bluez.asyncio.sleep',sleep)
+        b=Audio();await b.disconnect_audio(RECEIVER)
+        assert b.polls==3 and calls==[A2DP_SINK_UUID]
+    asyncio.run(scenario())
+
+
+def test_unconfirmed_ungroup_fails_without_resending_setter(monkeypatch):
+    async def scenario():
+        c=Controller();calls=[]
+        class Session:
+            async def request(self,command,response=0,payload=b''):
+                calls.append(command)
+                if command==0x414:return b'\x03\x00'
+        c.sessions[HOST]=Session()
+        async def sleep(delay):pass
+        monkeypatch.setattr('speakerstudio.backend.asyncio.sleep',sleep)
+        with pytest.raises(RuntimeError,match='not finished ending'):await c._ungroup(HOST)
+        assert calls.count(0x413)==1 and calls.count(0x414)==20
     asyncio.run(scenario())

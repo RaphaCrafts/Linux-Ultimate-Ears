@@ -177,7 +177,7 @@ def test_stop_does_not_restore_disconnected_bluetooth_output(monkeypatch):
     assert not c.active
 
 
-def test_explicit_refresh_stops_mix_and_clears_group_when_outputs_disappear(monkeypatch):
+def test_explicit_refresh_stops_mix_and_preserves_retry_selection_when_outputs_disappear(monkeypatch):
     import asyncio
     from types import SimpleNamespace
     from speakerstudio.backend import Controller
@@ -189,8 +189,8 @@ def test_explicit_refresh_stops_mix_and_clears_group_when_outputs_disappear(monk
         async def devices():return [],[]
         c.bluez=SimpleNamespace(devices=devices)
         await c._refresh_all()
-        assert not c.computer_mix.active and c.mix_members==[] and c.mix_levels=={}
-        assert not states[-1]['running'] and states[-1]['members']==[]
+        assert not c.computer_mix.active and c.mix_members==['host','receiver'] and c.mix_levels=={}
+        assert not states[-1]['running'] and states[-1]['members']==['host','receiver']
         await c._refresh_all()  # Discovery never restarts a group.
         assert not c.computer_mix.active
     asyncio.run(scenario())
@@ -230,5 +230,28 @@ def test_disconnected_bluez_inventory_stops_even_lingering_audio_nodes(monkeypat
         async def devices():return [],[]
         c.bluez=SimpleNamespace(devices=devices)
         await c.refresh_devices()
-        assert not c.computer_mix.active and c.playback_method=='native' and not c.mix_members
+        assert not c.computer_mix.active and c.playback_method=='computer' and c.mix_members==['host','receiver']
     asyncio.run(scenario())
+
+
+def test_check_reports_actual_default_output_separately_from_live_mix(monkeypatch):
+    c=mix.ComputerMix();c.process=Process();c.names=[LEFT,RIGHT];c.node_name='ours'
+    rows=[node(LEFT),node(RIGHT),node('ours'),{'type':'PipeWire:Interface:Metadata',
+          'props':{'metadata.name':'default'},'metadata':[
+          {'key':'default.audio.sink','value':{'name':LEFT}}]}]
+    monkeypatch.setattr(mix,'snapshot',lambda:rows)
+    c.check()
+    assert c.active and c.routed is False
+    rows[-1]['metadata'][0]['value']['name']='ours'
+    c.check()
+    assert c.routed is True
+    c.process=None
+
+
+def test_select_output_resolves_new_node_id_and_rejects_missing_sink(monkeypatch):
+    calls=[]
+    monkeypatch.setattr(mix,'snapshot',lambda:[node(LEFT,42)])
+    monkeypatch.setattr(mix.subprocess,'run',lambda command,**kw:calls.append(command))
+    mix.select_output(LEFT)
+    assert calls==[['wpctl','set-default','42']]
+    with pytest.raises(RuntimeError,match='disappeared'):mix.select_output(RIGHT)

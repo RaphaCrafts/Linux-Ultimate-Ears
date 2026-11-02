@@ -76,10 +76,20 @@ def configured_output(objects):
     return None
 
 
+def select_output(name):
+    """Resolve a fresh sink ID when explicitly switching playback methods."""
+    node=next((o for o in snapshot() if o.get('type')=='PipeWire:Interface:Node'
+               and o.get('info',{}).get('props',{}).get('node.name')==name
+               and o.get('info',{}).get('props',{}).get('media.class')=='Audio/Sink'),None)
+    if node is None:raise RuntimeError('The requested Linux audio output disappeared. Retry the mode switch.')
+    subprocess.run(['wpctl','set-default',str(node['id'])],check=True,timeout=2,
+                   stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,env=system_env())
+
+
 class ComputerMix:
     def __init__(self):
         self.process=None;self.names=[];self.node_name='';self.previous=None
-        self.selected=False;self.log=None
+        self.selected=False;self.log=None;self.routed=None
 
     @property
     def active(self):return self.process is not None
@@ -171,6 +181,11 @@ class ComputerMix:
         if not self.active:return
         if self.process.poll() is not None:raise RuntimeError('Computer mix stopped unexpectedly.')
         rows=snapshot()
+        self.routed=None
+        for obj in rows:
+            if obj.get('type')=='PipeWire:Interface:Metadata' and obj.get('props',{}).get('metadata.name')=='default':
+                current=next((m for m in obj.get('metadata',[]) if m.get('key')=='default.audio.sink'),None)
+                if current:self.routed=current.get('value',{}).get('name')==self.node_name
         if not set(self.names)<=speaker_sinks(rows).keys():raise RuntimeError('A speaker audio output disconnected. Computer mix has stopped.')
         if not any(o.get('info',{}).get('props',{}).get('node.name')==self.node_name for o in rows):raise RuntimeError('The Computer mix output disappeared.')
 
@@ -195,7 +210,7 @@ class ComputerMix:
             try:
                 if self.process:stop(self.process)
             finally:
-                self.process=None;self.selected=False;self.names=[]
+                self.process=None;self.selected=False;self.names=[];self.routed=None
                 if self.log:self.log.close();self.log=None
         if error:raise RuntimeError('Computer mix stopped, but the previous output could not be restored. Choose an output in Linux Sound settings.') from error
 

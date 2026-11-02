@@ -17,7 +17,7 @@ from .colours import finish_name
 from .naming import encode_name, decode_name
 from .preferences import remembered_model, remembered_models
 from .protocol import LegacySession, CommandError, ProtocolError, battery_percent
-from .audio_mix import ComputerMix, snapshot as audio_snapshot, speaker_sinks, output_for_address
+from .audio_mix import ComputerMix, snapshot as audio_snapshot, speaker_sinks, output_for_address, select_output
 
 
 class Controller(QThread):
@@ -246,6 +246,8 @@ class Controller(QThread):
         self.publish()
 
     def _reconcile_computer_mix(self):
+        # The transition owns cleanup and routing until both profiles settle.
+        if self.group_switching:return
         try:
             if self.computer_mix.reconcile() and not self.group_switching:
                 self.mix_members=[]
@@ -261,9 +263,9 @@ class Controller(QThread):
     def _stop_lost_computer_mix(self,message):
         try:self.computer_mix.stop()
         except Exception as error:message=str(error)
-        self.mix_members=[]
         self.mix_levels={}
-        self.playback_method='native'
+        # Preserve the requested speakers so Retry can rebuild their audio links.
+        self.playback_method='computer'
         self.publish_computer_mix(message,reset=True)
 
     def _lost(self, address, reason, interrupt=True):
@@ -516,6 +518,7 @@ class Controller(QThread):
     def publish_computer_mix(self,error='',reset=False):
         self.mix_error=error
         self.computer_mix_changed.emit({'running':self.computer_mix.active,'outputs':self.mix_outputs,'error':error,
+            'routed':getattr(self.computer_mix,'routed',None),
             'members':list(self.mix_members),'method':self.playback_method,'switching':self.group_switching,
             'reset':reset,
             'levels':{address:dict(level) for address,level in self.mix_levels.items()}})
@@ -561,6 +564,8 @@ class Controller(QThread):
                 raise ValueError('Computer mix currently supports exactly two speakers.')
             if method=='computer' and self.computer_mix.active:
                 if addresses==self.mix_members:
+                    self.computer_mix.check()
+                    select_output(self.computer_mix.node_name)
                     self.publish_computer_mix()
                     return
                 raise RuntimeError('Stop the current Computer mix before changing its speakers.')
@@ -580,29 +585,44 @@ class Controller(QThread):
             if method=='computer':
                 # End native hosts first: a receiver may have no direct Linux link
                 # until its speaker-to-speaker PartyUp connection has been released.
-                for address in addresses:
+                # Read known hosts first. A receiver may still expose an A2DP
+                # transport but reject all direct controls until the host stops.
+                ordered=sorted(addresses,key=lambda a:not bool(self.speakers[a].broadcast&2))
+                receivers={a for s in self.speakers.values() if s.broadcast&2 for a in s.members}
+                for address in ordered:
                     speaker=self.speakers[address]
+                    if address in receivers:continue
                     if speaker.connected or speaker.audio_connected or speaker.broadcast&2:
                         await self._group_controls(address,refresh=True)
                         if speaker.broadcast&2:
+                            receivers.update(speaker.members)
                             if speaker.audio_mode in (0,0x50):self.native_group_modes[address]=speaker.audio_mode
                             await self._perform('ungroup',address)
                             if speaker.error or speaker.broadcast&2:
                                 raise RuntimeError('Could not end PartyUp on '+speaker.name+'. '+speaker.error)
                 for address in addresses:
                     speaker=self.speakers[address]
+                    if address in receivers:
+                        self._lost(address,'Releasing native receiver controls',interrupt=False)
+                        speaker.error=''
                     self.status.emit('Connecting Linux audio to '+speaker.name+'…')
                     if speaker.sleeping and speaker.wake_available:await self._group_controls(address)
                     try:await self.bluez.connect_audio(address)
                     except Exception as error:raise ConnectionError(speaker.name+': '+str(error)) from error
-                names=await self._wait_group_outputs(addresses)
+                names=await self._recover_group_outputs(addresses)
                 self.computer_mix.start(names)
             else:
                 self.computer_mix.stop()
                 # Receivers join through the host; their direct RFCOMM service
                 # may be unavailable while native audio is handing over.
                 host=addresses[0]
-                await self._group_controls(host)
+                await self._group_controls(host,refresh=True)
+                # The host is the only desktop output in native mode. Drop
+                # receiver controls before asking the host to take ownership.
+                for address in addresses[1:]:
+                    if address in self.sessions:
+                        self._lost(address,'Using the host for PartyUp controls',interrupt=False)
+                        self.speakers[address].error=''
                 for address in addresses[1:]:
                     await self._perform('group_add',host,address)
                     if self.speakers[host].error or address not in self.speakers[host].members:
@@ -614,6 +634,8 @@ class Controller(QThread):
                     self.status.emit('PartyUp is configured. Select the host speaker in Windows Sound settings for music.')
                 else:
                     await self.bluez.connect_audio(host)
+                    names=await self._recover_group_outputs([host])
+                    select_output(names[0])
             await self.refresh_devices()
             self.status.emit('Computer mix is on' if method=='computer' else 'Native PartyUp is on. Select its host in Windows Sound settings for music.' if sys.platform=='win32' else 'Native PartyUp is on')
         except asyncio.CancelledError:
@@ -637,6 +659,10 @@ class Controller(QThread):
         speaker=self.speakers[address]
         if not speaker.connected or refresh:
             await self._perform('refresh' if speaker.connected else 'connect',address)
+            if speaker.connected and speaker.error:
+                # A cached socket can remain open after a firmware handoff but
+                # reject reads. Reopen controls once before failing the switch.
+                self._lost(address,'Reopening stale speaker controls',interrupt=False)
             if not speaker.connected:await self._perform('connect',address)
             if not speaker.connected or speaker.error:
                 raise ConnectionError('Could not connect controls for '+speaker.name+'. '+speaker.error)
@@ -651,6 +677,22 @@ class Controller(QThread):
             await asyncio.sleep(.25)
         missing=[self.speakers[address].name for address,name in zip(addresses,names) if not name]
         raise ConnectionError('Linux audio output did not appear for '+', '.join(missing)+'. Retry the switch.')
+
+    async def _recover_group_outputs(self,addresses):
+        try:return await self._wait_group_outputs(addresses)
+        except ConnectionError:
+            # A BlueZ transport can outlive its PipeWire node. Reopen only the
+            # missing A2DP profile once; leave healthy speakers and services up.
+            rows=audio_snapshot()
+            for address in addresses:
+                if output_for_address(rows,address):continue
+                self.status.emit('Reconnecting Linux audio to '+self.speakers[address].name+'…')
+                self.connecting.add(address)
+                try:
+                    await self.bluez.disconnect_audio(address)
+                    await self.bluez.connect_audio(address)
+                finally:self.connecting.discard(address)
+            return await self._wait_group_outputs(addresses)
 
     async def _computer_mix_outputs(self):
         try:
@@ -704,7 +746,8 @@ class Controller(QThread):
             self.computer_mix.stop()
             self.mix_members=[]
             self.mix_levels={}
-            self.publish_computer_mix()
+            self.playback_method='native'
+            self.publish_computer_mix(reset=True)
             self.status.emit('Computer mix stopped. The previous output was restored unless you selected a different one.')
         except Exception as error:self.publish_computer_mix(str(error))
 
@@ -824,10 +867,10 @@ class Controller(QThread):
             # Switching the host's mode immediately can drop the fresh member.
             self.group_ready_at[address]=time.monotonic()+6
             target.sleeping=False
-            if sys.platform=='win32' and receiver in self.sessions:
+            if receiver in self.sessions:
                 # This firmware relinquishes its direct Classic controls when
                 # becoming a native receiver. Do not retain a silently stalled
-                # Windows stream; group controls go through the host instead.
+                # stream; group controls go through the host instead.
                 self._lost(receiver,'Using the host for PartyUp controls',interrupt=False)
                 target.error=''
             self.publish()
@@ -858,8 +901,16 @@ class Controller(QThread):
                 future.cancel()
 
     async def _ungroup(self, address):
+        await self._wait_group_ready(address)
         await self._busy_request(self.sessions[address], 0x413, b'\x00\x00')
-        await self._broadcast_config(self.sessions[address])
+        # An ACK queues the setter; even a successful read can still report the
+        # old mode. Wait for confirmation without sending the setter again.
+        for attempt in range(20):
+            data=await self._broadcast_config(self.sessions[address])
+            if len(data)!=2 or data[0]>3:raise ProtocolError('Invalid PartyUp mode reading')
+            if data[0]==0:break
+            if attempt==19:raise RuntimeError('PartyUp has not finished ending. Retry the mode switch.')
+            await asyncio.sleep(.25)
         await self._read_state(address)
         self.status.emit('PartyUp ended')
 

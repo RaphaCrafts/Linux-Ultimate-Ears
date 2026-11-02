@@ -187,6 +187,19 @@ class BlueZ:
                 await asyncio.sleep(.25)
         raise ConnectionError('Linux could not connect the speaker audio profile. Keep it on and nearby, and release other Bluetooth audio sources.') from last_error
 
+    async def disconnect_audio(self,address):
+        """Release only A2DP during recovery of a missing desktop output."""
+        rows,_=await self.devices()
+        row=next((r for r in rows if r['address']==address and r['paired']),None)
+        if not row:raise RuntimeError('Pair this speaker in Linux Bluetooth settings first.')
+        device=await self.interface(row['path'],'org.bluez.Device1')
+        await asyncio.wait_for(device.call_disconnect_profile(A2DP_SINK_UUID),12)
+        for _ in range(20):
+            rows,_=await self.devices()
+            if not any(r['address']==address and r.get('audio_connected') for r in rows):return
+            await asyncio.sleep(.25)
+        raise ConnectionError('The speaker audio profile did not disconnect. Retry the mode switch.')
+
     async def set_alias(self,path,name):
         properties=await self.interface(path,'org.freedesktop.DBus.Properties')
         await asyncio.wait_for(properties.call_set('org.bluez.Device1','Alias',Variant('s',name)),5)

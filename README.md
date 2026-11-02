@@ -273,6 +273,15 @@ and [image sources](assets/speakers/README.md) are included.
 Protocol research is available in [the research notes](docs/protocol-research.md).
 Extracted APKs and decompiled vendor code are kept out of this repository.
 
+Desktop 0.1.20 improves playback switching: it waits for PartyUp to end,
+reopens stale controls during a switch, selects the host output when returning
+to PartyUp, and retries a missing Linux audio output once. A disconnected
+Computer mix retains its chosen speakers for Retry. The interface also reports
+when another Linux output is selected. The Speaker Studio virtual output exists
+only during Computer mix; native PartyUp uses the host speaker's own output.
+These recovery paths have regression coverage; audible hardware validation
+remains pending.
+
 Desktop 0.1.19 improves native PartyUp on Linux and Windows: paired receivers
 join through the host, new handoffs settle before further group changes, and
 volume synchronization preserves stereo balance. Late group/proxy replies

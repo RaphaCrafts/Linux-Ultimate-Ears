@@ -36,11 +36,14 @@ def test_native_switch_only_opens_host_controls(monkeypatch,platform):
                 if command==0x417:c._notification(HOST,Message(0x418,bytes.fromhex(RECEIVER.replace(':',''))+b'\0'))
         c.sessions[HOST]=Session()
         async def inventory():pass
-        async def controls(address):
+        async def controls(address,refresh=False):
             assert address==HOST,'A receiver must not need its own control socket'
             calls.append(('controls',address))
         async def audio(address):calls.append(('audio',address))
         c.refresh_devices=inventory;c._group_controls=controls;c.bluez=SimpleNamespace(connect_audio=audio)
+        async def outputs(addresses):return ['host-output']
+        c._recover_group_outputs=outputs
+        monkeypatch.setattr(backend,'select_output',lambda name:calls.append(('route',name)))
         await c._group_method('native',json.dumps([HOST,RECEIVER]))
         assert host.members==[RECEIVER] and host.broadcast==3 and not host.error
         assert not receiver.connected and RECEIVER not in c.sessions
