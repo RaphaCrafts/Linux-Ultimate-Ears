@@ -1051,6 +1051,8 @@ class Controller(QThread):
 
     async def _member_volume(self,address,receiver,percent,revision=None):
         host=self.speakers[address]
+        if host.audio_mode!=0x50:
+            raise RuntimeError('Use group volume in Double Up. Select Stereo for individual speaker volumes.')
         if not host.broadcast&2 or receiver not in [address]+host.members:
             raise RuntimeError('This speaker is no longer in the PartyUp group.')
         if not isinstance(percent,int) or not 0<=percent<=100:raise ValueError('Invalid speaker level')

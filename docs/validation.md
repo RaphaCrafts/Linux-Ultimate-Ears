@@ -550,3 +550,16 @@ connection information when controls fail. Stopped mixes no longer show
 “Reading volume…” indefinitely. Regression tests simulate delayed AVDTP,
 ordered device release, failed profile recovery, receiver-only audio and
 connection labels with control errors. Audible recovery remains unverified.
+
+
+## Double Up controls (0.1.22)
+
+Balance and individual speaker volume controls are disabled in native Double Up,
+with group volume left available. Individual level refresh is disabled there too.
+Playback mode participates in the card cache key so switching modes immediately
+updates slider availability. Mode changes cancel pending individual-volume
+timers, and both the UI dispatch and backend reject individual volume writes
+outside confirmed Stereo mode. Disabled slider handles and tracks use grey
+instead of the active accent colour. Computer mix controls retain their existing
+behavior. The existing mode-switch regression now checks disabled controls in
+Double Up, blocked dispatch, group volume availability and re-enabling in Stereo.

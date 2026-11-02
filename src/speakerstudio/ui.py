@@ -240,7 +240,8 @@ QSlider::sub-page:horizontal {{background:#12b5d3;border-radius:2px;}}
 QSlider::handle:horizontal {{background:#12b5d3;width:16px;height:16px;margin:-6px 0;border-radius:8px;}}
 QSlider::groove:vertical {{width:5px;background:{line};}}
 QSlider::handle:vertical {{background:#12b5d3;height:14px;margin:0 -5px;border-radius:7px;}}
-QSlider:disabled {{opacity:.5;}}
+QSlider::sub-page:horizontal:disabled {{background:{line};}}
+QSlider::handle:horizontal:disabled, QSlider::handle:vertical:disabled {{background:{muted};}}
 QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9px 20px;}}
 ''')
 
@@ -910,6 +911,8 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
 
     def choose_party_mode(self,mode):
         self.cancel_balance()
+        for timer in self.member_timers.values():timer.stop()
+        self.native_level_pending.clear()
         self.party_action('party_mode',mode)
 
     def centre_balance(self):
@@ -946,7 +949,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             return
         self.read_group_button.setEnabled(bool(self.existing_group_candidates()))
         current=self.devices.get(self.group_host)
-        signature=(self.group_host,tuple(current.get('members',[]))) if current else None
+        signature=(self.group_host,tuple(current.get('members',[])),current.get('audio_mode')) if current else None
         if current and current['connected'] and signature==self.mix_signature:
             if any(s.isSliderDown() for s in self.member_sliders.values()) or any(t.isActive() for t in self.member_timers.values()):return
         receivers={a for d in self.devices.values() if d.get('broadcast',0)&2 for a in d.get('members',[])}
@@ -968,8 +971,9 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         individual_levels=bool(host and host.get('broadcast',0)&2 and host.get('members'))
         self.levels_hint.setVisible(individual_levels)
         self.levels_refresh.setVisible(individual_levels)
-        self.levels_refresh.setEnabled(bool(host and not host['busy']))
-        self.levels_hint.setText('Individual volumes · changing group volume synchronizes all speakers')
+        separate_levels=bool(host and host.get('audio_mode')==0x50)
+        self.levels_refresh.setEnabled(bool(separate_levels and not host['busy']))
+        self.levels_hint.setText('Individual volumes · changing group volume synchronizes all speakers' if separate_levels else 'Double Up uses group volume. Select Stereo for individual volumes.')
         paired_view=bool(host and host.get('broadcast',0)&2 and len(host.get('members',[]))==1)
         self.balance_panel.setVisible(paired_view)
         self.party_mode_row.setVisible(paired_view)
@@ -986,8 +990,8 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             self.balance_right.setText(member.get('name','Group member'))
             if not self.balance_slider.isSliderDown() and not self.balance_dirty and not self.balance_request:
                 self.balance_slider.setValue((host.get('balance') or 0)+128)
-            if not host['features'].get('balance'):self.balance_readout.setText('Balance unavailable')
-            elif mode!=0x50:self.balance_readout.setText('Select Stereo above to use balance')
+            if mode!=0x50:self.balance_readout.setText('Select Stereo above to use balance')
+            elif not host['features'].get('balance'):self.balance_readout.setText('Balance unavailable')
             else:self.describe_balance(self.balance_slider.value())
         self.ungroup_button.setEnabled(bool(host and host.get('broadcast',0)&2 and not host['busy']))
         self.group_volume.setEnabled(bool(host and host.get('broadcast',0)&2 and not host['busy']))
@@ -1035,7 +1039,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             action_target=self.devices.get(address,{})
             action.setEnabled(not host['busy'] and not action_target.get('busy',False) and (address in members or address in allowed))
         card_busy=host['busy'] and host.get('operation')!='balance'
-        grid_signature=(host['address'],tuple(members),card_busy,host.get('group_target') if joining else None,
+        grid_signature=(host['address'],tuple(members),host.get('audio_mode'),card_busy,host.get('group_target') if joining else None,
             tuple((d['address'],d['name'],d['connected'],d['battery'],d['volume'],d.get('broadcast',0),d['busy'] if d['address']!=host['address'] else card_busy,str(self.image_path(d))) for d in self.devices.values()),
             json.dumps(host.get('member_info',{}),sort_keys=True),tuple(allowed))
         if grid_signature==self.party_grid_signature:return
@@ -1069,11 +1073,11 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
                     if request[1]==revision:self.native_level_pending.pop(address,None)
                     else:level=request[2]
                 slider.setValue(level if level is not None else 0)
-                slider.setEnabled(level is not None and not host['busy'])
+                slider.setEnabled(separate_levels and level is not None and not host['busy'])
                 self.member_sliders[address]=slider
                 level_row.addWidget(slider)
                 box.addLayout(level_row)
-                output=text(f'Volume {level}%' if level is not None else 'Refresh levels to adjust','muted')
+                output=text('Use group volume in Double Up' if not separate_levels else f'Volume {level}%' if level is not None else 'Refresh levels to adjust','muted')
                 slider.valueChanged.connect(lambda v,label=output:label.setText(f'Volume {v}%'))
                 box.addWidget(output)
                 if metadata.get('level_error'):output.setText('Individual level unavailable')
@@ -1309,6 +1313,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
 
     def send_member_level(self,host,address,value):
         if self.group_host!=host:return
+        if self.devices.get(host,{}).get('audio_mode')!=0x50:return
         if self.demo:self.party_action('member_volume',address,value);return
         revision=uuid.uuid4().hex
         self.native_level_pending[address]=(host,revision,value)

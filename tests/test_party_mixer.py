@@ -174,8 +174,15 @@ def test_party_balance_large_group_levels_and_animation_states(tmp_path,monkeypa
     assert not w.balance_panel.isHidden() and w.balance_slider.isEnabled()
     w.party_action('party_mode',0)
     assert not w.balance_slider.isEnabled() and 'Select Stereo' in w.balance_readout.text()
+    assert not w.balance_centre.isEnabled() and not w.levels_refresh.isEnabled()
+    assert all(not slider.isEnabled() for slider in w.member_sliders.values())
+    assert w.group_volume.isEnabled()
+    before=host['volume']
+    w.send_member_level(w.group_host,w.group_host,99)
+    assert host['volume']==before
     w.party_action('party_mode',0x50)
     assert w.balance_slider.isEnabled()
+    assert w.member_sliders[w.group_host].isEnabled() and w.levels_refresh.isEnabled()
     w.balance_slider.setValue(0);w.send_balance()
     assert host['balance']==-128
     w.centre_balance();w.send_balance();assert host['balance']==0

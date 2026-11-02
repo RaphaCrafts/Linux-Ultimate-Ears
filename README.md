@@ -273,6 +273,10 @@ and [image sources](assets/speakers/README.md) are included.
 Protocol research is available in [the research notes](docs/protocol-research.md).
 Extracted APKs and decompiled vendor code are kept out of this repository.
 
+Desktop 0.1.22 disables balance and individual speaker volumes in Double Up.
+Use group volume there, or select Stereo to enable separate adjustments.
+Disabled sliders now appear grey. Computer mix retains its independent volumes.
+
 Desktop 0.1.21 keeps Bluetooth/audio connection status visible when app
 controls fail. Audio setup gives BlueZ more time to complete an in-progress
 connection, then reconnects only the affected speaker once if setup still fails.
