@@ -180,12 +180,31 @@ class BlueZ:
         for attempt in range(3):
             try:await asyncio.wait_for(device.call_connect_profile(A2DP_SINK_UUID),12)
             except Exception as error:last_error=error
-            for _ in range(8):
+            # BlueZ may return InProgress while AVDTP is still opening. Repeated
+            # ConnectProfile calls after only two seconds can outpace that handoff.
+            for _ in range(32):
                 rows,_=await self.devices()
                 current=next((r for r in rows if r['address']==address),None)
                 if current and current.get('audio_connected'):return
                 await asyncio.sleep(.25)
-        raise ConnectionError('Linux could not connect the speaker audio profile. Keep it on and nearby, and release other Bluetooth audio sources.') from last_error
+        detail=' Bluetooth reported: '+str(last_error) if last_error else ''
+        raise ConnectionError('Linux could not connect the speaker audio profile.'+detail) from last_error
+
+    async def reconnect_audio(self,address):
+        """Recover a failed AVDTP connection by reopening this saved device."""
+        rows,_=await self.devices()
+        row=next((r for r in rows if r['address']==address and r['paired']),None)
+        if not row:raise RuntimeError('Pair this speaker in Linux Bluetooth settings first.')
+        device=await self.interface(row['path'],'org.bluez.Device1')
+        if row.get('bluez_connected'):
+            await asyncio.wait_for(device.call_disconnect(),12)
+            for _ in range(40):
+                rows,_=await self.devices()
+                if not any(r['address']==address and r.get('bluez_connected') for r in rows):break
+                await asyncio.sleep(.25)
+            else:raise ConnectionError('Bluetooth did not release the speaker connection. Retry the mode switch.')
+        await asyncio.sleep(1)
+        await self.connect_audio(address)
 
     async def disconnect_audio(self,address):
         """Release only A2DP during recovery of a missing desktop output."""

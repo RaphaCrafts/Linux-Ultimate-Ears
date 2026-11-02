@@ -321,3 +321,65 @@ def test_unconfirmed_ungroup_fails_without_resending_setter(monkeypatch):
         with pytest.raises(RuntimeError,match='not finished ending'):await c._ungroup(HOST)
         assert calls.count(0x413)==1 and calls.count(0x414)==20
     asyncio.run(scenario())
+
+
+def test_failed_audio_profile_reopens_only_affected_device(monkeypatch):
+    async def scenario():
+        c,calls,host,receiver=setup(monkeypatch)
+        original=c.bluez.connect_audio
+        async def audio(address):
+            if address==RECEIVER:raise ConnectionError('Operation already in progress')
+            await original(address)
+        async def reconnect(address):
+            assert address in c.connecting and not c.speakers[address].connected
+            calls.append(('reconnect',address))
+        c.bluez.connect_audio=audio;c.bluez.reconnect_audio=reconnect
+        await c._group_method('computer',json.dumps([HOST,RECEIVER]))
+        assert c.computer_mix.active and not c.mix_error
+        assert calls.count(('reconnect',RECEIVER))==1 and ('reconnect',HOST) not in calls
+        assert not c.connecting
+    asyncio.run(scenario())
+
+
+def test_computer_retry_accepts_receiver_audio_without_controls(monkeypatch):
+    async def scenario():
+        c,calls,host,receiver=setup(monkeypatch)
+        host.broadcast=0;host.members=[]
+        receiver.audio_connected=True;receiver.error='Previous control connection failed'
+        await c._group_method('computer',json.dumps([HOST,RECEIVER]))
+        assert c.computer_mix.active and ('controls',RECEIVER) not in calls
+    asyncio.run(scenario())
+
+
+def test_bluez_waits_for_in_progress_audio_handoff(monkeypatch):
+    async def scenario():
+        sleeps=[];calls=[]
+        class Audio(BlueZ):
+            async def devices(self):return [{'address':RECEIVER,'path':'/paired','paired':True,'audio_connected':len(sleeps)>=24}],[]
+            async def interface(self,*args):return self
+            async def call_connect_profile(self,uuid):calls.append(uuid);raise RuntimeError('InProgress')
+        async def sleep(delay):sleeps.append(delay)
+        monkeypatch.setattr('speakerstudio.bluez.asyncio.sleep',sleep)
+        await Audio().connect_audio(RECEIVER)
+        assert len(sleeps)==24 and calls==[A2DP_SINK_UUID]
+    asyncio.run(scenario())
+
+
+def test_bluez_reconnect_waits_for_device_release_and_keeps_pairing(monkeypatch):
+    async def scenario():
+        calls=[]
+        class Audio(BlueZ):
+            linked=True;polls=0
+            async def devices(self):
+                self.polls+=1
+                return [{'address':RECEIVER,'path':'/paired','paired':True,'bluez_connected':self.polls<3}],[]
+            async def interface(self,*args):return self
+            async def call_disconnect(self):calls.append('disconnect')
+            async def connect_audio(self,address):
+                assert address==RECEIVER and self.polls>=3
+                calls.append('audio')
+        async def sleep(delay):pass
+        monkeypatch.setattr('speakerstudio.bluez.asyncio.sleep',sleep)
+        await Audio().reconnect_audio(RECEIVER)
+        assert calls==['disconnect','audio']
+    asyncio.run(scenario())

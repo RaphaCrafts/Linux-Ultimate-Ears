@@ -524,3 +524,29 @@ found no Bluetooth speaker sinks. Audible transitions, reconnect reliability on
 the physical pair, and long-duration synchronization remain unverified for this
 update. Speaker Studio's virtual output exists only while Computer mix is running;
 native PartyUp uses the host speaker's own Linux output.
+
+
+## In-progress audio setup and connection status (0.1.21)
+
+A user screenshot showed PURPLE connected in Linux Bluetooth while Computer mix
+reported failed audio-profile establishment. Read-only live inspection on
+2026-11-02 subsequently found both speakers linked, both A2DP transports idle,
+and two PipeWire speaker sinks. The Bluetooth service log contained failed
+AVDTP attempts with “Host is down” and repeated “Operation already in progress”
+before a transport became ready. This confirms a delayed connection at that
+time; it does not establish every cause of failed mode switching. No identifiers
+from the local inventory or service log are included here.
+
+Profile setup now waits up to eight seconds after each attempt instead of two,
+before retrying the profile request. If setup still fails during an explicit
+mode switch, the controller releases its control session and reopens only that
+saved speaker's Bluetooth device connection once. Pairing, other devices and
+the adapter stay intact. Successful native recovery rereads the host's controls.
+Missing PipeWire output recovery remains a separate, profile-only operation.
+
+A receiver with working audio no longer needs a direct control session simply
+to retry Computer mix. Sidebar and speaker status retain Bluetooth/audio
+connection information when controls fail. Stopped mixes no longer show
+“Reading volume…” indefinitely. Regression tests simulate delayed AVDTP,
+ordered device release, failed profile recovery, receiver-only audio and
+connection labels with control errors. Audible recovery remains unverified.

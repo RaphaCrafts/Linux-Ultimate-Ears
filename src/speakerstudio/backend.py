@@ -592,7 +592,7 @@ class Controller(QThread):
                 for address in ordered:
                     speaker=self.speakers[address]
                     if address in receivers:continue
-                    if speaker.connected or speaker.audio_connected or speaker.broadcast&2:
+                    if speaker.connected or speaker.broadcast&2 or address==addresses[0] and speaker.audio_connected:
                         await self._group_controls(address,refresh=True)
                         if speaker.broadcast&2:
                             receivers.update(speaker.members)
@@ -607,8 +607,7 @@ class Controller(QThread):
                         speaker.error=''
                     self.status.emit('Connecting Linux audio to '+speaker.name+'…')
                     if speaker.sleeping and speaker.wake_available:await self._group_controls(address)
-                    try:await self.bluez.connect_audio(address)
-                    except Exception as error:raise ConnectionError(speaker.name+': '+str(error)) from error
+                    await self._connect_group_audio(address)
                 names=await self._recover_group_outputs(addresses)
                 self.computer_mix.start(names)
             else:
@@ -633,7 +632,8 @@ class Controller(QThread):
                 if sys.platform=='win32':
                     self.status.emit('PartyUp is configured. Select the host speaker in Windows Sound settings for music.')
                 else:
-                    await self.bluez.connect_audio(host)
+                    await self._connect_group_audio(host)
+                    if not self.speakers[host].connected:await self._group_controls(host)
                     names=await self._recover_group_outputs([host])
                     select_output(names[0])
             await self.refresh_devices()
@@ -677,6 +677,22 @@ class Controller(QThread):
             await asyncio.sleep(.25)
         missing=[self.speakers[address].name for address,name in zip(addresses,names) if not name]
         raise ConnectionError('Linux audio output did not appear for '+', '.join(missing)+'. Retry the switch.')
+
+    async def _connect_group_audio(self,address):
+        speaker=self.speakers[address]
+        try:
+            try:await self.bluez.connect_audio(address)
+            except ConnectionError:
+                # Profile establishment itself can fail before an output exists.
+                # Release our control socket before resetting this device's link.
+                self.status.emit('Recovering Bluetooth audio for '+speaker.name+'…')
+                self.connecting.add(address)
+                try:
+                    self._lost(address,'Reopening Bluetooth audio',interrupt=False)
+                    await self.bluez.reconnect_audio(address)
+                    speaker.error=''
+                finally:self.connecting.discard(address)
+        except Exception as error:raise ConnectionError(speaker.name+': '+str(error)) from error
 
     async def _recover_group_outputs(self,addresses):
         try:return await self._wait_group_outputs(addresses)

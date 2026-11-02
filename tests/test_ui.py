@@ -356,3 +356,20 @@ def test_custom_apply_keeps_draft_during_old_busy_snapshots(tmp_path,monkeypatch
     w.update_devices(rows)
     assert not w.eq_dirty and w.eq_preset.currentData()==4
     w.close()
+
+
+def test_bluetooth_connection_remains_visible_after_control_error(tmp_path,monkeypatch):
+    from dataclasses import asdict
+    from speakerstudio.models import Speaker
+    monkeypatch.setenv('XDG_CONFIG_HOME',str(tmp_path))
+    app=QApplication.instance() or QApplication([])
+    w=Window(Controller(),demo=True);app.processEvents()
+    row=asdict(Speaker('demo-status','','PURPLE 3',paired=True,bluez_connected=True,error='Control service did not reply'))
+    w.update_devices([row])
+    assert 'Bluetooth connected' in w.connection_label.text()
+    assert 'Bluetooth connected' in w.list.item(0).text()
+    row['audio_connected']=True;w.update_devices([row])
+    assert 'Bluetooth audio connected' in w.connection_label.text()
+    assert 'Audio connected' in w.list.item(0).text()
+    assert 'Controls unavailable' in w.list.item(0).toolTip()
+    w.close()

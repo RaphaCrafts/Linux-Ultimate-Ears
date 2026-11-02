@@ -625,7 +625,8 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         for d in devices:
             state = 'Waking…' if d['busy'] and d.get('operation')=='wake' else 'Connecting controls…' if d['busy'] and d.get('operation')=='connect' else 'Controls ready' if d['connected'] else 'Audio linked' if d.get('audio_connected') else 'Bluetooth linked' if d.get('bluez_connected') else 'Sleeping · wake available' if d.get('sleeping') and d.get('wake_available') else 'Saved · disconnected' if d['paired'] else 'Not paired'
             if d['address'] in grouped:state='In PartyUp'
-            if d.get('error') and not d['connected'] and not d['busy']:state='Controls unavailable'
+            if d.get('error') and not d['connected'] and not d['busy']:
+                state='Audio connected · Controls unavailable' if d.get('audio_connected') else 'Bluetooth connected · Controls unavailable' if d.get('bluez_connected') else 'Controls unavailable'
             rows.append((d,state,self.image_path(d)))
         sidebar_signature=tuple((d['address'],d['name'],state,str(image),d.get('error','')) for d,state,image in rows)
         if sidebar_signature!=self.sidebar_signature:
@@ -698,12 +699,12 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         elif d['connected']:
             status = 'Controls connected' + (' · Bluetooth audio connected' if d.get('audio_connected') else ' · audio not linked')
             if sys.platform == 'win32':status='Controls connected · choose audio in Windows Sound settings'
+        elif d.get('audio_connected'):
+            status = 'Bluetooth audio connected · Controls unavailable' if d.get('error') else 'Bluetooth audio connected · connect controls to adjust the speaker'
+        elif d.get('bluez_connected'):
+            status = 'Bluetooth connected · Controls unavailable' if d.get('error') else 'Bluetooth linked · speaker controls not connected'
         elif d.get('error'):
             status = 'Controls unavailable · pairing saved' if d['paired'] else 'Controls unavailable · pair in Bluetooth settings'
-        elif d.get('audio_connected'):
-            status = 'Bluetooth audio connected · connect controls to adjust the speaker'
-        elif d.get('bluez_connected'):
-            status = 'Bluetooth linked · speaker controls not connected'
         elif d.get('sleeping') and d.get('wake_available'):
             status = 'Sleeping nearby · ready to wake and connect'
         else:
@@ -1274,7 +1275,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             slider.setEnabled(bool(state.get('running') and not state.get('switching') and value is not None))
             if not editing:
                 slider.blockSignals(True);slider.setValue(value if value is not None else 0);slider.blockSignals(False)
-                self.computer_outputs[address].setText('Muted' if level.get('muted') else f'Volume {value}%' if value is not None else 'Volume unavailable' if level.get('error') else 'Reading volume…')
+                self.computer_outputs[address].setText('Start Computer mix to adjust volume' if not state.get('running') and not state.get('switching') else 'Connecting audio…' if state.get('switching') else 'Muted' if level.get('muted') else f'Volume {value}%' if value is not None else 'Volume unavailable' if level.get('error') else 'Reading volume…')
             self.computer_errors[address].setText(level.get('error',''))
             self.computer_errors[address].setVisible(bool(level.get('error')))
 

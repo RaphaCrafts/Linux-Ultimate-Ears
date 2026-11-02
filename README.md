@@ -273,6 +273,12 @@ and [image sources](assets/speakers/README.md) are included.
 Protocol research is available in [the research notes](docs/protocol-research.md).
 Extracted APKs and decompiled vendor code are kept out of this repository.
 
+Desktop 0.1.21 keeps Bluetooth/audio connection status visible when app
+controls fail. Audio setup gives BlueZ more time to complete an in-progress
+connection, then reconnects only the affected speaker once if setup still fails.
+Computer mix can use a receiver's existing audio connection without requiring
+its app controls.
+
 Desktop 0.1.20 improves playback switching: it waits for PartyUp to end,
 reopens stale controls during a switch, selects the host output when returning
 to PartyUp, and retries a missing Linux audio output once. A disconnected
