@@ -36,7 +36,9 @@ Keep the whole repository folder (including `src`, `assets`, and `scripts`).
 Install **Python 3.11 through 3.14** from [python.org](https://www.python.org/downloads/windows/)
 with the Python launcher enabled, then double-click **`Speaker-Studio.bat`**.
 The first launch downloads dependencies into an isolated `.venv-windows` folder;
-later launches reuse it. No administrator access is needed. Python 3.13 x64 is
+later launches reuse it. The console closes after launch; setup can take a few
+minutes, and errors are recorded in `.local/windows-launcher.log`. No administrator
+access is needed. Python 3.13 x64 is
 the version used for local validation.
 
 Pair your speaker in **Windows Settings → Bluetooth & devices**, then search in
