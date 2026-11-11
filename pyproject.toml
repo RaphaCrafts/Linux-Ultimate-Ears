@@ -7,10 +7,11 @@ name = "speakerstudio"
 version = "0.1.22"
 description = "A friendly Linux and Windows desktop controller for Ultimate Ears speakers"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.15"
 license = {text = "GPL-3.0-or-later"}
 dependencies = [
-    "PySide6-Essentials==6.8.3",
+    "PySide6-Essentials==6.8.3; python_version < '3.14'",
+    "PySide6-Essentials==6.10.1; python_version >= '3.14'",
     "dbus-next==0.2.3; sys_platform == 'linux'",
     "winrt-Windows.Devices.Bluetooth>=3.2,<4; sys_platform == 'win32'",
     "winrt-Windows.Devices.Bluetooth.Rfcomm>=3.2,<4; sys_platform == 'win32'",

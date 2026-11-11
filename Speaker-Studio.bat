@@ -12,7 +12,7 @@ if errorlevel 1 goto missing_python
 python scripts\windows_launcher.py %*
 goto finished
 :missing_python
-echo Install Python 3.11 or newer from https://www.python.org/downloads/windows/
+echo Install Python 3.11 through 3.14 from https://www.python.org/downloads/windows/
 echo Enable the Python launcher or Add Python to PATH, then open this file again.
 pause
 popd

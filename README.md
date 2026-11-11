@@ -33,7 +33,7 @@ Zorin OS 18, or newer** as the baseline. ARM computers are not supported yet.
 ## Windows (experimental)
 
 Keep the whole repository folder (including `src`, `assets`, and `scripts`).
-Install **Python 3.11 or newer** from [python.org](https://www.python.org/downloads/windows/)
+Install **Python 3.11 through 3.14** from [python.org](https://www.python.org/downloads/windows/)
 with the Python launcher enabled, then double-click **`Speaker-Studio.bat`**.
 The first launch downloads dependencies into an isolated `.venv-windows` folder;
 later launches reuse it. No administrator access is needed. Python 3.13 x64 is

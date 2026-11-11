@@ -8,8 +8,8 @@ import venv
 
 
 def main():
-    if sys.platform != 'win32' or sys.version_info < (3, 11):
-        print('Speaker studio needs Python 3.11 or newer on Windows.')
+    if sys.platform != 'win32' or not (3, 11) <= sys.version_info[:2] < (3, 15):
+        print('Speaker studio needs Python 3.11 through 3.14 on Windows.')
         return 1
     root = Path(__file__).resolve().parents[1]
     environment = root / '.venv-windows'
