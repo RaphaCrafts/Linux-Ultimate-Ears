@@ -23,6 +23,7 @@ final class SpeakerController implements Closeable {
     private final Map<String, CompletableFuture<Void>> events = new ConcurrentHashMap<>();
     private final Map<String, Protocol.Member> members = new ConcurrentHashMap<>();
     private volatile LegacySession session;
+    private long generation;
     private volatile BluetoothSocket connecting;
     private volatile boolean stopped;
     volatile String name="", model="", address="";
@@ -61,7 +62,10 @@ final class SpeakerController implements Closeable {
         List<Protocol.Member> result = new ArrayList<>(members.values());
         result.sort(Comparator.comparing(Protocol.Member::address)); return result;
     }
-    private LegacySession open(BluetoothDevice device, boolean host) throws Exception {
+    interface LinkFactory {
+        LegacySession open(LegacySession.Notifications notifications,Runnable closed) throws IOException;
+    }
+    private LegacySession open(BluetoothDevice device,LegacySession.Notifications notifications,Runnable closed) throws IOException {
         if (stopped) throw new IOException("Controls closed");
         BluetoothSocket socket=device.createRfcommSocketToServiceRecord(SPP);
         connecting=socket;
@@ -71,29 +75,58 @@ final class SpeakerController implements Closeable {
             timeout=timer.schedule(() -> { try { socket.close(); } catch(IOException ignored) {} }, 15, TimeUnit.SECONDS);
             socket.connect();
             if (stopped) throw new IOException("Controls closed");
-            return new LegacySession(socket.getInputStream(), socket.getOutputStream(), socket,
-                host ? this::notification : m -> false,
-                host ? () -> {
-                    groupSupported=false; members.clear(); inventoryKnown=false;
-                    events.values().forEach(f -> f.completeExceptionally(new IOException("Host disconnected. Reconnect.")));
-                    attributes.values().forEach(f -> f.completeExceptionally(new IOException("Host disconnected. Reconnect.")));
-                    levels.clear();
-                    changed.run();
-                } : () -> {});
-        } catch(Exception error) { socket.close(); throw error; }
+            if(!timeout.cancel(false)) throw new IOException("Bluetooth control connection timed out");
+            return new LegacySession(socket.getInputStream(),socket.getOutputStream(),socket,notifications,closed);
+        } catch(IOException | RuntimeException error) { try { socket.close(); } catch(IOException ignored) {} throw error; }
         finally { if(timeout!=null) timeout.cancel(false); connecting=null; }
     }
     void connect(BluetoothDevice device) throws Exception {
-        disconnect();
-        address=device.getAddress(); name=device.getName()==null ? address : device.getName();
-        session=open(device,true);
-        try {
-            if(stopped) throw new IOException("Controls closed");
-            model=Protocol.model(session.query(6,7));
-            refresh();
-            readFinish();
+        String label=device.getName();
+        connect(device.getAddress(),label,(notifications,closed)->open(device,notifications,closed));
+    }
+    void connect(String target,String label,LinkFactory factory) throws Exception {
+        for(int attempt=0;;attempt++) {
+            final long token;
+            synchronized(this) {
+                disconnect();
+                if(stopped) throw new IOException("Controls closed");
+                token=generation;
+                address=target; name=label==null?target:label;
+            }
+            LegacySession link=null;
+            try {
+                link=factory.open(m->receive(token,m),()->linkClosed(token));
+                synchronized(this) {
+                    if(stopped || token!=generation) throw new IOException("Controls closed");
+                    session=link;
+                }
+                model=Protocol.model(link.query(6,7));
+                refresh();
+                readFinish();
+                if(!link.isOpen()) throw new IOException("Speaker controls disconnected");
+                return;
+            } catch(Exception error) {
+                boolean linkFailed=error instanceof IOException && (link==null || !link.isOpen());
+                disconnect();
+                if(link!=null) link.close();
+                if(!linkFailed || stopped || Thread.currentThread().isInterrupted()) throw error;
+                if(attempt!=0) throw new IOException("Could not connect speaker controls. Check that the speaker is on and nearby, close other UE apps, then tap Reconnect controls.",error);
+                // Only socket setup and reads are retried. Never repeat a write
+                // after a lost response, since the speaker may have applied it.
+                sleeper.sleep(500);
+            }
         }
-        catch(Exception error) { disconnect(); throw error; }
+    }
+    private synchronized boolean receive(long token,Protocol.Message message) throws IOException {
+        return token==generation && notification(message);
+    }
+    private synchronized void linkClosed(long token) {
+        if(token==generation) disconnect();
+    }
+    private void failWaiters() {
+        IOException error=new IOException("Speaker controls disconnected. Reconnect.");
+        events.values().forEach(f -> f.completeExceptionally(error));
+        attributes.values().forEach(f -> f.completeExceptionally(error));
     }
     void readFinish() throws Exception {
         try {
@@ -105,7 +138,9 @@ final class SpeakerController implements Closeable {
         }
     }
     private LegacySession requireSession() throws IOException {
-        if (!connected()) throw new IOException("Connect a host speaker first"); return session;
+        LegacySession current=session;
+        if (current==null || !current.isOpen()) throw new IOException("Connect a host speaker first");
+        return current;
     }
     private byte[] config(LegacySession s) throws Exception {
         byte[] p=null;
@@ -113,7 +148,7 @@ final class SpeakerController implements Closeable {
             try { p=s.query(0x414,0x415); break; }
             catch (LegacySession.CommandError e) { if (e.status!=9 || i==7) throw e; sleeper.sleep(350); }
         }
-        if (p==null || p.length!=2 || (p[0]&255)>3) throw new IOException("Invalid group configuration");
+        if (p==null || p.length!=2 || (p[0]&255)>3) throw new InvalidReading("Invalid group configuration");
         broadcast=p[0]&255; audioMode=p[1]&255;
         if ((broadcast&2)==0) { members.clear(); levels.clear(); inventoryKnown=false; }
         return p;
@@ -121,28 +156,30 @@ final class SpeakerController implements Closeable {
     void refresh() throws Exception {
         LegacySession s=requireSession();
         try { config(s); groupSupported=true; }
-        catch (LegacySession.CommandError e) { if(e.status!=1) throw e; groupSupported=false; }
-        try {
-            byte[] p=s.query(0x175,0x176);
-            if(p.length<12 || (p[4]&255)>100) throw new IOException("Invalid battery reading");
-            battery=p[4]&255;
-        } catch (LegacySession.CommandError e) { if(e.status!=1) throw e; battery=-1; }
-        readVolume(s);
-        byte[] p=optional(s,0x16d,0x16e); renameSupported=p!=null;
-        if(p!=null) name=SpeakerSettings.decodeName(p);
+        catch (LegacySession.CommandError e) { if(!unavailable(e)) throw e; groupSupported=false; }
+        catch (InvalidReading e) { groupSupported=false; }
+        byte[] p=optional(s,0x175,0x176);
+        battery=p!=null && p.length>=12 && (p[4]&255)<=100?p[4]&255:-1;
+        try { readVolume(s); }
+        catch(LegacySession.CommandError e) { if(!unavailable(e)) throw e; volume=-1; }
+        catch(InvalidReading e) { volume=-1; }
+        p=optional(s,0x16d,0x16e); renameSupported=p!=null;
+        if(p!=null) try { name=SpeakerSettings.decodeName(p); } catch(IOException e) { renameSupported=false; }
         p=optional(s,3,4);
-        if(p!=null) { if(p.length==0) throw new IOException("Invalid firmware version");
+        if(p!=null && p.length>0) {
             StringJoiner version=new StringJoiner("."); for(byte n:p) version.add(Integer.toString(n&255)); firmware=version.toString(); }
         p=optional(s,0x177,0x178); eq=-1;
-        if(p!=null) { if(p.length!=1 || (p[0]&255)>4) throw new IOException("Invalid equalizer reading"); eq=p[0]&255; }
+        if(p!=null && p.length==1 && (p[0]&255)<=4) eq=p[0]&255;
         p=optional(s,0x188,0x189); customSupported=p!=null && p.length>=5; bands=customSupported?Arrays.copyOf(p,5):null;
         balanceSupported=false;
         if((broadcast&2)!=0) { p=optional(s,0x19b,0x19c); balanceSupported=p!=null && p.length==1; if(balanceSupported) balance=p[0]; }
         changed.run();
     }
+    private static final class InvalidReading extends IOException { InvalidReading(String message){super(message);} }
+    private static boolean unavailable(LegacySession.CommandError e) { return e.status==1 || e.status==9; }
     private byte[] optional(LegacySession s,int command,int response) throws Exception {
         try { return s.query(command,response); }
-        catch(LegacySession.CommandError e) { if(e.status!=1) throw e; return null; }
+        catch(LegacySession.CommandError e) { if(!unavailable(e)) throw e; return null; }
     }
     void rename(String value) throws Exception {
         if(!renameSupported) throw new IOException("Naming is unavailable on this speaker");
@@ -162,7 +199,7 @@ final class SpeakerController implements Closeable {
         if(!Arrays.equals(values,bands)) throw new IOException("Speaker did not confirm custom EQ levels");
     }
     void identify() throws Exception { requireSession().set(0x16b); }
-    void powerOff() throws Exception { requireSession().set(0x1b6); disconnect(); }
+    void powerOff() throws Exception { requireSession().set(Protocol.POWER_OFF); disconnect(); }
     void balance(int value) throws Exception {
         LegacySession s=requireSession(); config(s);
         if(!balanceSupported || !inventoryKnown || members.size()!=1 || audioMode!=0x50 || (broadcast&2)==0)
@@ -217,7 +254,7 @@ final class SpeakerController implements Closeable {
         byte[] p;
         try { p=s.query(0x18e,0x18f); steps=31; }
         catch(LegacySession.CommandError e) { if(e.status!=1) throw e; p=s.query(0x191,0x192); steps=15; }
-        if(p.length!=1 || (p[0]&255)>steps) throw new IOException("Invalid volume reading");
+        if(p.length!=1 || (p[0]&255)>steps) throw new InvalidReading("Invalid volume reading");
         volume=Math.round((p[0]&255)*100f/steps);
     }
     void add(BluetoothDevice receiver) throws Exception { add(receiver.getAddress()); }
@@ -278,7 +315,7 @@ final class SpeakerController implements Closeable {
     }
     boolean notification(Protocol.Message m) throws IOException {
         byte[] p=m.payload();
-        if(m.command()==0x443) { disconnect(); return true; }
+        if(m.command()==Protocol.POWER_DOWN) return true; // LegacySession ACKs before closing.
         if(m.command()==0x19c) { if(p.length!=1) return false; balance=p[0]; balanceSupported=true; changed.run(); return true; }
         if(m.command()==0x421 || m.command()==0x423) {
             if(p.length<9 || (p[8]!=0 && p[8]!=1)) return false;
@@ -334,11 +371,14 @@ final class SpeakerController implements Closeable {
         }
         return false;
     }
-    void disconnect() {
+    synchronized void disconnect() {
+        generation++;
         LegacySession old=session; session=null; if(old!=null) old.close();
+        failWaiters();
         BluetoothSocket socket=connecting; if(socket!=null) try { socket.close(); } catch(IOException ignored) {}
         members.clear(); levels.clear();unresolvedReceivers.clear();levelProblems.clear(); groupReadyAt=0; inventoryKnown=false; groupSupported=false; broadcast=0; volume=-1; battery=-1; model="";
         finishCode=-1; eq=-1; bands=null; customSupported=false; renameSupported=false; balanceSupported=false; firmware="";
+        audioMode=0; steps=31; balance=0;
         changed.run();
     }
     @Override public void close() { stopped=true; disconnect(); timer.shutdownNow(); }

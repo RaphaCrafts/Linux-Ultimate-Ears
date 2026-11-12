@@ -68,6 +68,7 @@ public final class PreviewInstrumentation extends Instrumentation {
                 }
             }
             tap(screen,"Speakers");
+            if(findButton(screen.getWindow().getDecorView(),"Turn off speaker")==null) throw new AssertionError("Host has no power control");
             if(findButton(screen.getWindow().getDecorView(),"✓  Stereo")==null) throw new AssertionError("Confirmed pair has no stereo control");
             // Incomplete inventory must never offer Stereo, even when a member was reported.
             runOnMainSync(()->{c.inventoryKnown=false;try{render.invoke(screen);}catch(Exception e){throw new RuntimeException(e);}});

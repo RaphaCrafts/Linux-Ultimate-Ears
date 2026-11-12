@@ -2,6 +2,7 @@ package io.raph.speakerstudio;
 
 import java.io.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** One in-flight request. A timeout closes the stream so late replies cannot be reused. */
 final class LegacySession implements Closeable {
@@ -25,19 +26,19 @@ final class LegacySession implements Closeable {
     private final Runnable disconnected;
     private final Object writeLock = new Object();
     private volatile Pending pending;
-    private volatile boolean closed;
+    private final AtomicBoolean closed = new AtomicBoolean();
     LegacySession(InputStream input, OutputStream output, Closeable transport,
                   Notifications notifications, Runnable disconnected) {
         this.input=input; this.output=output; this.transport=transport;
         this.notifications=notifications; this.disconnected=disconnected;
         Thread reader = new Thread(this::readLoop, "speaker-reader"); reader.setDaemon(true); reader.start();
     }
-    boolean isOpen() { return !closed; }
+    boolean isOpen() { return !closed.get(); }
     synchronized byte[] request(int command, int response, byte[] payload) throws Exception {
         return request(command, response, payload, 5000);
     }
     synchronized byte[] request(int command, int response, byte[] payload, long timeout) throws Exception {
-        if (closed) throw new IOException("Speaker controls disconnected. Reconnect.");
+        if (!isOpen()) throw new IOException("Speaker controls disconnected. Reconnect.");
         Pending next = new Pending(command, response, new CompletableFuture<>()); pending=next;
         try {
             send(new Protocol.Message(command, payload));
@@ -55,11 +56,14 @@ final class LegacySession implements Closeable {
     byte[] query(int command, int response) throws Exception { return request(command, response, new byte[0]); }
     void set(int command, byte... payload) throws Exception { request(command, 0, payload); }
     private void send(Protocol.Message message) throws IOException {
-        synchronized (writeLock) { output.write(message.encode()); output.flush(); }
+        synchronized (writeLock) {
+            if (!isOpen()) throw new IOException("Speaker controls disconnected. Reconnect.");
+            output.write(message.encode()); output.flush();
+        }
     }
     private void readLoop() {
         try {
-            while (!closed) {
+            while (isOpen()) {
                 Protocol.Message m = Protocol.read(input); byte[] p=m.payload(); Pending active=pending;
                 boolean matched=false;
                 if (active != null && !active.result.isDone()) {
@@ -71,19 +75,27 @@ final class LegacySession implements Closeable {
                         active.result.complete(p); matched=true;
                     }
                 }
-                if (!matched && m.command()!=0 && notifications.receive(m))
-                    send(new Protocol.Message(0, new byte[]{(byte)(m.command()>>8),(byte)m.command(),0}));
+                if (!matched && m.command()!=0 && notifications.receive(m)) {
+                    boolean poweringDown=m.command()==Protocol.POWER_DOWN;
+                    // A speaker may announce shutdown before the command ACK.
+                    // This event confirms power-off; an unexplained EOF does not.
+                    try { send(new Protocol.Message(0, new byte[]{(byte)(m.command()>>8),(byte)m.command(),0})); }
+                    finally {
+                        if(poweringDown) {
+                            if(active!=null && active.command==Protocol.POWER_OFF) active.result.complete(p);
+                            close();
+                        }
+                    }
+                }
             }
         } catch (Exception error) { close(); }
     }
     @Override public void close() {
-        boolean notify;
-        synchronized (writeLock) {
-            notify=!closed; closed=true;
-            try { transport.close(); } catch (IOException ignored) { }
-        }
+        if(!closed.compareAndSet(false,true)) return;
+        // Closing the socket must be able to unblock a writer holding writeLock.
+        try { transport.close(); } catch (IOException ignored) { }
         Pending active=pending;
         if (active!=null) active.result.completeExceptionally(new IOException("Speaker controls disconnected"));
-        if (notify) disconnected.run();
+        disconnected.run();
     }
 }

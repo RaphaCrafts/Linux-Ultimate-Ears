@@ -15,9 +15,17 @@ public class ControllerControlsTest {
         final ExecutorService worker=Executors.newSingleThreadExecutor();
         Rig() throws Exception { this(new SpeakerController(()->{})); }
         Rig(SpeakerController controller) throws Exception {
+            this(controller,true);
+        }
+        Rig(SpeakerController controller,boolean attach) throws Exception {
             this.controller=controller;
-            LegacySession session=new LegacySession(input,output,()->{input.close();output.close();},controller::notification,()->{});
-            Field field=SpeakerController.class.getDeclaredField("session");field.setAccessible(true);field.set(controller,session);
+            if(attach) {
+                LegacySession session=link(controller::notification,()->{});
+                Field field=SpeakerController.class.getDeclaredField("session");field.setAccessible(true);field.set(controller,session);
+            }
+        }
+        LegacySession link(LegacySession.Notifications notifications,Runnable closed) {
+            return new LegacySession(input,output,()->{input.close();output.close();},notifications,closed);
         }
         void reply(int expected,byte[] request,int response,byte... payload) throws Exception {
             Protocol.Message wire=Protocol.read(speakerInput);assertEquals(expected,wire.command());assertArrayEquals(request,wire.payload());
@@ -96,6 +104,40 @@ public class ControllerControlsTest {
     @Test public void unconfirmedReceiverLevelCannotBeWritten() throws Exception {
         try(Rig r=new Rig()) {
             assertThrows(IOException.class,()->r.controller.memberVolume("00:11:22:33:44:66",80));
+        }
+    }
+    @Test(timeout=5000) public void retriesFailedSocketAndKeepsControlsWithUnavailableReadings() throws Exception {
+        CountDownLatch disconnected=new CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicBoolean watch=new java.util.concurrent.atomic.AtomicBoolean();
+        try(Rig r=new Rig(new SpeakerController(()->{if(watch.get()) disconnected.countDown();},()->0,millis->{}),false)) {
+            byte[] empty=new byte[0];
+            Future<?> peer=r.worker.submit(()->{
+                r.reply(6,empty,7,"HUMBOLDT".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+                r.reply(0x414,empty,0x415,(byte)0,(byte)0);
+                r.reply(0x175,empty,0x176,(byte)0); // Truncated battery reply.
+                r.reply(0x18e,empty,0x18f,(byte)16);
+                r.reply(0x16d,empty,0,(byte)1,(byte)0x6d,(byte)9); // Name temporarily busy.
+                r.reply(3,empty,4,(byte)1,(byte)6,(byte)45);
+                r.reply(0x177,empty,0x178,(byte)0);
+                r.reply(0x188,empty,0,(byte)1,(byte)0x88,(byte)1);
+                r.reply(0x1be,empty,0x1bf,(byte)1,(byte)0x16);
+                return null;
+            });
+            java.util.concurrent.atomic.AtomicInteger opens=new java.util.concurrent.atomic.AtomicInteger();
+            r.controller.connect("00:11:22:33:44:55","Garden",(notifications,closed)->{
+                if(opens.incrementAndGet()==1) throw new IOException("Temporary socket failure");
+                return r.link(notifications,closed);
+            });
+            assertTrue(r.controller.connected()); assertEquals(2,opens.get());
+            assertEquals("MEGABOOM 3",r.controller.model);
+            assertEquals(-1,r.controller.battery); assertEquals(52,r.controller.volume);
+            assertEquals("Garden",r.controller.name);
+            peer.get(2,TimeUnit.SECONDS);
+            watch.set(true);
+            r.speakerOutput.close();
+            assertTrue(disconnected.await(1,TimeUnit.SECONDS));
+            assertFalse(r.controller.connected()); assertEquals(-1,r.controller.volume);
+            assertEquals("",r.controller.firmware);
         }
     }
 }

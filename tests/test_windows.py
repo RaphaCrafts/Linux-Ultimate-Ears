@@ -240,7 +240,7 @@ def test_windows_native_group_does_not_fail_on_linux_audio_routing():
     c=Controller();states=[];c.computer_mix_changed.connect(states.append)
     c.speakers={a:Speaker(a,'',a,paired=True,connected=True) for a in ('host','receiver')}
     async def inventory():pass
-    async def controls(*args):pass
+    async def controls(*args, refresh=False):pass
     async def join(host,receiver):c.speakers[host].members=[receiver]
     async def no_audio(*args):raise AssertionError('Windows must not call Linux audio routing')
     c.refresh_devices=inventory;c._group_controls=controls;c._group_add=join

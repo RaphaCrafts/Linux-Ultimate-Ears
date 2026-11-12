@@ -44,6 +44,8 @@ the version used for local validation.
 Pair your speaker in **Windows Settings → Bluetooth & devices**, then search in
 the app and connect its controls. **Search for speakers** also detects compatible
 sleeping speakers: choose **Turn on**, or **Connect controls** to wake and connect.
+To switch off a connected speaker, select it and click **Turn off** next to the
+connection controls. The Linux desktop uses the same control.
 Bluetooth Smart / remote power must be enabled in the UE phone app. Wake requires
 a recent supported BLE signal that matches the exact saved Classic pairing;
 deep sleep or disabled Bluetooth Smart can still require the power button.

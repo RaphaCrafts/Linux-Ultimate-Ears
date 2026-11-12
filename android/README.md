@@ -1,6 +1,6 @@
 # Speaker Studio for Android
 
-Native Android companion for Speaker Studio, current build **0.4.1**.
+Native Android companion for Speaker Studio, source version **0.4.2**.
 Speakers and Sound use consistent speaker cards, battery indicators, volume
 readouts and controls. Known finish codes select the same product photographs as Linux and are remembered
 per speaker. Tap **Colour** to choose a local override or return to detection.
@@ -15,12 +15,17 @@ The single **Speakers** tab handles a standalone speaker or an expanding PartyUp
 group. Adding receivers brings up group volume and playback-mode controls.
 There is no separate Mix tab. On launch, the app restores controls for a previously
 confirmed UE speaker already exposed as a connected phone Bluetooth audio output,
-then reads its existing group. It does not wake a disconnected speaker or create
-a group. **Release controls** disables automatic recovery until the next manual
-connection. Ambiguous connected outputs require choosing a speaker.
+then reads its existing group. If Android reports the audio output after the
+screen opens, the app can restore controls then. It does not wake a disconnected
+speaker or create a group. If controls drop while listening, tap **Reconnect
+controls** for that speaker. The app retries connection setup once after a
+transport failure; it never retries an unconfirmed write after a disconnect.
+**Release controls** and **Turn off speaker** disable automatic recovery until
+the next manual connection. Ambiguous connected outputs require choosing a speaker.
 
 The main list shows recognized and previously confirmed UE speakers. Use
-**Add paired speaker** once for a custom name. The **•••** menu holds rename,
+**Add paired speaker** once for a custom name. **Turn off speaker** is on the
+connected speaker or PartyUp host card. The **•••** menu holds rename,
 refresh, firmware, change speaker, release controls and power off. No vendor APK code is bundled. Product photographs, provenance and rights notices
 are shared with the desktop catalogue in `assets/speakers/`. Unknown finishes use
 the original illustration.
@@ -50,7 +55,7 @@ button twice and retry. A queued command alone never marks a join successful.
 
 ## Controls and desktop parity
 
-| Capability | Android 0.4.1 |
+| Capability | Android 0.4.2 |
 | --- | --- |
 | Battery, volume, installed firmware | Read from the connected host; explicit refresh |
 | Rename, battery announcement, power off | Implemented with the desktop protocol |
@@ -110,6 +115,10 @@ Open this `android` folder in Android Studio with a full JDK 17 or 21, SDK Platf
 APK: `app/build/outputs/apk/debug/app-debug.apk`. IDE files, SDK paths, build
 outputs and signing keys are ignored. No new third-party runtime dependency is
 needed for the redesign.
+
+Build with `-PpreviewInstall` to install **Speaker Studio Preview** alongside
+the published APK when you do not have its signing key. The preview keeps
+separate app preferences and uses the same Android Bluetooth pairings.
 
 `PreviewInstrumentation` is an emulator-only visual smoke check. It injects a fake
 in-memory transport, renders connection / speaker / sound / group / settings

@@ -9,6 +9,9 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.media.AudioDeviceCallback;
+import android.media.AudioDeviceInfo;
+import android.media.AudioManager;
 import android.os.*;
 import android.provider.Settings;
 import android.view.*;
@@ -19,6 +22,8 @@ import java.util.concurrent.*;
 @SuppressLint({"SetTextI18n", "MissingPermission"})
 public final class MainActivity extends Activity {
     private static final int BG=0xff101214, CARD=0xff1c2024, TEXT=0xfff4f5f0, MUTED=0xffa9afb4, ACCENT=0xffd5f578;
+    private static final String CONNECTED="Speaker controls connected";
+    private static final String DISCONNECTED="Speaker controls disconnected. Tap Reconnect controls when the speaker is on.";
     private LinearLayout body, navigation;
     private ScrollView scroll;
     private String page="speakers";
@@ -28,6 +33,8 @@ public final class MainActivity extends Activity {
     private SpeakerController controller;
     private ExecutorService worker;
     private boolean active, busy;
+    private boolean restorePending, hadControls;
+    private AudioDeviceCallback outputCallback;
     private String status="";
     private final Map<String,String> names=new HashMap<>();
     interface Action { void run(SpeakerController c) throws Exception; }
@@ -53,12 +60,33 @@ public final class MainActivity extends Activity {
     @Override protected void onStart() {
         super.onStart(); active=true; busy=false;
         scrubbing=false;eqDirty=false;eqDraft=null;pendingLevels.clear();
-        controller=new SpeakerController(() -> runOnUiThread(() -> { if(active && !busy && !scrubbing) render(); }));
+        restorePending=true; hadControls=false;
+        controller=new SpeakerController(() -> runOnUiThread(() -> {
+            if(active && !busy && !scrubbing) {
+                if(hadControls && !controller.connected()) {
+                    hadControls=false;
+                    status=DISCONNECTED;
+                }
+                render();
+            }
+        }));
         worker=Executors.newSingleThreadExecutor();render();
+        AudioManager audio=getSystemService(AudioManager.class);
+        if(audio!=null) {
+            outputCallback=new AudioDeviceCallback() {
+                @Override public void onAudioDevicesAdded(AudioDeviceInfo[] outputs) {
+                    if(outputCallback==this) restoreLastHost();
+                }
+            };
+            audio.registerAudioDeviceCallback(outputCallback,new Handler(Looper.getMainLooper()));
+        }
         restoreLastHost();
     }
     @Override protected void onStop() {
         active=false;
+        AudioManager audio=getSystemService(AudioManager.class);
+        if(audio!=null && outputCallback!=null) audio.unregisterAudioDeviceCallback(outputCallback);
+        outputCallback=null;
         controller.close(); worker.shutdownNow(); busy=false;
         status="Controls released";
         super.onStop();
@@ -126,7 +154,7 @@ public final class MainActivity extends Activity {
     private void renderConnect() {
         body.addView(new SpeakerArtwork(this,true),new LinearLayout.LayoutParams(-1,dp(185)));
         text(body,"Ready when you are.",25,TEXT,true);
-        text(body,"Choose a powered-on, paired speaker.",14,MUTED,false);
+        text(body,"Connect controls to a powered-on, paired speaker. Bluetooth audio can stay connected separately.",14,MUTED,false);
         LinearLayout paired=card(); text(paired,"Your speakers",19,TEXT,true);
         if(!permitted()) {
             primary(paired,"Allow nearby devices",()->requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT},1));
@@ -137,13 +165,16 @@ public final class MainActivity extends Activity {
             else {
                 List<BluetoothDevice> devices=pairedDevices();
                 devices.removeIf(device->!knownSpeaker(device));
+                String previous=controller.address.isEmpty()?getPreferences(0).getString("last-host",""):controller.address;
+                devices.sort(Comparator.comparing(device->!device.getAddress().equals(previous)));
                 if(devices.isEmpty()) text(paired,"No saved UE speakers yet",14,MUTED,false);
                 for(BluetoothDevice device:devices) {
                     String name=deviceName(device);
                     if(devices.stream().filter(other->deviceName(other).equals(deviceName(device))).count()>1) name+=" · "+device.getAddress().substring(12);
                     LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);paired.addView(row);
                     row.addView(artwork(device.getAddress(),"",-1),new LinearLayout.LayoutParams(dp(48),dp(64)));
-                    Button connect=button(row,name+"   →",true,()->connect(device,false));connect.setLayoutParams(new LinearLayout.LayoutParams(0,-2,1));
+                    String action=device.getAddress().equals(previous)?"Reconnect controls: ":"Connect: ";
+                    Button connect=button(row,action+name,true,()->connect(device,false));connect.setLayoutParams(new LinearLayout.LayoutParams(0,-2,1));
                 }
             }
         }
@@ -236,7 +267,7 @@ public final class MainActivity extends Activity {
     }
     private void readReceiverLevels() {run("Individual levels checked",SpeakerController::groupLevels);}
     private void restoreLastHost() {
-        if(!permitted() || !getPreferences(0).getBoolean("resume-controls",true))return;
+        if(!active || busy || !restorePending || !permitted() || !getPreferences(0).getBoolean("resume-controls",true))return;
         BluetoothAdapter bt=adapter();if(bt==null || !bt.isEnabled())return;
         List<BluetoothDevice> paired=pairedDevices();List<String> available=new ArrayList<>();
         android.media.AudioManager audio=getSystemService(android.media.AudioManager.class);
@@ -255,9 +286,25 @@ public final class MainActivity extends Activity {
     }
     private String deviceName(BluetoothDevice device) { return device.getName()==null?"Unnamed device":device.getName(); }
     private void connect(BluetoothDevice device,boolean receiver) {
-        run(receiver?"Speaker added":"Connected",c->{
-            if(receiver)c.add(device);else { c.connect(device);runOnUiThread(()->{eqDirty=false;getPreferences(0).edit().putString("last-host",device.getAddress()).putBoolean("resume-controls",true).apply();}); }
+        if(!receiver) restorePending=false;
+        run(receiver?"Speaker added":CONNECTED,c->{
+            if(receiver)c.add(device);else { c.connect(device);runOnUiThread(()->{
+                if(!active || controller!=c) return;
+                eqDirty=false;
+                getPreferences(0).edit().putString("last-host",device.getAddress()).putBoolean("resume-controls",true).apply();
+            }); }
         });
+    }
+    private void confirmPowerOff() {
+        new AlertDialog.Builder(this).setTitle("Turn off "+controller.name+"?")
+            .setMessage((controller.broadcast&2)!=0?"Turning off the host stops its PartyUp playback. Use its power button to turn it on again."
+                                                   :"Use the speaker’s power button to turn it on again.")
+            .setNegativeButton("Cancel",null).setPositiveButton("Turn off",(d,w)->{
+                // A lost reply can still mean it shut down. Don't auto-connect
+                // to the phone's stale audio route after an explicit power-off.
+                getPreferences(0).edit().putBoolean("resume-controls",false).apply();
+                run("Speaker turned off",SpeakerController::powerOff);
+            }).show();
     }
     private void settings() {
         boolean connected=controller.connected();
@@ -274,8 +321,7 @@ public final class MainActivity extends Activity {
                 case 4: choose(false);break;
                 case 5: bluetoothSettings();break;
                 case 6: getPreferences(0).edit().putBoolean("resume-controls",false).apply();run("Controls released",SpeakerController::disconnect);break;
-                case 7: new AlertDialog.Builder(this).setTitle("Turn off "+controller.name+"?")
-                    .setNegativeButton("Cancel",null).setPositiveButton("Turn off",(d,w)->run("Speaker turned off",c->{c.powerOff();getPreferences(0).edit().putBoolean("resume-controls",false).apply();})).show();break;
+                case 7: confirmPowerOff();break;
                 default: platformInfo();
             }
         }).show();
@@ -336,6 +382,7 @@ public final class MainActivity extends Activity {
             controller.battery,controller.finishCode,controller.volume>=0?controller.volume:null,
             p->run("Speaker volume set",c->{if(grouped)c.hostVolume(p);else c.volume(p);}),large);
         if(large)button(host,"Find speaker",true,()->run("Playing battery prompt",SpeakerController::identify));
+        button(host,"Turn off speaker",true,this::confirmPowerOff);
         for(Protocol.Member member:controller.members()) {
             String name=names.getOrDefault(member.address(),"Speaker "+member.address().substring(12));
             LinearLayout box=speakerCard(member.address(),name,"","Receiver",member.battery(),member.finishCode(),controller.memberLevel(member.address()),
@@ -479,12 +526,17 @@ public final class MainActivity extends Activity {
             try { action.run(current); }
             catch(Exception error) { result=error.getMessage()==null?"Bluetooth operation failed. Reconnect and retry.":error.getMessage(); }
             String message=result;
-            runOnUiThread(()-> { if(active && controller==current) { busy=false;pendingLevels.clear(); status=message; render(); } });
+            runOnUiThread(()-> { if(active && controller==current) {
+                busy=false;hadControls=current.connected();pendingLevels.clear();
+                status=CONNECTED.equals(message) && !hadControls?DISCONNECTED:message;
+                render();
+            } });
         });
     }
     @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] results) {
         super.onRequestPermissionsResult(request,permissions,results);
         status=permitted()?"Choose a paired host speaker.":"Nearby devices permission was denied. Allow it in Android app settings to connect.";
         render();
+        restoreLastHost();
     }
 }

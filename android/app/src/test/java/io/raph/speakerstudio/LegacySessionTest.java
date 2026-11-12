@@ -15,7 +15,7 @@ public class LegacySessionTest {
         final ExecutorService executor=Executors.newSingleThreadExecutor();
         Peer() throws IOException {
             session=new LegacySession(clientInput,clientOutput,()->{clientInput.close();clientOutput.close();},
-                m->m.command()==0x19c && m.payload().length==1,()->{});
+                m->m.command()==Protocol.POWER_DOWN || m.command()==0x19c && m.payload().length==1,()->{});
         }
         void send(int command,byte... payload) throws IOException { speakerOutput.write(new Protocol.Message(command,payload).encode()); speakerOutput.flush(); }
         Future<byte[]> request(int command,int response,long timeout) { return executor.submit(()->session.request(command,response,new byte[0],timeout)); }
@@ -58,6 +58,25 @@ public class LegacySessionTest {
     @Test public void closeUnblocksOutstandingRequest() throws Exception {
         try(Peer p=new Peer()) {
             Future<byte[]> result=p.request(6,7,2000); Protocol.read(p.speakerInput); p.session.close();
+            assertThrows(ExecutionException.class,()->result.get(1,TimeUnit.SECONDS));
+        }
+    }
+    @Test public void shutdownNoticeConfirmsPowerOffEvenBeforeCommandAck() throws Exception {
+        try(Peer p=new Peer()) {
+            Future<byte[]> result=p.request(Protocol.POWER_OFF,0,2000);
+            assertEquals(Protocol.POWER_OFF,Protocol.read(p.speakerInput).command());
+            p.send(Protocol.POWER_DOWN);
+            Protocol.Message ack=Protocol.read(p.speakerInput);
+            assertEquals(0,ack.command());
+            assertArrayEquals(new byte[]{4,0x43,0},ack.payload());
+            result.get(1,TimeUnit.SECONDS);
+        }
+    }
+    @Test public void bareSocketLossDoesNotConfirmPowerOff() throws Exception {
+        try(Peer p=new Peer()) {
+            Future<byte[]> result=p.request(Protocol.POWER_OFF,0,2000);
+            Protocol.read(p.speakerInput);
+            p.speakerOutput.close();
             assertThrows(ExecutionException.class,()->result.get(1,TimeUnit.SECONDS));
         }
     }

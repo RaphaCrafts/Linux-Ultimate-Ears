@@ -229,6 +229,7 @@ def test_computer_switch_never_probes_receiver_with_lingering_audio(monkeypatch)
 
 
 def test_native_switch_explicitly_routes_audio_to_host(monkeypatch):
+    monkeypatch.setattr('speakerstudio.backend.sys',SimpleNamespace(platform='linux'))
     async def scenario():
         c,calls,host,receiver=setup(monkeypatch)
         async def join(address,target):host.members=[target];host.broadcast=3

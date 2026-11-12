@@ -5,6 +5,7 @@ import java.util.*;
 
 /** Original legacy codec, shared wire format with the Linux implementation. */
 final class Protocol {
+    static final int POWER_OFF=0x1b6, POWER_DOWN=0x443;
     record Message(int command, byte[] payload) {
         byte[] encode() {
             if (command < 0 || command > 65535 || payload.length > 253)

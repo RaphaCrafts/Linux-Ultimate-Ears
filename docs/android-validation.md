@@ -188,3 +188,13 @@ The emulator smoke check passes with bundled photo decoding and the optional
 individual-read controls in addition to existing appearance/EQ/accessibility
 checks. Screenshots continue to use simulated readings. The existing
 OldTargetApi lint advisory remains.
+
+## Android 0.4.2 connection recovery
+
+Simulated peers cover retrying a failed socket open, keeping controls usable
+when optional settings are busy or malformed, and clearing readings when
+the socket drops. A shutdown notification (`0x0443`, identified in the legacy
+command catalogue) is acknowledged and can confirm a pending power-off even
+if it arrives ahead of the command ACK. A socket drop alone does not confirm
+power-off. These checks use simulated traffic; reconnect timing and power-off
+still need verification with a physical phone and speaker.
