@@ -12,6 +12,8 @@ import android.graphics.drawable.GradientDrawable;
 import android.media.AudioDeviceCallback;
 import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
+import android.media.AudioAttributes;
+import android.media.MediaRouter2;
 import android.os.*;
 import android.provider.Settings;
 import android.view.*;
@@ -327,8 +329,29 @@ public final class MainActivity extends Activity {
         }).show();
     }
     private void platformInfo() {
+        AudioManager audio=getSystemService(AudioManager.class);
+        StringBuilder message=new StringBuilder();
+        if(audio!=null && Build.VERSION.SDK_INT>=33) {
+            AudioAttributes media=new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build();
+            List<AudioDeviceInfo> routes=audio.getAudioDevicesForAttributes(media);
+            if(!routes.isEmpty()) {
+                message.append("Current media route");
+                if(routes.size()>1)message.append("s");
+                message.append(": ");
+                for(int i=0;i<routes.size();i++) {
+                    if(i>0)message.append(", ");
+                    message.append(routes.get(i).getProductName());
+                }
+                message.append("\n\n");
+            }
+        }
+        message.append("Use your phone’s media output controls to select multiple speakers if it supports that feature. For a group through one Bluetooth output, use PartyUp.\n\nTurn on sleeping speakers with their power buttons.");
         new AlertDialog.Builder(this).setTitle("Phone mix & wake")
-            .setMessage("Group playback uses PartyUp. Separate streams to multiple speakers aren’t available in this Android build.\n\nRemote wake isn’t available yet. Turn on your speaker with its power button.")
+            .setMessage(message)
+            .setNeutralButton("Media output",(dialog,which)->{
+                if(Build.VERSION.SDK_INT>=34 && MediaRouter2.getInstance(this).showSystemOutputSwitcher())return;
+                bluetoothSettings();
+            })
             .setPositiveButton("Done",null).show();
     }
     private void primary(LinearLayout parent,String title,Runnable action) {

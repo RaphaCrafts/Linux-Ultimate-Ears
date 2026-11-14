@@ -379,7 +379,10 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         mode_row.addWidget(text('Send sound with','section'))
         self.method_buttons={}
         for method,label in [('native','Native PartyUp'),('computer','Computer mix')]:
-            option=button(label,lambda checked=False,m=method:self.choose_group_method(m))
+            windows_mix=method=='computer' and sys.platform=='win32' and not self.demo
+            if windows_mix:label='Windows Computer mix'
+            action=self.open_windows_mix if windows_mix else lambda checked=False,m=method:self.choose_group_method(m)
+            option=button(label,action)
             option.setCheckable(True)
             option.setAccessibleName(label+' group method')
             option.setObjectName('playbackMode')
@@ -928,8 +931,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             option.setChecked(self.playback_method==method)
             option.setEnabled(not switching and (method!=self.playback_method or method=='computer' and not state.get('running')))
             if sys.platform == 'win32' and not self.demo and method == 'computer':
-                option.setEnabled(False)
-                option.setToolTip('Computer mix requires Linux PipeWire. Use Native PartyUp on Windows.')
+                option.setCheckable(False)
         self.computer_mix_hint.setText('Switching connection method…' if switching else 'Experimental: may have echo, drift or interruptions.' if self.playback_method=='computer' else 'Speakers share sound through native PartyUp. Your choice is remembered.')
         self.retry_group.setVisible(bool(state.get('error')))
         self.retry_group.setEnabled(not switching)
@@ -1496,6 +1498,23 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
     def show_computer_mix(self):
         self.choose_group_method('computer')
 
+    def open_windows_mix(self):
+        existing=getattr(self,'windows_mix_dialog',None)
+        if existing:
+            existing.raise_()
+            return
+        try:
+            from .windows_mix_ui import WindowsMixDialog
+        except ImportError:
+            self.show_error('Windows Computer mix needs PyAudioWPatch. Start Speaker Studio using Speaker-Studio.bat.')
+            return
+        dialog=WindowsMixDialog(self)
+        self.windows_mix_dialog=dialog
+        dialog.finished.connect(lambda: setattr(self,'windows_mix_dialog',None))
+        dialog.setAttribute(Qt.WA_DeleteOnClose)
+        dialog.setWindowModality(Qt.WindowModal)
+        dialog.open()
+
     def show_error(self,message):
         self.notice.setText(message)
         self.notice.setToolTip(message)
@@ -1568,6 +1587,8 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             self.show_status('Your desktop does not currently provide a system tray. You can minimize the window instead.')
 
     def cleanup(self):
+        if getattr(self,'windows_mix_dialog',None):
+            self.windows_mix_dialog.reject()
         self.poll.stop()
         self.volume_debounce.stop()
         self.group_debounce.stop()

@@ -117,7 +117,7 @@ class Controller(QThread):
 
     async def _perform(self, action, *args):
         if sys.platform == 'win32' and (action.startswith('computer_mix_') or action == 'group_method' and args[0] == 'computer'):
-            self.publish_computer_mix('Computer mix is available only on Linux. Choose Native PartyUp on Windows.')
+            self.publish_computer_mix('Open Windows Computer mix from the PartyUp page.')
             return
         address = args[0] if not action.startswith('computer_mix_') and args and args[0] in self.speakers else None
         speaker = self.speakers.get(address)

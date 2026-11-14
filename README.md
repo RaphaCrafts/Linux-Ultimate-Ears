@@ -63,7 +63,8 @@ volume command checks. The user also confirmed audible Stereo routing and
 balance on the pair. Individual receiver proxy levels were not confirmed by
 this firmware; long playback stability and synchronization remain unmeasured.
 See the [Windows validation report](docs/windows-validation.md).
-Computer mix is available only on Linux.
+Windows also offers an experimental Computer Mix that mirrors a Windows Sound
+output to additional connected audio devices.
 
 If wake works but controls fail, the BLE wake link may still work while Windows
 cannot open the separate Classic Bluetooth control connection. For a persistent
@@ -327,6 +328,17 @@ A short real-speaker test sounded smooth and well synchronised to the listener,
 where native PartyUp had stuttered. The app allows groups of three or more.
 The number of usable outputs and playback quality depend on the Bluetooth
 adapter, speakers and radio conditions. [Experiment details](docs/computer-mix-experiment.md)
+
+On Windows, open **PartyUp → Windows Computer mix**. End native PartyUp and
+connect each speaker as a separate output in Windows Sound settings. Choose the
+output already playing your music as the source, check the additional outputs,
+and click **Start mix**. The source keeps playing. Closing the mix window stops
+mirroring. This mode requires the outputs to support the source format, and
+independent Bluetooth clocks and buffering can cause echo or drift.
+
+On Android, **Phone mix & wake → Media output** opens the phone’s output
+controls. Phones with manufacturer-provided multi-output playback can use that
+feature. Native PartyUp provides group playback through one Bluetooth output.
 
 ## Speaker firmware
 

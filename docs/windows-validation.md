@@ -37,7 +37,7 @@ every possible setting or the audible effect of each curve.
 | Group volume | Master level and synchronization command acknowledged on the real pair; both original standalone levels were subsequently restored and verified. |
 | Individual levels | Host direct control works. The grouped receiver relinquishes direct control; its host proxy did not provide a confirmed level on this firmware, so no unconfirmed receiver write was attempted. |
 | Music output | The user selected the purple host in Windows Sound settings and confirmed all four short stereo/balance tones matched the expected purple/pink/purple/pink sequence. Long-duration music synchronization, latency, and drift were not measured. |
-| Computer mix | Linux PipeWire feature; disabled on Windows. |
+| Computer mix | Experimental WASAPI loopback mirror. Physical Bluetooth playback still needs testing. |
 
 ## Initial connection failure and follow-up
 
@@ -149,3 +149,19 @@ control loss.
 The discovery check covered saved endpoints and BLE recognition. Two- and
 three-speaker playback still need physical listening tests.
 [Microsoft device information properties](https://learn.microsoft.com/en-us/windows/apps/develop/devices-sensors/device-information-properties)
+
+## Windows Computer mix
+
+The experimental mix uses PyAudioWPatch to capture one WASAPI shared-mode
+render endpoint and send the PCM to each selected additional endpoint. The
+source continues to play normally. The mix uses bounded in-memory buffers,
+leaves the Windows default output alone, and releases its streams on Stop,
+dialog close or app quit. Output names come from Windows Sound rather than
+Speaker Studio’s Bluetooth inventory. Refresh the list after a connection
+change. Each output must accept the source sample rate and channel count.
+
+Validation confirmed that a test tone reached a second Windows render endpoint
+and that closing the mix dialog released its streams. A simulated test
+confirmed fan-out to four additional outputs. Bluetooth synchronization and the usable number of
+simultaneous Bluetooth audio outputs remain unverified.
+[Microsoft WASAPI loopback](https://learn.microsoft.com/en-gb/windows/win32/coreaudio/loopback-recording)

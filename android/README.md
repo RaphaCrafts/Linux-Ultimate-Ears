@@ -66,7 +66,7 @@ button twice and retry. A queued command alone never marks a join successful.
 | Group and individual levels | Host level plus receiver proxy levels where supported |
 | Stereo balance | Two confirmed speakers in Stereo; explicit centre button |
 | Release controls | Leaves media audio and native PartyUp running |
-| Computer Mix | Linux only; requires PipeWire/WirePlumber |
+| Phone mix | Shows current media routes on Android 13+ and opens system output controls. Multi-output depends on the phone. |
 | BLE remote wake | Still Linux only; see below |
 | Speaker colours | Detected legacy finish codes, remembered artwork and local colour override |
 | Desktop tray | Android lifecycle |
@@ -86,9 +86,12 @@ The five-band labels show signed relative gain on a -100 to +100 scale;
 the wire values remain signed bytes. Saved profiles live in app-private preferences.
 Firmware installation remains delegated to the official UE | BOOM app, as on Linux.
 
-**Full platform parity is not claimed.** The Linux Computer Mix sends separate
-streams through PipeWire. Android's combined audio routing uses privileged system
-APIs and is not implemented here. Native PartyUp supplies the phone group playback.
+The **Phone mix & wake** screen displays the routes Android expects to use for
+media and links to its output picker on Android 14 or newer. Phones that support
+manufacturer-provided multi-output audio can use that feature. The tested
+ZenFone exposed a single A2DP output, so use native PartyUp for group playback
+on that phone. [Android routing validation](../docs/android-validation.md)
+
 The Linux BLE wake packet includes the local adapter's hardware address, which
 requires Android's privileged `LOCAL_MAC_ADDRESS` permission to obtain. Android
 wake needs further protocol/hardware research; no guessed address is transmitted.

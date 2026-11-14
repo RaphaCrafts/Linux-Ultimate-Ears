@@ -10,7 +10,9 @@ Updated 2026-10-24.
   long-duration phone validation and a public-API-compatible BLE wake solution
   remain open. A ZenFone 11 Ultra completed a two-speaker host-mediated join
   and initial smooth playback check in 0.3.1; see [Android validation](android-validation.md).
-  Computer Mix depends on Linux PipeWire and is not portable as implemented.
+  **Phone mix & wake** shows the current Android media routes and opens the
+  system output controls. Independent streaming depends on the phone's
+  multi-output support.
 - **Windows:** experimental desktop source launch via `Speaker-Studio.bat`.
   The shared Qt interface and legacy command codec use native WinRT RFCOMM;
   dependencies install in `.venv-windows` on first launch. Pairing and music
@@ -20,5 +22,6 @@ Updated 2026-10-24.
   PartyUp, Stereo/Double Up, balance, and group-volume command checks. Audible
   Stereo routing and balance were user-confirmed. Other models, receiver proxy
   levels, and long playback synchronization remain unverified; see the
-  [Windows validation report](windows-validation.md). Computer mix remains
-  Linux-only. There is no standalone Windows executable release yet.
+  [Windows validation report](windows-validation.md). Experimental Windows
+  Computer Mix mirrors a selected WASAPI output to other render endpoints.
+  There is no standalone Windows executable release yet.

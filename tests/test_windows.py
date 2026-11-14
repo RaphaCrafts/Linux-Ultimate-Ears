@@ -86,21 +86,24 @@ def test_windows_spp_discovery_connect_and_failure_cleanup(monkeypatch):
 
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='Windows backend selection')
-def test_windows_rejects_computer_mix_before_touching_speakers():
+def test_windows_redirects_linux_mix_actions_before_touching_speakers():
     from speakerstudio.backend import Controller
     controller = Controller()
     states = []
     controller.computer_mix_changed.connect(states.append)
     asyncio.run(controller._perform('group_method', 'computer', 'host', 'member'))
-    assert 'only on Linux' in states[-1]['error']
+    assert 'Open Windows Computer mix' in states[-1]['error']
 
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='Windows interface')
-def test_windows_ui_uses_native_party_and_disables_computer_mix():
+def test_windows_ui_uses_native_party_and_opens_windows_mix(monkeypatch):
     from PySide6.QtWidgets import QApplication
     from speakerstudio.backend import Controller
     from speakerstudio.preferences import device_settings
     from speakerstudio.ui import Window
+    from speakerstudio import windows_mix_ui
+    from PySide6.QtWidgets import QDialog
+    monkeypatch.setattr(windows_mix_ui,'WindowsMixDialog',QDialog)
     settings = device_settings()
     settings.setValue('party/default', 'computer')
     app = QApplication.instance() or QApplication([])
@@ -111,7 +114,11 @@ def test_windows_ui_uses_native_party_and_disables_computer_mix():
         app.processEvents()
         window.open_party()
         assert window.playback_method == 'native'
-        assert not window.method_buttons['computer'].isEnabled()
+        assert window.method_buttons['computer'].isEnabled()
+        window.method_buttons['computer'].click()
+        assert window.windows_mix_dialog.isVisible()
+        window.windows_mix_dialog.reject()
+        assert window.windows_mix_dialog is None
         assert window.mode_label.text() == 'Windows'
     finally:
         window.close()
