@@ -127,3 +127,15 @@ controls remain the existing 16/32-step speaker protocol controls.
 
 References: [WirePlumber volume commands](https://pipewire.pages.freedesktop.org/wireplumber/man/wpctl.html),
 [Bluetooth hardware volume](https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/bluetooth.html).
+
+## Groups with three or more speakers
+
+Computer Mix creates one PipeWire stream per selected Bluetooth sink and
+requests resampling on those streams while retaining reported-latency
+compensation. Automatic level polling no longer starts a `wpctl` process for
+every speaker on each inventory refresh. The app reads the initial levels,
+reads back changes after adjustment and supports a manual refresh.
+
+The three-output transition and exact PipeWire matching are covered by automated
+tests. Physical playback with three or more outputs, audible drift and the
+adapter's practical output limit remain unverified. [PipeWire combine stream](https://pipewire.pages.freedesktop.org/pipewire/page_module_combine_stream.html) · [PipeWire resampling properties](https://pipewire.pages.freedesktop.org/pipewire/page_man_pipewire-props_7.html)

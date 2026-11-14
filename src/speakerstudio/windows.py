@@ -8,15 +8,33 @@ import re
 import time
 from uuid import UUID
 from winrt.runtime import init_apartment, uninit_apartment, ApartmentType
+from winrt.system import unbox_boolean, unbox_string
 
 from winrt.windows.devices.bluetooth import BluetoothDevice, BluetoothCacheMode, BluetoothAdapter, BluetoothLEDevice, BluetoothError
 from winrt.windows.devices.bluetooth.advertisement import BluetoothLEAdvertisementWatcher, BluetoothLEScanningMode, BluetoothLEAdvertisementWatcherStatus
 from winrt.windows.devices.bluetooth.genericattributeprofile import GattCommunicationStatus, GattCharacteristicProperties, GattWriteOption
 from winrt.windows.devices.bluetooth.rfcomm import RfcommServiceId
-from winrt.windows.devices.enumeration import DeviceInformation
+from winrt.windows.devices.enumeration import DeviceInformation, DeviceInformationKind
+from winrt.windows.foundation import IPropertyValue
 from winrt.windows.networking.sockets import StreamSocket
 from winrt.windows.storage.streams import DataReader, DataWriter, InputStreamOptions
 from .ble import legacy_beacon, wake_payload, LEGACY_SERVICE, WAKE_CHARACTERISTIC
+
+ADDRESS = 'System.Devices.Aep.DeviceAddress'
+CONNECTED = 'System.Devices.Aep.IsConnected'
+MODEL = 'System.Devices.Aep.ModelName'
+MANUFACTURER = 'System.Devices.Aep.Manufacturer'
+CATEGORY = 'System.Devices.Aep.Category'
+
+
+def endpoint_property(info, key, unbox, default):
+    value = info.properties.get(key)
+    if value is None:
+        return default
+    try:
+        return unbox(value)
+    except (TypeError, ValueError, OSError):
+        return default
 
 
 def buffer_bytes(buffer):
@@ -40,6 +58,7 @@ class WindowsBluetooth:
         self.recognized_addresses = set()
         self.beacons = {}
         self.service_seen = {}
+        self.show_other_audio = False
         self.scan_lock = asyncio.Lock()
         self.watcher = None
 
@@ -48,44 +67,57 @@ class WindowsBluetooth:
         self.manager = True
 
     async def devices(self):
-        # Enumerate saved Classic pairings, never infer pairing from a BLE name.
+        try:
+            async with asyncio.timeout(15):
+                return await self._paired_devices()
+        except TimeoutError as error:
+            raise RuntimeError('Windows timed out while listing paired Bluetooth devices.') from error
+
+    async def _paired_devices(self):
+        # Read cached pairing metadata without opening BluetoothDevice handles.
         now = time.monotonic()
         self.beacons = {a:b for a,b in self.beacons.items() if now-b['seen']<45}
-        infos = await DeviceInformation.find_all_async_aqs_filter(BluetoothDevice.get_device_selector_from_pairing_state(True))
-        rows = []
+        infos = await DeviceInformation.find_all_async_with_kind_aqs_filter_and_additional_properties(
+            BluetoothDevice.get_device_selector_from_pairing_state(True),
+            [ADDRESS, CONNECTED, MODEL, MANUFACTURER, CATEGORY], DeviceInformationKind.ASSOCIATION_ENDPOINT)
+        rows = {}
         for info in infos:
-            device = await BluetoothDevice.from_id_async(info.id)
-            if device is None:
+            if not info.pairing.is_paired:
                 continue
-            try:
-                address = format_address(device.bluetooth_address)
-                if not (any(n in device.name.upper() for n in ('BOOM', 'ULTIMATE EARS')) or address in self.known_models or address in self.beacons or address in self.recognized_addresses):
-                    continue
-                paired = device.device_information.pairing.is_paired
-                if paired:
-                    self.recognized_addresses.add(address)
-                rows.append(dict(address=address, path=info.id, name=device.name,
-                                 # The enumeration entry describes a device
-                                 # interface; its pairing flag can be False for
-                                 # an actually paired Classic endpoint.
-                                 paired=paired,
-                                 # A2DP state is not a reliable control-link signal.
-                                 bluez_connected=False, audio_connected=False,
-                                 audio_active=False, sleeping=None))
-            finally:
-                device.close()
-        for row in rows:
-            beacon = self.beacons.get(row['address'])
-            name = row['name'].upper().replace(' ','').replace('-','')
-            model = self.known_models.get(row['address'])
+            raw_address = endpoint_property(info, ADDRESS, unbox_string, '')
+            if not re.fullmatch(r'(?:[0-9a-f]{12}|[0-9a-f]{2}(?::[0-9a-f]{2}){5})', raw_address, re.I):
+                continue
+            address = format_address(int(raw_address.replace(':', ''), 16))
+            model_name = endpoint_property(info, MODEL, unbox_string, '')
+            manufacturer = endpoint_property(info, MANUFACTURER, unbox_string, '')
+            names = f'{info.name} {model_name} {manufacturer}'.upper()
+            beacon = self.beacons.get(address)
+            model = self.known_models.get(address)
+            recognized = bool(any(n in names for n in ('BOOM', 'ULTIMATE EARS')) or model or beacon or address in self.recognized_addresses)
+            if recognized:
+                self.recognized_addresses.add(address)
+            elif not self.show_other_audio or not any(c.startswith('Audio.') for c in endpoint_property(
+                    info,CATEGORY,lambda value:value.as_(IPropertyValue).get_string_array(),())):
+                continue
+            linked = endpoint_property(info, CONNECTED, unbox_boolean, False)
+            previous = rows.get(address)
+            rank = (recognized,linked)
+            if previous and (not previous['unverified'],previous['bluez_connected']) >= rank:
+                continue
+            row = dict(address=address, path=info.id, name=info.name or model_name or 'Ultimate Ears',
+                       paired=True, bluez_connected=linked, link_reports_control=False,
+                       unverified=not recognized, audio_connected=False, audio_active=False, sleeping=None)
+            name = f'{info.name} {model_name}'.upper().replace(' ','').replace('-','')
             # A fresh FE61/19-byte/0x22 beacon also identifies a renamed UE
             # endpoint before its model can be read. Reject known incompatible
             # models, and require the exact writable wake UUID before sending.
             supported = (not model or model in ('megaboom-3','boom-3','boom-2')) and not any(
                 n in name for n in ('BOOM4','WONDERBOOM','EPICBOOM','EVERBOOM','HYPERBOOM'))
-            if beacon and row['paired'] and supported:
+            if beacon and supported:
                 row.update(wake_path=str(beacon['ble_address']), sleeping=beacon['sleeping'])
-        return rows, []
+            rows[address] = row
+        self.recognized_addresses.intersection_update(rows)
+        return list(rows.values()), []
 
     def advertisement_received(self, args):
         now = time.monotonic()

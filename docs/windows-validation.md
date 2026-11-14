@@ -132,3 +132,20 @@ on Linux (157 passed; 11 native Windows tests skipped). They have **not** receiv
 a new Windows-native Bluetooth or long-duration listening test. The earlier
 physical results above apply to their stated build, not to a new hardware trial.
 See [shared protocol changes](implementation-protocol.md#shared-desktop-partyup-improvements-0119).
+
+## Multi-speaker discovery
+
+Windows inventory reads Classic association endpoints with the Bluetooth
+pairing selector and requests their address and connection state in the same
+query. On the Windows test machine, that query returned three saved pairings.
+All three reported disconnected during the initial check. One had a recognizable
+UE name. **Search for speakers** immediately listed all three audio endpoints,
+then identified the other two as UE speakers from matching BLE advertisements
+and completed with three recognized pairings. Audio endpoints with no matching
+UE evidence appear with a verification label. The Windows Bluetooth connection
+indicator reports aggregate endpoint state. The RFCOMM session tracks speaker
+control loss.
+
+The discovery check covered saved endpoints and BLE recognition. Two- and
+three-speaker playback still need physical listening tests.
+[Microsoft device information properties](https://learn.microsoft.com/en-us/windows/apps/develop/devices-sensors/device-information-properties)

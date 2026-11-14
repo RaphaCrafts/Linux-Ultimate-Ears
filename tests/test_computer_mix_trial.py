@@ -20,11 +20,14 @@ def test_discovery_only_accepts_bluetooth_audio_sinks():
 
 
 def test_exact_targets_cannot_match_unrelated_outputs():
-    cfg=trial.configuration([LEFT,RIGHT],'temporary-test')
+    third='bluez_output.00_11_22_33_44_77.1'
+    cfg=trial.configuration([LEFT,RIGHT,third],'temporary-test')
     assert cfg['combine.latency-compensate'] is True
+    assert cfg['stream.props']['resample.disable'] is False
     assert [rule['matches'] for rule in cfg['stream.rules']]==[
         [{'media.class':'Audio/Sink','node.name':LEFT}],
-        [{'media.class':'Audio/Sink','node.name':RIGHT}]]
+        [{'media.class':'Audio/Sink','node.name':RIGHT}],
+        [{'media.class':'Audio/Sink','node.name':third}]]
     for names in ([LEFT,LEFT],[LEFT,'~bluez_output.*'],[LEFT,'other"; quit'],[LEFT]):
         with pytest.raises(ValueError):trial.configuration(names,'test')
 
@@ -32,7 +35,7 @@ def test_exact_targets_cannot_match_unrelated_outputs():
 def test_missing_speaker_prevents_module_loading(monkeypatch):
     monkeypatch.setattr(trial,'snapshot',lambda:[node(LEFT)])
     monkeypatch.setattr(trial.subprocess,'Popen',lambda *a,**kw:pytest.fail('Must not load a module with a missing speaker'))
-    with pytest.raises(RuntimeError,match='Both speakers'):trial.run([LEFT,RIGHT],10)
+    with pytest.raises(RuntimeError,match='All selected speakers'):trial.run([LEFT,RIGHT],10)
 
 
 def test_connection_loss_terminates_only_the_owned_module(monkeypatch):

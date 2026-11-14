@@ -41,6 +41,7 @@ class Speaker:
     audio_mode: int | None = None
     balance: int | None = None
     member_info: dict = field(default_factory=dict)
+    unverified: bool = False
 
     @property
     def title(self):

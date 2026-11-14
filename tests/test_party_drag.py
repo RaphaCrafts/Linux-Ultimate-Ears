@@ -92,13 +92,13 @@ def test_join_reads_current_broadcast_before_reconfiguring():
             commands=[]
             async def request(self,command,response=0,payload=b''):
                 self.commands.append(command)
-                if command==0x414:return b'\x03\x50'
+                if command==0x414:return b'\x03\x00'
                 if command==0x417:c._notification(host,Message(0x418,bytes.fromhex(receiver.replace(':',''))+b'\0'))
                 return b''
         session=Session();c.sessions[host]=session
         await c._group_add(host,receiver)
         assert session.commands==[0x414,0x417], 'Do not restart a group that is already broadcasting'
-        assert c.speakers[host].audio_mode==0x50
+        assert c.speakers[host].audio_mode==0
     asyncio.run(scenario())
 
 

@@ -118,36 +118,69 @@ def test_windows_ui_uses_native_party_and_disables_computer_mix():
 
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='Windows WinRT projection')
-def test_windows_inventory_uses_endpoint_pairing_and_expires_wake(monkeypatch):
+def test_windows_inventory_lists_paired_endpoints_without_opening_devices(monkeypatch):
     from speakerstudio import windows as w
+    from winrt.system import box_boolean, box_string
     address='00:11:22:33:44:55'
-    class Device:
-        name='MEGABOOM 3'
-        bluetooth_address=0x001122334455
-        device_information=SimpleNamespace(pairing=SimpleNamespace(is_paired=True))
-        closed=False
-        def close(self):self.closed=True
-    device=Device()
-    async def find(selector):
-        return [SimpleNamespace(id='interface',pairing=SimpleNamespace(is_paired=False))]
-    async def from_id(value):return device
-    monkeypatch.setattr(w,'DeviceInformation',SimpleNamespace(find_all_async_aqs_filter=find))
-    monkeypatch.setattr(w,'BluetoothDevice',SimpleNamespace(get_device_selector_from_pairing_state=lambda p:'paired',from_id_async=from_id))
+    def endpoint(name,mac,model='',linked=False,paired=True):
+        return SimpleNamespace(id=mac,name=name,pairing=SimpleNamespace(is_paired=paired),
+                               properties={w.ADDRESS:box_string(mac),w.MODEL:box_string(model),
+                                           w.CONNECTED:box_boolean(linked)})
+    garden=endpoint('Garden','001122334455',model='MEGABOOM 3',linked=True)
+    third=endpoint('Kitchen','00:11:22:33:44:77')
+    async def find(selector,properties,kind):
+        assert selector=='paired' and kind==w.DeviceInformationKind.ASSOCIATION_ENDPOINT
+        return [garden,endpoint('BOOM 3','00:11:22:33:44:66'),third,
+                endpoint('MEGABOOM 3',address),endpoint('Mouse','00:11:22:33:44:88')]
+    monkeypatch.setattr(w,'DeviceInformation',SimpleNamespace(find_all_async_with_kind_aqs_filter_and_additional_properties=find))
+    monkeypatch.setattr(w,'BluetoothDevice',SimpleNamespace(get_device_selector_from_pairing_state=lambda paired:'paired'))
     backend=w.WindowsBluetooth()
+    backend.beacons[third.id]={'seen':time.monotonic(),'ble_address':12,'sleeping':False}
+    rows,_=asyncio.run(backend.devices())
+    assert [row['name'] for row in rows] == ['Garden','BOOM 3','Kitchen']
+    assert rows[0]['bluez_connected'] and not rows[0]['audio_connected']
     backend.beacons[address]={'seen':time.monotonic(),'ble_address':42,'sleeping':True}
     rows,_=asyncio.run(backend.devices())
-    assert rows[0]['paired'] and device.closed
+    assert rows[0]['paired']
     assert rows[0]['sleeping'] is True and rows[0]['wake_path']=='42'
-    backend.beacons[address]['seen']-=46
+    for beacon in backend.beacons.values():beacon['seen']-=46
     rows,_=asyncio.run(backend.devices())
     assert 'wake_path' not in rows[0] and not backend.beacons
-    device.name='Garden'
+    garden.properties[w.MODEL]=box_string('')
     rows,_=asyncio.run(backend.devices())
-    assert len(rows)==1, 'Keep recognized pairings after wake even when Windows resolves a custom name'
-    device.device_information.pairing.is_paired=False
-    backend.beacons[address]={'seen':time.monotonic(),'ble_address':42,'sleeping':True}
+    assert len(rows)==3
+    third.pairing.is_paired=False
+    backend.beacons[third.id]={'seen':time.monotonic(),'ble_address':42,'sleeping':True}
     rows,_=asyncio.run(backend.devices())
-    assert not rows[0]['paired'] and 'wake_path' not in rows[0]
+    assert [row['name'] for row in rows] == ['Garden','BOOM 3']
+    class AudioCategory:
+        def as_(self,interface):return self
+        def get_string_array(self):return ['Audio.Headphone']
+    third.pairing.is_paired=True
+    third.properties[w.CATEGORY]=AudioCategory()
+    backend.beacons.clear()
+    backend.show_other_audio=True
+    rows,_=asyncio.run(backend.devices())
+    assert [row['name'] for row in rows if row['unverified']]==['Kitchen']
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='Windows discovery order')
+def test_windows_search_publishes_pairings_before_ble_and_finishes_on_failure():
+    from speakerstudio.backend import Controller
+    async def scenario():
+        c=Controller();calls=[]
+        async def refresh():calls.append('pairings')
+        async def scan():
+            calls.append('ble')
+            raise OSError('BLE adapter unavailable')
+        c.bluez=SimpleNamespace(scan=scan)
+        c.refresh_devices=refresh
+        c.error.connect(calls.append)
+        c.search_finished.connect(lambda:calls.append('finished'))
+        await c._perform('scan')
+        assert calls==['pairings','ble','pairings','BLE adapter unavailable','finished']
+        assert not c.searching
+    asyncio.run(scenario())
 
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='Windows BLE projection')

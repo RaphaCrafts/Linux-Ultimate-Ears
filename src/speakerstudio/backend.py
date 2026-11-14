@@ -25,6 +25,7 @@ class Controller(QThread):
     status = Signal(str)
     error = Signal(str)
     ready = Signal()
+    search_finished = Signal()
     computer_mix_changed = Signal(object)
 
     def __init__(self):
@@ -38,6 +39,7 @@ class Controller(QThread):
         self.waking = set()
         self.connecting = set()
         self.operations = {}
+        self.searching = False
         self.stopping = False
         self.last_snapshot = None
         self.computer_mix=ComputerMix()
@@ -93,11 +95,10 @@ class Controller(QThread):
                 message = f'Bluetooth is unavailable. Check that Bluetooth is enabled. {e}'
                 if message!=last_error:self.error.emit(message)
                 last_error = message
-                if self.bluez:await self.bluez.close()
-                self.bluez = None
+                if self.bluez and (sys.platform != 'win32' or not getattr(self.bluez,'manager',None)):
+                    await self.bluez.close()
+                    self.bluez = None
                 self._reconcile_computer_mix()
-            if self.computer_mix.active and not self.group_switching:
-                await self._computer_mix_levels()
             await asyncio.sleep(3)
 
     def submit(self, action, *args):
@@ -140,16 +141,16 @@ class Controller(QThread):
             speaker.error = ''
             self.operations[address] = asyncio.current_task()
             self.publish()
+        if action=='scan':
+            if self.searching:return
+            self.searching=True
         try:
             if self.group_switching and self.group_switch_task is not asyncio.current_task() and action in ('group_add','group_remove','ungroup','party_mode','balance','group_volume','computer_mix_start','computer_mix_prepare','computer_mix_stop'):
                 raise RuntimeError('Wait for the playback mode switch to finish.')
             if (self.computer_mix.active or self.mix_preparing) and action in ('group_add','party_mode','balance','group_volume'):
                 raise RuntimeError('Stop Computer mix before using native PartyUp controls.')
             if action == 'scan':
-                self.status.emit('Looking for nearby and sleeping speakers…')
-                await self.bluez.scan()
-                await self.refresh_devices()
-                self.status.emit('Search complete. Select a speaker to connect or turn on.')
+                await self._search()
             else:
                 if speaker and not speaker.connected and action not in ('connect','disconnect','wake'):
                     raise ConnectionError('Connect the speaker before changing its settings.')
@@ -162,6 +163,9 @@ class Controller(QThread):
             if speaker:speaker.error=message
             self.error.emit((speaker.name+': ' if speaker else '')+message)
         finally:
+            if action == 'scan':
+                self.searching=False
+                self.search_finished.emit()
             if speaker:
                 if action=='connect':self.connecting.discard(address)
                 if self.operations.get(address) is asyncio.current_task():
@@ -180,6 +184,23 @@ class Controller(QThread):
                     target=self.speakers.get(receiver)
                     if target:target.volume_revision=revision
                 self.publish()
+
+    async def _search(self):
+        self.status.emit('Looking for nearby and sleeping speakers…')
+        if sys.platform=='win32':
+            self.bluez.show_other_audio=True
+            await self.refresh_devices()
+            self.status.emit('Windows pairings refreshed. Looking for nearby and sleeping speakers…')
+        try:
+            await self.bluez.scan()
+        finally:
+            if not self.stopping:
+                await self.refresh_devices()
+        count = sum(s.paired and not s.unverified for s in self.speakers.values())
+        other = sum(s.paired and s.unverified for s in self.speakers.values())
+        result = f'{count} paired speaker{"s" if count != 1 else ""} available' if count else 'No paired speakers found'
+        other_result = f' {other} other paired Bluetooth audio device{"s" if other != 1 else ""} listed.' if other else ''
+        self.status.emit(f'Search complete. {result}.{other_result}')
 
     def publish(self):
         snapshot=[asdict(s) for s in self.speakers.values()]
@@ -217,16 +238,16 @@ class Controller(QThread):
                 self.speakers[address] = Speaker(address, row['path'], row['name'], paired=row['paired'],model=remembered_model(address))
             s = self.speakers[address]
             linked = row.get('bluez_connected',False)
-            # Raw RFCOMM ownership is not identical to a desktop audio profile.
-            # Observe an actual BlueZ link-loss transition, unpairing or adapter
-            # power-off; do not discard a new control connection from a stale
-            # initial Connected=False snapshot.
-            lost = (s.bluez_connected and not linked and address not in self.waking and address not in self.connecting or not row['paired'] or
-                    row.get('adapter') in powered and not powered[row['adapter']])
+            # Windows reports aggregate endpoint connectivity. The RFCOMM
+            # reader owns control link loss there, including during handoffs.
+            bluez_lost = (row.get('link_reports_control',True) and s.bluez_connected and not linked
+                          and address not in self.waking and address not in self.connecting)
+            lost = bluez_lost or not row['paired'] or row.get('adapter') in powered and not powered[row['adapter']]
             s.paired, s.name, s.path = row['paired'], s.device_name or row['name'], row['path']
             s.bluez_connected = linked
             s.audio_connected = row.get('audio_connected',False)
             s.audio_active = row.get('audio_active',False)
+            s.unverified = row.get('unverified',False) and not s.model
             s.wake_available = bool(row.get('wake_path'))
             s.sleeping = False if s.connected else row.get('sleeping')
             if lost and (s.connected or address in self.sessions or s.busy):
@@ -246,7 +267,7 @@ class Controller(QThread):
         self.publish()
 
     def _reconcile_computer_mix(self):
-        # The transition owns cleanup and routing until both profiles settle.
+        # The transition owns cleanup and routing until the audio profiles settle.
         if self.group_switching:return
         try:
             if self.computer_mix.reconcile() and not self.group_switching:
@@ -379,6 +400,7 @@ class Controller(QThread):
                 raise RuntimeError('This speaker model is not supported in this first release. BOOM 3 and MEGABOOM 3 are the initial targets.')
             speaker.identity = identity
             speaker.model = LEGACY_MODELS[identity]
+            speaker.unverified = False
             speaker.connected = True
             speaker.error = ''
             speaker.features = {'power': True, 'eq_write': True}
@@ -560,8 +582,8 @@ class Controller(QThread):
             addresses=json.loads(addresses_json)
             if method not in ('native','computer') or not isinstance(addresses,list) or not addresses or any(not isinstance(a,str) for a in addresses) or len(set(addresses))!=len(addresses):
                 raise ValueError('Choose a host and different speakers for the group.')
-            if method=='computer' and len(addresses)!=2:
-                raise ValueError('Computer mix currently supports exactly two speakers.')
+            if method=='computer' and len(addresses)<2:
+                raise ValueError('Choose at least two speakers for Computer mix.')
             if method=='computer' and self.computer_mix.active:
                 if addresses==self.mix_members:
                     self.computer_mix.check()
@@ -754,7 +776,7 @@ class Controller(QThread):
             self.computer_mix.start(names)
             self.playback_method='computer'
             self.publish_computer_mix()
-            self.status.emit('Computer mix is on. Linux is sending audio directly to both speakers.')
+            self.status.emit(f'Computer mix is on. Linux is sending audio to {len(names)} speakers.')
         except Exception as error:self.publish_computer_mix(str(error))
 
     async def _computer_mix_stop(self):
@@ -869,11 +891,12 @@ class Controller(QThread):
             if receiver in host.members:
                 self.status.emit('This speaker is already playing in the group.')
                 return
-            if not (host.broadcast & 2):
-                await self._busy_request(session, 0x413, b'\x03\x00')
-                data = await self._broadcast_config(session)
-                if len(data) >= 2:
-                    host.broadcast = data[0]
+            if not host.broadcast&2 or host.audio_mode!=0:
+                expanding_stereo=bool(host.broadcast&2)
+                await self._set_party_mode(address,host.broadcast if expanding_stereo else 3,0)
+                if expanding_stereo:
+                    self.group_ready_at[address]=time.monotonic()+6
+                    await self._wait_group_ready(address)
             # Android assigns the receiver RIGHT, including in Double Up.
             # UNKNOWN is not the channel requested by its PartyUp presenter.
             await self._busy_request(session, 0x417, bytes.fromhex(receiver.replace(':','')) + b'\x02')
@@ -988,14 +1011,25 @@ class Controller(QThread):
             self.publish()
             self.status.emit('Playback mode is already selected')
             return
-        await self._busy_request(session,0x413,bytes([configuration[0],mode]))
-        confirmed=await self._broadcast_config(session)
-        if len(confirmed)!=2 or confirmed[0] not in (2,3):raise ProtocolError('Invalid PartyUp mode reading')
-        s.broadcast,s.audio_mode=confirmed
-        self.publish()
-        if s.audio_mode!=mode:
-            raise RuntimeError('The speaker did not switch playback mode. Keep the matching pair connected and try again.')
+        await self._set_party_mode(address,s.broadcast,mode)
         self.status.emit('Stereo enabled: host plays left, member plays right. Balance is available.' if mode else 'Double Up enabled: both speakers play the full sound.')
+
+    async def _set_party_mode(self,address,broadcast,mode):
+        speaker=self.speakers[address]
+        session=self.sessions[address]
+        await self._busy_request(session,0x413,bytes([broadcast,mode]))
+        # The queue ACK can precede the actual mode change. Poll readback
+        # without submitting the setter again or restarting the handoff.
+        for attempt in range(20):
+            if attempt:await asyncio.sleep(.25)
+            confirmed=await self._broadcast_config(session)
+            if len(confirmed)!=2 or confirmed[0]>3:raise ProtocolError('Invalid PartyUp mode reading')
+            speaker.broadcast,speaker.audio_mode=confirmed
+            if speaker.broadcast&2 and speaker.audio_mode==mode:
+                self.publish()
+                return
+        self.publish()
+        raise RuntimeError('The speaker did not switch to the requested PartyUp mode. Try again.')
 
     async def _receiver_attribute(self,address,receiver,write=None):
         """An ACK means queued, not delivered. Correlate the receiver result."""

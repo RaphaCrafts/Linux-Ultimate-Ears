@@ -55,6 +55,27 @@ public class PartyUpStabilityTest {
             assertEquals(List.of(6000L),pauses);
         }
     }
+    @Test public void addingThirdSpeakerConfirmsDoubleUpBeforeJoining() throws Exception {
+        AtomicLong time=new AtomicLong(1000);List<Long> pauses=new ArrayList<>();
+        String third="00:11:22:33:44:77";
+        try(ControllerControlsTest.Rig r=new ControllerControlsTest.Rig(controller(time,pauses))) {
+            pair(r.controller);r.controller.groupSupported=true;time.addAndGet(6000);
+            Future<?> peer=r.worker.submit(()->{try {
+                r.reply(0x414,new byte[0],0x415,(byte)3,(byte)0x50);
+                r.ack(0x413,(byte)3,(byte)0);
+                r.reply(0x414,new byte[0],0x415,(byte)3,(byte)0x50);
+                r.reply(0x414,new byte[0],0x415,(byte)3,(byte)0);
+                byte[] target=Arrays.copyOf(Protocol.mac(third),7);target[6]=2;
+                r.ack(0x417,target);target[6]=0;
+                r.speakerOutput.write(new Protocol.Message(0x418,target).encode());r.speakerOutput.flush();
+                assertEquals(0,Protocol.read(r.speakerInput).command());
+            }catch(Exception e){throw new RuntimeException(e);}});
+            r.controller.add(third);peer.get(2,TimeUnit.SECONDS);
+            assertEquals(List.of(250L,6000L),pauses);
+            assertEquals(0,r.controller.audioMode);
+            assertEquals(2,r.controller.members().size());
+        }
+    }
     @Test public void selectingCurrentModeDoesNotRewriteBroadcast() throws Exception {
         AtomicLong time=new AtomicLong(1000);List<Long> pauses=new ArrayList<>();
         try(ControllerControlsTest.Rig r=new ControllerControlsTest.Rig(controller(time,pauses))) {

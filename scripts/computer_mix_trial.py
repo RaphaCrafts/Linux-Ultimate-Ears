@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Reversible PipeWire experiment; never configures speakers or selects output.
 
-End native PartyUp and connect both speakers separately in Linux first.
+End native PartyUp and connect each speaker separately in Linux first.
 This creates a temporary output; select it manually in Sound settings.
 The process owns the output, so stopping it removes the virtual sink.
 """
@@ -21,10 +21,10 @@ from speakerstudio.audio_mix import snapshot, speaker_sinks, configuration, stop
 
 
 def run(names,duration):
-    if not set(names)<=speaker_sinks(snapshot()).keys():
-        raise RuntimeError('Both speakers must have separate Linux audio outputs before starting.')
     node_name='speaker_studio_trial_'+uuid.uuid4().hex
     args=json.dumps(configuration(names,node_name),ensure_ascii=True)
+    if not set(names)<=speaker_sinks(snapshot()).keys():
+        raise RuntimeError('All selected speakers must have separate Linux audio outputs before starting.')
     process=subprocess.Popen(['pw-cli','--monitor','load-module','libpipewire-module-combine-stream',args],
                              stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,text=True)
     try:
@@ -55,7 +55,7 @@ def run(names,duration):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--list',action='store_true',help='List existing Bluetooth audio outputs without changing anything')
-    parser.add_argument('--speakers',nargs=2,metavar='NODE_NAME')
+    parser.add_argument('--speakers',nargs='+',metavar='NODE_NAME')
     parser.add_argument('--duration',type=int,default=180)
     args=parser.parse_args()
     if not shutil.which('pw-cli') or not shutil.which('pw-dump'):parser.error('PipeWire command-line tools are required.')
@@ -64,7 +64,7 @@ def main():
         print(json.dumps(sinks,indent=2))
         if not sinks:print('No Bluetooth audio outputs. Connect the speakers separately in Linux first.')
         return 0
-    if not args.speakers:parser.error('Use --list, then --speakers with two listed node names.')
+    if not args.speakers or len(args.speakers)<2:parser.error('Use --list, then --speakers with at least two listed node names.')
     if not 10<=args.duration<=600:parser.error('Duration must be between 10 and 600 seconds.')
     try:run(args.speakers,args.duration)
     except KeyboardInterrupt:return 0

@@ -91,6 +91,7 @@ class Window(QMainWindow):
         super().__init__()
         self.controller = controller
         self.demo = demo
+        self.search_buttons = []
         self.devices = {}
         self.last_devices_signature = None
         self.sidebar_signature = None
@@ -155,7 +156,7 @@ class Window(QMainWindow):
         self.list.currentItemChanged.connect(self.select)
         self.list.itemClicked.connect(lambda item:self.open_speaker(item.data(Qt.UserRole)))
         side.addWidget(self.list)
-        side.addWidget(button('Search for speakers', self.scan, True))
+        side.addWidget(self.build_search_button())
         side.addWidget(button('Bluetooth settings', self.bluetooth_settings))
         side.addWidget(button('PartyUp', self.open_party))
         side.addWidget(text('Independent app by RaphaCrafts','muted'))
@@ -195,6 +196,7 @@ class Window(QMainWindow):
         self.setup_tray()
         controller.changed.connect(self.update_devices)
         controller.status.connect(self.show_status)
+        controller.search_finished.connect(self.finish_search)
         controller.error.connect(self.show_error)
         self.computer_mix_state={'running':False,'outputs':[],'error':''}
         controller.computer_mix_changed.connect(self.update_computer_mix)
@@ -257,7 +259,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         layout.addWidget(copy)
         row = QHBoxLayout()
         row.addStretch()
-        row.addWidget(button('Search for speakers',self.scan,True))
+        row.addWidget(self.build_search_button())
         row.addWidget(button('Bluetooth settings',self.bluetooth_settings))
         row.addStretch()
         layout.addLayout(row)
@@ -626,6 +628,8 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             if d['address'] in grouped:state='In PartyUp'
             if d.get('error') and not d['connected'] and not d['busy']:
                 state='Audio connected · Controls unavailable' if d.get('audio_connected') else 'Bluetooth connected · Controls unavailable' if d.get('bluez_connected') else 'Controls unavailable'
+            elif d.get('unverified') and not d['busy'] and d['address'] not in grouped:
+                state='Paired audio device · verify controls'
             rows.append((d,state,self.image_path(d)))
         sidebar_signature=tuple((d['address'],d['name'],state,str(image),d.get('error','')) for d,state,image in rows)
         if sidebar_signature!=self.sidebar_signature:
@@ -690,7 +694,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             return
         active = d['connected'] and not d['busy']
         self.stack.setCurrentWidget(self.eq_page if self.page=='eq' else self.speaker_page)
-        self.model_label.setText(d.get('model','').upper().replace('-',' ') or 'ULTIMATE EARS')
+        self.model_label.setText(d.get('model','').upper().replace('-',' ') or ('BLUETOOTH AUDIO DEVICE' if d.get('unverified') else 'ULTIMATE EARS'))
         self.name_label.setText(d['name'])
         pending = d['busy'] and d.get('operation') in ('connect','wake')
         if pending:
@@ -808,8 +812,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
 
     def choose_host(self,index):
         if self.playback_method=='computer':
-            self.computer_group=[self.host_select.itemData(index)]
-            self.render_party()
+            self.edit_computer_group([self.host_select.itemData(index)])
             return
         self.group_debounce.stop()
         self.cancel_balance()
@@ -862,8 +865,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
     def join_speaker(self,address):
         if self.playback_method=='computer':
             if address not in self.play_area.receivers:return
-            self.computer_group=[self.group_host,address]
-            self.request_group_method('computer',self.computer_group)
+            self.edit_computer_group([*self.computer_group,address])
             return
         host=self.devices.get(self.group_host,{})
         target=self.devices.get(address,{})
@@ -1130,6 +1132,11 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         if self.computer_mix_state.get('members'):return list(self.computer_mix_state['members'])
         return [host['address']] if host else []
 
+    def edit_computer_group(self,addresses):
+        self.computer_group=addresses
+        self.computer_mix_state={**self.computer_mix_state,'members':addresses,'error':''}
+        self.render_party()
+
     def choose_group_method(self,method):
         if self.computer_mix_state.get('switching'):return
         addresses=self.selected_group_addresses()
@@ -1152,7 +1159,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
                 host['members']=[];host['broadcast']=0
             elif host:
                 host['members']=list(addresses[1:]);host['broadcast']=3 if len(addresses)>1 else 0
-            self.update_computer_mix({'running':method=='computer' and len(addresses)==2,'members':list(addresses),'method':method,'switching':False,'outputs':[],'error':''})
+            self.update_computer_mix({'running':method=='computer' and len(addresses)>=2,'members':list(addresses),'method':method,'switching':False,'outputs':[],'error':''})
             return
         self.computer_mix_state={**self.computer_mix_state,'switching':True,'error':'','members':list(addresses)}
         self.render_party()
@@ -1160,7 +1167,8 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
 
     def retry_group_connection(self):
         addresses=self.computer_group if self.playback_method=='computer' else self.selected_group_addresses()
-        if addresses:self.request_group_method(self.playback_method,addresses)
+        if addresses and (self.playback_method!='computer' or len(addresses)>=2):
+            self.request_group_method(self.playback_method,addresses)
 
     def end_playback_group(self):
         self.computer_level_pending.clear()
@@ -1190,20 +1198,21 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             if not host:host=next((d for d in self.devices.values() if d.get('paired')),None)
             if host:self.computer_group=[host['address']]+list(host.get('members',[]))
         addresses=list(self.computer_group)
-        self.start_computer_group.setVisible(len(addresses)==2 and not state.get('running') and not switching and not state.get('error'))
+        editable=not switching and not state.get('running')
+        self.start_computer_group.setVisible(len(addresses)>=2 and editable and not state.get('error'))
         self.group_host=addresses[0] if addresses else None
         self.host_select.blockSignals(True);self.host_select.clear()
         for d in self.devices.values():
             if d.get('paired'):self.host_select.addItem(d['name'],d['address'])
         if self.group_host:self.host_select.setCurrentIndex(self.host_select.findData(self.group_host))
         self.host_select.blockSignals(False)
-        self.host_select.setEnabled(not switching and not state.get('running'))
-        allowed=[a for a,d in self.devices.items() if d.get('paired') and not d.get('busy') and a not in addresses] if len(addresses)==1 and not switching and not state.get('running') else []
+        self.host_select.setEnabled(editable)
+        allowed=[a for a,d in self.devices.items() if d.get('paired') and not d.get('busy') and a not in addresses] if addresses and editable else []
         self.play_area.set_targets(self.group_host,allowed)
         error=state.get('error','')
         self.party_error.setText(error);self.party_error.setVisible(bool(error))
-        self.party_info.setText('Computer mix · another Linux output is selected' if state.get('running') and state.get('routed') is False else 'Computer mix · output available' if state.get('running') else 'Connecting the selected speakers…' if switching else 'Computer mix · choose two speakers')
-        self.play_hint.setText('Connecting Linux audio to each speaker…' if switching else 'Select Speaker studio · Computer mix in Linux Sound settings to use both speakers.' if state.get('running') and state.get('routed') is False else 'Linux output: Speaker studio · Computer mix. Apps with a separate output choice must also use this output.' if state.get('running') else 'Drag a paired speaker here. Linux connects it automatically.')
+        self.party_info.setText('Computer mix · another Linux output is selected' if state.get('running') and state.get('routed') is False else f'Computer mix · {len(addresses)} speakers' if state.get('running') else 'Connecting the selected speakers…' if switching else 'Computer mix · choose at least two speakers')
+        self.play_hint.setText('Connecting Linux audio to each speaker…' if switching else 'Select Speaker studio · Computer mix in Linux Sound settings to play through the group.' if state.get('running') and state.get('routed') is False else 'Linux output: Speaker studio · Computer mix. Apps with a separate output choice must also use this output.' if state.get('running') else 'Add paired speakers, then start Computer mix.')
         self.group_status.setText('Adjust each speaker’s volume to balance the sound. Automatic timing compensation is enabled.')
         self.update_computer_levels()
         if self.party_dragging or any(slider.isSliderDown() for slider in self.computer_sliders.values()):return
@@ -1232,6 +1241,8 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             slider.valueChanged.connect(lambda value,a=address:self.edit_computer_level(a,value))
             slider.sliderReleased.connect(lambda a=address:self.send_computer_level(a))
             box.addWidget(text('Playing through Linux' if state.get('running') else 'Connecting…' if switching else 'Selected','muted'))
+            if i and editable:
+                box.addWidget(button('Remove from selection',lambda checked=False,a=address:self.edit_computer_group([member for member in self.computer_group if member!=a])))
             self.party_grid.addWidget(panel(box),i//3,i%3)
         self.update_computer_levels()
         for i,(address,d) in enumerate((a,d) for a,d in self.devices.items() if a not in addresses):
@@ -1344,9 +1355,22 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             return
         return self.controller.submit(action,self.selected,*args)
 
+    def build_search_button(self):
+        search_button = button('Search for speakers', self.scan, True)
+        self.search_buttons.append(search_button)
+        return search_button
+
     def scan(self):
         if self.demo:self.show_status('Demo speakers are already visible.');return
-        self.controller.submit('scan')
+        if self.controller.submit('scan'):
+            for search_button in self.search_buttons:
+                search_button.setText('Searching…')
+                search_button.setEnabled(False)
+
+    def finish_search(self):
+        for search_button in self.search_buttons:
+            search_button.setText('Search for speakers')
+            search_button.setEnabled(True)
 
     def connect(self):
         self.volume_debounce.stop()

@@ -48,15 +48,16 @@ def output_for_address(objects,address):
 
 
 def configuration(names,node_name):
-    if len(names)!=2 or len(set(names))!=2:raise ValueError('Choose two different speaker outputs.')
-    if any(not re.fullmatch(r'bluez_output\.[0-9A-Fa-f_.:]+',name) for name in names):
+    if not isinstance(names,(list,tuple)) or len(names)<2:raise ValueError('Choose at least two speaker outputs.')
+    if any(not isinstance(name,str) or not re.fullmatch(r'bluez_output\.[0-9A-Fa-f_.:]+',name) for name in names):
         raise ValueError('This experiment accepts only exact Bluetooth output names.')
+    if len(set(names))!=len(names):raise ValueError('Choose different speaker outputs.')
     return {
         'combine.mode':'sink','node.name':node_name,
         'node.description':'Speaker studio · Computer mix trial',
         'combine.latency-compensate':True,
         'combine.props':{'audio.position':['FL','FR'],'node.virtual':True,'priority.session':0},
-        'stream.props':{'node.passive':True},
+        'stream.props':{'node.passive':True,'node.dont-fallback':True,'resample.disable':False},
         'stream.rules':[{'matches':[{'media.class':'Audio/Sink','node.name':name}],
                          'actions':{'create-stream':{}}} for name in names],
     }
@@ -117,11 +118,12 @@ class ComputerMix:
 
     def start(self,names):
         if self.active:raise RuntimeError('Stop the current Computer mix first.')
+        node_name='speaker_studio_mix_'+uuid.uuid4().hex
+        cfg=configuration(names,node_name)
         if any(not shutil.which(tool) for tool in ('pw-cli','pw-dump','wpctl','pw-metadata')):raise RuntimeError('Computer mix requires PipeWire tools and WirePlumber (wpctl) installed on Linux.')
         rows=snapshot()
-        if not set(names)<=speaker_sinks(rows).keys():raise RuntimeError('Connect both speakers separately in Linux Bluetooth settings, then refresh outputs.')
-        self.node_name='speaker_studio_mix_'+uuid.uuid4().hex
-        cfg=configuration(names,self.node_name)
+        if not set(names)<=speaker_sinks(rows).keys():raise RuntimeError('Connect each selected speaker separately in Linux Bluetooth settings, then refresh outputs.')
+        self.node_name=node_name
         cfg['node.description']='Speaker studio · Computer mix'
         self.previous=configured_output(rows);self.names=list(names)
         self.log=tempfile.TemporaryFile(mode='w+t')

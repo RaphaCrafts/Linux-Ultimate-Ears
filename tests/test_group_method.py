@@ -9,6 +9,7 @@ from speakerstudio.audio_mix import output_for_address
 
 HOST='00:11:22:33:44:55'
 RECEIVER='00:11:22:33:44:66'
+THIRD='00:11:22:33:44:77'
 
 
 def node(address,id=1):
@@ -43,13 +44,16 @@ def setup(monkeypatch):
 def test_switch_connects_receiver_audio_after_ungroup_and_keeps_members(monkeypatch):
     async def scenario():
         c,calls,host,receiver=setup(monkeypatch);states=[];c.computer_mix_changed.connect(states.append)
+        c.speakers[THIRD]=Speaker(THIRD,'/third','Third',paired=True)
+        monkeypatch.setattr('speakerstudio.backend.audio_snapshot',lambda:[node(HOST),node(RECEIVER,2),node(THIRD,3)])
         assert not receiver.connected and not receiver.audio_connected
-        await c._group_method('computer',json.dumps([HOST,RECEIVER]))
+        await c._group_method('computer',json.dumps([HOST,RECEIVER,THIRD]))
         assert c.computer_mix.active and not c.group_switching
         assert calls.index(('ungroup',HOST))<calls.index(('audio',RECEIVER))
         assert ('controls',RECEIVER) not in calls, 'Computer mix needs audio, not a receiver RFCOMM socket'
-        assert calls[-2][0]=='start'
-        assert states[-1]['members']==[HOST,RECEIVER] and states[-1]['running']
+        assert ('audio',THIRD) in calls
+        assert calls[-2]==('start',[output_for_address([node(address)],address) for address in (HOST,RECEIVER,THIRD)])
+        assert states[-1]['members']==[HOST,RECEIVER,THIRD] and states[-1]['running']
         assert not states[-1]['error'] and host.members==[]
     asyncio.run(scenario())
 
@@ -88,7 +92,7 @@ def test_invalid_selection_does_not_break_native_playback(monkeypatch):
     async def scenario():
         c,calls,host,receiver=setup(monkeypatch)
         await c._group_method('computer',json.dumps([HOST,RECEIVER,'unknown']))
-        assert calls==[] and host.broadcast==3 and host.members==[RECEIVER]
+        assert calls==[('inventory',)] and host.broadcast==3 and host.members==[RECEIVER]
         assert not c.group_switching
     asyncio.run(scenario())
 
@@ -114,7 +118,7 @@ def test_bluez_connects_a2dp_even_when_generic_link_is_already_up():
     asyncio.run(scenario())
 
 
-def test_computer_toggle_and_drag_share_group_selection(tmp_path,monkeypatch):
+def test_computer_toggle_and_drag_allow_three_speakers_before_start(tmp_path,monkeypatch):
     monkeypatch.setenv('QT_QPA_PLATFORM','offscreen');monkeypatch.setenv('XDG_CONFIG_HOME',str(tmp_path))
     from PySide6.QtWidgets import QApplication
     from speakerstudio.ui import Window
@@ -122,6 +126,8 @@ def test_computer_toggle_and_drag_share_group_selection(tmp_path,monkeypatch):
     app=QApplication.instance() or QApplication([])
     c=Controller();w=Window(c,demo=True);app.processEvents();w.navigate('party')
     host=w.devices[w.group_host];receiver=w.devices['demo-1']
+    third={**receiver,'address':'demo-third','name':'Third'}
+    w.devices[third['address']]=third
     host.update(members=[],broadcast=0);receiver.update(connected=False,audio_connected=False)
     w.render_party();w.method_buttons['computer'].click()
     assert not w.computer_mix_state['running']
@@ -129,13 +135,17 @@ def test_computer_toggle_and_drag_share_group_selection(tmp_path,monkeypatch):
     assert isinstance(card,SpeakerDragCard)
     calls=[];c.submit=lambda *args:calls.append(args);w.demo=False
     w.join_speaker(receiver['address'])
-    assert calls==[('group_method','computer',json.dumps([host['address'],receiver['address']]))]
+    w.join_speaker(third['address'])
+    assert calls==[] and not w.start_computer_group.isHidden()
+    addresses=[host['address'],receiver['address'],third['address']]
+    w.start_computer_group.click()
+    assert calls==[('group_method','computer',json.dumps(addresses))]
     assert not host['members'] and w.computer_mix_state['switching']
-    assert w.computer_group==[host['address'],receiver['address']]
+    assert w.computer_group==addresses
     w.update_computer_mix({'running':True,'method':'computer','members':list(w.computer_group),'outputs':[],'error':'','switching':False})
-    assert w.party_grid.count()==2 and not w.native_party_controls.isHidden()
+    assert w.party_grid.count()==3 and not w.native_party_controls.isHidden()
     w.method_buttons['native'].click()
-    assert calls[-1]==('group_method','native',json.dumps([host['address'],receiver['address']]))
+    assert calls[-1]==('group_method','native',json.dumps(addresses))
     w.demo=True;w.close()
 
 

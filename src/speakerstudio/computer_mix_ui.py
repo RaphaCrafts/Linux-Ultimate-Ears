@@ -1,7 +1,7 @@
 """Explicit independent-playback controls, separate from native PartyUp."""
 import json
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton, QScrollArea, QWidget, QLayout, QFrame
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton, QScrollArea, QWidget, QLayout, QFrame
 
 
 class ComputerMixDialog(QDialog):
@@ -22,14 +22,13 @@ class ComputerMixDialog(QDialog):
             layout.addWidget(widget);return widget
         label('Computer mix').setObjectName('section')
         label('Experimental: may have echo, drift or interruptions. Automatic timing compensation is enabled.')
-        label('Native PartyUp ends automatically. Connect both speakers in Linux Bluetooth settings if their outputs are missing.')
+        label('Native PartyUp ends automatically. Connect the speakers in Linux Bluetooth settings if their outputs are missing.')
         self.refresh=QPushButton('Refresh outputs');self.refresh.clicked.connect(lambda:self.controller.submit('computer_mix_outputs'))
         layout.addWidget(self.refresh)
-        self.outputs=[]
-        for caption in ('First speaker','Second speaker'):
-            label(caption)
-            combo=QComboBox();combo.setAccessibleName(caption+' audio output');combo.currentIndexChanged.connect(self.enabled_state)
-            self.outputs.append(combo);layout.addWidget(combo)
+        self.outputs=QListWidget()
+        self.outputs.setAccessibleName('Speaker audio outputs')
+        self.outputs.itemChanged.connect(self.enabled_state)
+        layout.addWidget(self.outputs)
         self.message=label('Refresh outputs to find connected speakers.')
         row=QHBoxLayout()
         self.start=QPushButton('Start Computer mix');self.start.clicked.connect(self.start_mix)
@@ -42,25 +41,32 @@ class ComputerMixDialog(QDialog):
         if not demo:controller.submit('computer_mix_prepare')
 
     def enabled_state(self,*args):
-        if not hasattr(self,'start'):return
-        names=[combo.currentData() for combo in self.outputs]
-        valid=all(names) and names[0]!=names[1]
-        self.start.setEnabled(bool(valid and not self.running and not self.demo))
+        self.start.setEnabled(len(self.selected_outputs())>=2 and not self.running and not self.demo)
         self.stop.setEnabled(self.running and not self.demo)
-        for combo in self.outputs:combo.setEnabled(not self.running)
+        self.outputs.setEnabled(not self.running)
+
+    def selected_outputs(self):
+        items=[self.outputs.item(i) for i in range(self.outputs.count())]
+        return [item.data(Qt.UserRole) for item in items if item.checkState()==Qt.Checked]
 
     def update_state(self,state):
         self.running=state['running']
-        for index,combo in enumerate(self.outputs):
-            selected=combo.currentData();combo.blockSignals(True);combo.clear()
-            for output in state.get('outputs',[]):combo.addItem(output['label'],output['name'])
-            found=combo.findData(selected)
-            combo.setCurrentIndex(found if found>=0 else min(index,combo.count()-1))
-            combo.blockSignals(False)
-        self.message.setText(state.get('error') or ('Computer mix is playing independently from Linux.' if self.running else 'Choose two outputs, then start.' if len(state.get('outputs',[]))>=2 else 'Two separate Bluetooth audio outputs are required. Connect both in Linux, then refresh.'))
+        selected=set(self.selected_outputs())
+        outputs=state.get('outputs',[])
+        if not self.outputs.count() and len(outputs)==2:
+            selected={output['name'] for output in outputs}
+        self.outputs.blockSignals(True)
+        self.outputs.clear()
+        for output in outputs:
+            item=QListWidgetItem(output['label'])
+            item.setData(Qt.UserRole,output['name'])
+            item.setCheckState(Qt.Checked if output['name'] in selected else Qt.Unchecked)
+            self.outputs.addItem(item)
+        self.outputs.blockSignals(False)
+        self.message.setText(state.get('error') or ('Computer mix is playing independently from Linux.' if self.running else 'Choose at least two outputs, then start.' if len(outputs)>=2 else 'Connect at least two separate Bluetooth audio outputs in Linux, then refresh.'))
         self.enabled_state()
 
     def start_mix(self):
         if not self.start.isEnabled():return
         self.start.setEnabled(False);self.message.setText('Starting Computer mix…')
-        self.controller.submit('computer_mix_start',json.dumps([combo.currentData() for combo in self.outputs]))
+        self.controller.submit('computer_mix_start',json.dumps(self.selected_outputs()))

@@ -269,10 +269,11 @@ final class SpeakerController implements Closeable {
         // Only the host's completion/inventory establishes actual membership.
         config(s);
         if(members.containsKey(target)) return;
-        if ((broadcast&2)!=0 && audioMode!=0)
-            throw new IOException("Select Double Up before adding another receiver");
-        if ((broadcast&2)==0) { groupSet(s,0x413,(byte)3,(byte)0); config(s); }
-        if ((broadcast&2)==0) throw new IOException("Host did not start broadcasting");
+        if ((broadcast&2)==0 || audioMode!=0) {
+            boolean expandingStereo=(broadcast&2)!=0;
+            setPartyMode(s,expandingStereo?broadcast:3,0);
+            if(expandingStereo) { groupSettling(); awaitGroupReady(); }
+        }
         byte[] payload=Arrays.copyOf(Protocol.mac(target),7); payload[6]=2;
         groupChange(s,0x417,0x418,target,payload);
         groupSettling();
@@ -296,9 +297,17 @@ final class SpeakerController implements Closeable {
         int requested=stereo?0x50:0;
         // Rewriting the current mode needlessly reconfigures the live broadcast.
         if(audioMode==requested) return;
-        groupSet(s,0x413,(byte)broadcast,(byte)requested); config(s);
-        if(audioMode!=requested || (broadcast&2)==0) throw new IOException("Speaker did not confirm playback mode");
+        setPartyMode(s,broadcast,requested);
         changed.run();
+    }
+    private void setPartyMode(LegacySession s,int requestedBroadcast,int requestedMode) throws Exception {
+        groupSet(s,0x413,(byte)requestedBroadcast,(byte)requestedMode);
+        for(int attempt=0;attempt<20;attempt++) {
+            if(attempt>0) sleeper.sleep(250);
+            config(s);
+            if((broadcast&2)!=0 && audioMode==requestedMode) return;
+        }
+        throw new IOException("Speaker did not confirm the requested PartyUp mode. Try again.");
     }
     void end() throws Exception {
         LegacySession s=requireSession(); groupSet(s,0x413,(byte)0,(byte)0); config(s);

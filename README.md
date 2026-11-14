@@ -306,16 +306,14 @@ for the changes and hardware-testing limits.
 ## Play together without PartyUp
 
 If native PartyUp stutters, try **PartyUp → Computer mix · experimental**.
-Linux sends the same stereo audio independently to both speakers, bypassing
+Linux sends the same stereo audio independently to each selected speaker, bypassing
 UE’s speaker-to-speaker PartyUp link. You need a Linux desktop using PipeWire
 with its command-line tools and WirePlumber (`wpctl`).
 
-1. End native PartyUp in the UE app or Speaker studio.
-2. Connect both speakers separately in Linux Bluetooth settings. For comparison,
-   keep the phone’s Bluetooth off.
-3. Open **Computer mix**, click **Refresh outputs**, and choose the two speakers.
-4. Confirm **Native PartyUp is off**, then click **Start Computer mix**.
-5. Play music from Linux. **Stop and restore output** returns to your previous
+1. Pair each speaker in Linux Bluetooth settings.
+2. Open **PartyUp → Computer mix**. Add at least two paired speakers to the play area.
+3. Click **Start Computer mix**. Speaker Studio ends native PartyUp and connects each selected Linux audio output.
+4. Play music from Linux. **Stop Computer mix** restores the previous available
    output, unless you selected a different one yourself.
 
 Closing the panel or hiding the window keeps Computer mix running. Quitting
@@ -326,9 +324,9 @@ This plays the full stereo mix through each speaker; it is not native left/right
 Stereo mode. Use Linux sound controls for individual levels.
 
 A short real-speaker test sounded smooth and well synchronised to the listener,
-where native PartyUp had stuttered. This is still experimental: longer playback
-may reveal timing drift, echo or interruptions. It plays audio from Linux,
-not from the phone. [Experiment details](docs/computer-mix-experiment.md)
+where native PartyUp had stuttered. The app allows groups of three or more.
+The number of usable outputs and playback quality depend on the Bluetooth
+adapter, speakers and radio conditions. [Experiment details](docs/computer-mix-experiment.md)
 
 ## Speaker firmware
 
@@ -385,7 +383,11 @@ Linux audio profile and waits for both outputs before creating the mix. A
 PartyUp receiver may be playing without having a separate Linux audio connection;
 that is now handled automatically. A failed switch keeps the selected pair and
 offers **Retry connection**. Switch back to Native PartyUp to rebuild the group.
-The method choice is remembered. Computer mix currently supports two speakers.
+The method choice is remembered.
+
+When adding a third speaker to a native Stereo pair, Speaker Studio switches
+the host to Double Up and waits for it to settle before joining the next
+receiver. This also applies to Android.
 
 
 Version 0.1.17 adds vertical volume sliders beside the speakers in both group

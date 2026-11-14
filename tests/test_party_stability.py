@@ -89,6 +89,30 @@ def test_selected_mode_is_not_rewritten(monkeypatch,platform):
     asyncio.run(scenario())
 
 
+def test_third_speaker_waits_for_double_up_confirmation_and_settling(monkeypatch):
+    async def scenario():
+        c,host,receiver=rig(monkeypatch,'win32')
+        c.loop=asyncio.get_running_loop()
+        third='00:11:22:33:44:77'
+        c.speakers[third]=Speaker(third,'','Third',paired=True)
+        host.broadcast=3;host.members=[receiver.address]
+        reads=iter([b'\3\x50',b'\3\x50',b'\3\0'])
+        calls=[]
+        async def pause(delay):calls.append(delay)
+        monkeypatch.setattr(backend.asyncio,'sleep',pause)
+        class Session:
+            async def request(self,command,response=0,payload=b''):
+                calls.append((command,payload))
+                if command==0x414:return next(reads)
+                if command==0x417:c._notification(HOST,Message(0x418,payload[:6]+b'\0'))
+        c.sessions[HOST]=Session()
+        await c._group_add(HOST,third)
+        assert host.members==[RECEIVER,third] and host.audio_mode==0
+        assert calls[:6]==[(0x414,b''),(0x413,b'\3\0'),(0x414,b''),.25,(0x414,b''),pytest.approx(6,abs=.01)]
+        assert calls[6][0]==0x417
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize('platform',['linux','win32'])
 def test_group_sync_preserves_pre_notification_balance(monkeypatch,platform):
     async def scenario():
