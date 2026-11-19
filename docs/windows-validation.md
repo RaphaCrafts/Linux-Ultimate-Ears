@@ -158,10 +158,24 @@ source continues to play normally. The mix uses bounded in-memory buffers,
 leaves the Windows default output alone, and releases its streams on Stop,
 dialog close or app quit. Output names come from Windows Sound rather than
 Speaker Studio’s Bluetooth inventory. Refresh the list after a connection
-change. Each output must accept the source sample rate and channel count.
+change. Each output opens at its own reported default sample rate and up to two
+channels, using signed 16-bit PCM. The capture retains the source format; each
+destination has an independent streaming sample-rate converter and playback
+buffer. Stereo is averaged for mono destinations; mono is duplicated for stereo
+destinations. Python 3.13 and later use audioop-lts for PCM conversion.
 
 Validation confirmed that a test tone reached a second Windows render endpoint
 and that closing the mix dialog released its streams. A simulated test
 confirmed fan-out to four additional outputs. Bluetooth synchronization and the usable number of
 simultaneous Bluetooth audio outputs remain unverified.
 [Microsoft WASAPI loopback](https://learn.microsoft.com/en-gb/windows/win32/coreaudio/loopback-recording)
+
+A user screenshot exposed an output rejecting a 48 kHz source with PortAudio
+error -9997 (invalid sample rate). Regression tests now exercise a 48 kHz source
+feeding 44.1 kHz stereo, 32 kHz mono and 48 kHz stereo destinations together,
+plus partial-open cleanup and retry. Conversion tests check timing, sample
+values and continuity across callback boundaries in both rate directions.
+These are simulated checks; the format-conversion change still needs physical
+Bluetooth playback and listening validation.
+[Python PCM conversion API](https://docs.python.org/3.12/library/audioop.html),
+[audioop-lts](https://pypi.org/project/audioop-lts/)

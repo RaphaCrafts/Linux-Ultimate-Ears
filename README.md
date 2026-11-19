@@ -333,8 +333,10 @@ On Windows, open **PartyUp → Windows Computer mix**. End native PartyUp and
 connect each speaker as a separate output in Windows Sound settings. Choose the
 output already playing your music as the source, check the additional outputs,
 and click **Start mix**. The source keeps playing. Closing the mix window stops
-mirroring. This mode requires the outputs to support the source format, and
-independent Bluetooth clocks and buffering can cause echo or drift.
+mirroring. The mix converts audio to each output's default sample rate and
+mono/stereo format. Independent Bluetooth clocks and buffering can cause echo
+or drift. After updating, relaunch with **Speaker-Studio.bat** to install any
+new audio dependencies.
 
 On Android, **Phone mix & wake → Media output** opens the phone’s output
 controls. Phones with manufacturer-provided multi-output playback can use that

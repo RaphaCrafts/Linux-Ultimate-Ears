@@ -24,6 +24,7 @@ dependencies = [
     "winrt-Windows.Foundation.Collections>=3.2,<4; sys_platform == 'win32'",
     "winrt-Windows.Networking>=3.2,<4; sys_platform == 'win32'",
     "PyAudioWPatch==0.2.12.9; sys_platform == 'win32'",
+    "audioop-lts==0.2.2; sys_platform == 'win32' and python_version >= '3.13'",
 ]
 
 [project.scripts]

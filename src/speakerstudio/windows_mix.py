@@ -1,7 +1,30 @@
 """Mirror a Windows render endpoint to other WASAPI render endpoints."""
 from threading import Lock
 
+import audioop
 import pyaudiowpatch as pa
+
+
+class PcmConverter:
+    """Convert signed 16-bit PCM, preserving resampling state across callbacks."""
+    def __init__(self, source_rate, source_channels, rate, channels):
+        self.source_rate = source_rate
+        self.source_channels = source_channels
+        self.rate = rate
+        self.channels = channels
+        self.state = None
+
+    def convert(self, samples):
+        if self.source_channels != self.channels:
+            if self.channels == 1:
+                samples = audioop.tomono(samples, 2, 0.5, 0.5)
+            else:
+                samples = audioop.tostereo(samples, 2, 1, 1)
+        if self.source_rate != self.rate:
+            samples, self.state = audioop.ratecv(
+                samples, 2, self.channels, self.source_rate, self.rate, self.state
+            )
+        return samples
 
 
 class PlaybackBuffer:
@@ -95,24 +118,34 @@ class WindowsMix:
                        frames_per_buffer=max(1, rate // 100), start=False)
         try:
             for index in destinations:
+                output_rate = int(devices[index]['defaultSampleRate'])
+                output_channels = min(2, devices[index]['maxOutputChannels'])
+                if output_rate < 1 or output_channels < 1:
+                    raise ValueError(f"Windows did not report a usable format for {devices[index]['name']}.")
                 try:
-                    self.audio.is_format_supported(rate, output_device=index, output_channels=channels,
+                    self.audio.is_format_supported(output_rate, output_device=index, output_channels=output_channels,
                                                    output_format=pa.paInt16)
-                    buffer = PlaybackBuffer(channels * 2, rate)
+                    buffer = PlaybackBuffer(output_channels * 2, output_rate)
+                    converter = PcmConverter(rate, channels, output_rate, output_channels)
 
                     def render(data, frame_count, timing, flags, buffer=buffer):
                         return buffer.read(frame_count), pa.paContinue
 
                     self.streams.append(self.audio.open(output=True, output_device_index=index,
-                                                        stream_callback=render, **options))
+                                                        stream_callback=render, **{
+                                                            **options, 'rate': output_rate,
+                                                            'channels': output_channels,
+                                                            'frames_per_buffer': max(1, output_rate // 100),
+                                                        }))
                 except (ValueError, OSError) as error:
-                    raise RuntimeError(f"Could not open {devices[index]['name']} at {rate} Hz: {error}") from error
-                buffers.append(buffer)
+                    raise RuntimeError(f"Could not open {devices[index]['name']} at {output_rate} Hz "
+                                       f"({output_channels} channels): {error}") from error
+                buffers.append((buffer, converter))
 
             def capture(data, frame_count, timing, flags):
                 if data:
-                    for buffer in buffers:
-                        buffer.append(data)
+                    for buffer, converter in buffers:
+                        buffer.append(converter.convert(data))
                 return None, pa.paContinue
 
             self.streams.append(self.audio.open(input=True, input_device_index=loopback['index'],
