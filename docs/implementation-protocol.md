@@ -235,3 +235,25 @@ view and join completion now name that output in their Windows Sound settings
 guidance. A control connection or successful join does not route desktop audio.
 Regression tests simulate handoff ordering, stale completions and the guidance;
 three-speaker Bluetooth playback and listening remain physically unverified.
+
+## Stable native group roster
+
+The desktop now keeps an ordered `group_roster` separately from `members`.
+The roster contains explicit add attempts and receivers confirmed previously
+on this control connection. It survives missing/non-playing inventory records
+and inventory reordering. It clears when controls are invalidated or a fresh
+configuration confirms broadcasting ended. Successful removals clear the slot;
+removing an already unconfirmed selection needs no radio command.
+
+Only status-8 records or a matching pending add completion establish current
+membership. Counts, balance and receiver volume eligibility use that confirmed
+state. The view retains roster cards at fixed positions, marking absent members
+**Not playing** and offering an explicit **Retry join**. It does not move them
+to Available speakers or retry automatically. The roster records a selection,
+not proof that a speaker is playing or that its radio link is stable.
+
+Windows Computer mix now counts app playback-buffer starvation episodes and
+backlog trims, resets those counts on Stop, and shows them while the mix runs.
+Initial priming silence is excluded. These counters do not observe Windows,
+driver or Bluetooth delivery after the app has supplied audio, and do not
+measure acoustic synchronization. No buffering latency or radio setting changed.

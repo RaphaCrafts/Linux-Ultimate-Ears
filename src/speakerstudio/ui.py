@@ -849,8 +849,10 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             host=self.devices[self.group_host]
             if action=='group_add' and args[0] not in host['members']:
                 host['members'].append(args[0]);host['broadcast']=3
-            elif action=='group_remove':host['members']=[m for m in host['members'] if m!=args[0]]
-            elif action=='ungroup':host['members']=[];host['broadcast']=0
+            elif action=='group_remove':
+                host['members']=[m for m in host['members'] if m!=args[0]]
+                host['group_roster']=[m for m in host.get('group_roster',[]) if m!=args[0]]
+            elif action=='ungroup':host['members']=[];host['group_roster']=[];host['broadcast']=0
             elif action=='group_volume':host['volume']=args[0]
             elif action=='balance':host['balance']=args[0]-128
             elif action=='party_mode':host['audio_mode']=args[0]
@@ -965,29 +967,31 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         if self.group_host:self.host_select.setCurrentIndex(self.host_select.findData(self.group_host))
         self.host_select.blockSignals(False)
         host=self.devices.get(self.group_host)
+        roster=list(dict.fromkeys(host.get('group_roster',[])+host.get('members',[]))) if host else []
         error=state.get('error') or (host.get('error','') if host else '')
         self.party_error.setText(error);self.party_error.setVisible(bool(error))
         allowed=[d['address'] for d in self.devices.values() if host and d['address']!=host['address'] and d['address'] not in host.get('members',[]) and (d.get('paired') or d['connected']) and d['features'].get('group') is not False and not d['busy'] and not host['busy'] and not (d.get('broadcast',0)&2)]
         self.play_area.set_targets(self.group_host,allowed)
         if self.party_dragging:return
-        individual_levels=bool(host and host.get('broadcast',0)&2 and host.get('members'))
+        individual_levels=bool(host and host.get('broadcast',0)&2 and roster)
         self.levels_hint.setVisible(individual_levels)
         self.levels_refresh.setVisible(individual_levels)
         separate_levels=bool(host and host.get('audio_mode')==0x50)
         self.levels_refresh.setEnabled(bool(separate_levels and not host['busy']))
         self.levels_hint.setText('Individual volumes · changing group volume synchronizes all speakers' if separate_levels else 'Double Up uses group volume. Select Stereo for individual volumes.')
-        paired_view=bool(host and host.get('broadcast',0)&2 and len(host.get('members',[]))==1)
+        paired_view=bool(host and host.get('broadcast',0)&2 and len(roster)==1)
+        confirmed_pair=paired_view and host.get('members')==roster
         self.balance_panel.setVisible(paired_view)
         self.party_mode_row.setVisible(paired_view)
         mode=host.get('audio_mode') if host else None
         for value,option in self.party_mode_buttons.items():
             option.setChecked(mode==value)
-            option.setEnabled(bool(paired_view and not host['busy'] and mode!=value))
-        usable=bool(paired_view and host['features'].get('balance') and mode==0x50 and (not host['busy'] or host.get('operation')=='balance'))
+            option.setEnabled(bool(confirmed_pair and not host['busy'] and mode!=value))
+        usable=bool(confirmed_pair and host['features'].get('balance') and mode==0x50 and (not host['busy'] or host.get('operation')=='balance'))
         self.balance_slider.setEnabled(usable)
         self.balance_centre.setEnabled(usable)
         if paired_view:
-            member=self.devices.get(host['members'][0],{})
+            member=self.devices.get(roster[0],{})
             self.balance_left.setText(host['name'])
             self.balance_right.setText(member.get('name','Group member'))
             if not self.balance_slider.isSliderDown() and not self.balance_dirty and not self.balance_request:
@@ -1025,7 +1029,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         awaiting_members=active and not members and not host.get('group_status_known',False)
         self.group_status.setText('Demo group. No real devices are changed.' if self.demo else 'PartyUp continues when you quit the app. Use End group to stop it.' if active else 'Choose another connected speaker above to play together.')
         self.party_info.setText(f"Host: {host['name']} · PartyUp active · waiting for member details" if awaiting_members else f"Host: {host['name']} · {len(members)} group members" if active else 'Choose a host, then add another paired speaker.')
-        displayed=[host['address']]+members
+        displayed=[host['address']]+roster
         available=[d for d in self.devices.values() if d['address'] not in displayed]
         target=self.devices.get(host.get('group_target'))
         joining=bool(target and host['busy'] and host.get('operation')=='group_add')
@@ -1037,15 +1041,16 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         other=target if joining else self.devices.get(members[0]) if members else next((d for d in available if d['address'] in allowed),None)
         images=tuple(QPixmap(str(self.image_path(d))) if d else QPixmap() for d in (host,other))
         mode='joining' if joining else 'linked' if members else 'ready' if other else 'idle'
-        caption=f"Joining {other['name']}…" if joining else f'{len(displayed)} speakers playing together' if members else f"{other['name']} is ready to join" if other else 'Connect another speaker to play together'
+        caption=f"Joining {other['name']}…" if joining else f'{len(members)+1} speakers playing together' if members else f"{other['name']} is ready to join" if other else 'Connect another speaker to play together'
         if awaiting_members and not joining:caption='PartyUp is active on the speaker; member details have not arrived yet'
         self.party_link.set_state(mode,caption,images)
-        self.party_link.setVisible(mode in ('ready','joining'))
+        self.party_link.setVisible(mode in ('ready','joining') and (joining or not roster))
         for action,address in self.party_card_actions:
             action_target=self.devices.get(address,{})
-            action.setEnabled(not host['busy'] and not action_target.get('busy',False) and (address in members or address in allowed))
+            eligible=address in allowed if action.property('requiresJoin') else address in roster
+            action.setEnabled(not host['busy'] and not action_target.get('busy',False) and eligible)
         card_busy=host['busy'] and host.get('operation')!='balance'
-        grid_signature=(host['address'],tuple(members),host.get('audio_mode'),card_busy,host.get('group_target') if joining else None,
+        grid_signature=(host['address'],tuple(roster),tuple(sorted(members)),host.get('audio_mode'),card_busy,host.get('group_target') if joining else None,
             tuple((d['address'],d['name'],d['connected'],d['battery'],d['volume'],d.get('broadcast',0),d['busy'] if d['address']!=host['address'] else card_busy,str(self.image_path(d))) for d in self.devices.values()),
             json.dumps(host.get('member_info',{}),sort_keys=True),tuple(allowed))
         if grid_signature==self.party_grid_signature:return
@@ -1058,7 +1063,8 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             metadata=host.get('member_info',{}).get(address,{})
             box=QVBoxLayout();box.setContentsMargins(16,16,16,16)
             pending=joining and address==target['address'] and address not in members
-            box.addWidget(text('Host' if i==0 else 'Joining…' if pending else 'Group member','eyebrow'))
+            confirmed=i==0 or address in members
+            box.addWidget(text('Host' if i==0 else 'Joining…' if pending else 'Group member' if confirmed else 'Not playing','eyebrow'))
             box.addWidget(text(d['name'] if d else 'Speaker in group','section'))
             photo=QLabel();photo.setAlignment(Qt.AlignCenter)
             photo.setFixedHeight(105)
@@ -1079,7 +1085,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
                     if request[1]==revision:self.native_level_pending.pop(address,None)
                     else:level=request[2]
                 slider.setValue(level if level is not None else 0)
-                slider.setEnabled(separate_levels and level is not None and not host['busy'])
+                slider.setEnabled(confirmed and separate_levels and level is not None and not host['busy'])
                 self.member_sliders[address]=slider
                 level_row.addWidget(slider)
                 box.addLayout(level_row)
@@ -1099,9 +1105,14 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             box.addWidget(text(f'Battery {battery}%' if battery is not None else 'Battery —','muted'))
             if i==0:
                 box.addWidget(button('Open speaker',lambda checked=False,a=address:self.open_speaker(a)))
-            elif not pending:
-                remove=button('Remove from group',lambda checked=False,a=address:self.party_action('group_remove',a))
-                remove.setEnabled(not host['busy']);box.addWidget(remove)
+            else:
+                retry=button('Joined' if confirmed else 'Joining…' if pending else 'Retry join',lambda checked=False,a=address:self.join_speaker(a),True)
+                retry.setProperty('requiresJoin',True)
+                retry.setEnabled(not confirmed and not pending and address in allowed)
+                box.addWidget(retry)
+                self.party_card_actions.append((retry,address))
+                remove=button('Remove from group' if confirmed else 'Remove from selection',lambda checked=False,a=address:self.party_action('group_remove',a))
+                remove.setEnabled(not pending and not host['busy']);box.addWidget(remove)
                 self.party_card_actions.append((remove,address))
             card=panel(box);card.setMinimumHeight(300 if individual_levels else 250)
             self.party_grid.addWidget(card,i//3,i%3)
@@ -1120,6 +1131,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
             if (d.get('paired') or d['connected']) and d['features'].get('group') is not False:
                 box.addWidget(text('Drag to play area' if eligible else 'Speaker busy' if d['busy'] else 'End its group first' if d.get('broadcast',0)&2 else 'Waiting for host','muted'))
                 action=button('Add to group',lambda checked=False,a=d['address']:self.join_speaker(a),True)
+                action.setProperty('requiresJoin',True)
                 action.setEnabled(eligible)
                 self.party_card_actions.append((action,d['address']))
             else:
@@ -1134,7 +1146,7 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
     def selected_group_addresses(self):
         if self.playback_method=='computer' and self.computer_group:return list(self.computer_group)
         host=self.devices.get(self.group_host,{})
-        if host and host.get('broadcast',0)&2:return [host['address']]+list(host.get('members',[]))
+        if host and host.get('broadcast',0)&2:return [host['address']]+list(dict.fromkeys(host.get('group_roster',[])+host.get('members',[])))
         if self.computer_mix_state.get('members'):return list(self.computer_mix_state['members'])
         return [host['address']] if host else []
 

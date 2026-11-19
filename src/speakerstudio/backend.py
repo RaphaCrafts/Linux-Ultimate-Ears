@@ -216,6 +216,7 @@ class Controller(QThread):
         speaker.volume = None
         speaker.eq = None
         speaker.members = []
+        speaker.group_roster = []
         speaker.group_status_known = False
         speaker.bands = None
         speaker.broadcast = 0
@@ -479,6 +480,7 @@ class Controller(QThread):
                 s.audio_mode = data[1]
                 if not (s.broadcast & 2):
                     s.members = []
+                    s.group_roster = []
                     s.member_info = {}
                     s.group_status_known = False
         if s.broadcast & 2:
@@ -904,6 +906,9 @@ class Controller(QThread):
                     await self._wait_group_ready(address)
             # Android assigns the receiver RIGHT, including in Double Up.
             # UNKNOWN is not the channel requested by its PartyUp presenter.
+            if receiver not in host.group_roster:
+                host.group_roster.append(receiver)
+            self.publish()
             await self._busy_request(session, 0x417, bytes.fromhex(receiver.replace(':','')) + b'\x02')
             self.status.emit('Waiting for the speaker to join PartyUp…')
             await asyncio.wait_for(future, 30)
@@ -923,6 +928,13 @@ class Controller(QThread):
                 future.cancel()
 
     async def _group_remove(self, address, receiver):
+        host=self.speakers[address]
+        if receiver not in host.members:
+            host.group_roster=[member for member in host.group_roster if member!=receiver]
+            host.member_info.pop(receiver,None)
+            self.publish()
+            self.status.emit('Speaker removed from the selection.')
+            return
         key = (address, 0x41a, receiver)
         future = self.loop.create_future()
         self.group_waiters[key] = future
@@ -983,7 +995,7 @@ class Controller(QThread):
         if len(configuration)!=2 or configuration[0]>3:raise ProtocolError('Invalid PartyUp mode reading')
         s.broadcast,s.audio_mode=configuration
         if not s.broadcast&2 or s.audio_mode!=0x50:
-            if not s.broadcast&2:s.members=[]
+            if not s.broadcast&2:s.members=[];s.group_roster=[]
             self.publish()
             raise RuntimeError('Select Stereo (host left, member right) before adjusting balance.')
         await self.sessions[address].request(0x19d,payload=bytes([(position-128)&255]))
@@ -1005,6 +1017,7 @@ class Controller(QThread):
         s.broadcast,s.audio_mode=configuration
         if not s.broadcast&2:
             s.members=[]
+            s.group_roster=[]
             self.publish()
             raise RuntimeError('The PartyUp group is no longer broadcasting.')
         if s.audio_mode==mode:
@@ -1165,9 +1178,11 @@ class Controller(QThread):
                 # reporting that the receiver left. Still ACK valid results.
                 if message.command == 0x418 and pending and receiver not in s.members:
                     s.members.append(receiver)
+                    if receiver not in s.group_roster:s.group_roster.append(receiver)
                     self.group_ready_at[address]=time.monotonic()+6
                 if message.command == 0x41a:
                     s.members = [m for m in s.members if m != receiver]
+                    s.group_roster = [m for m in s.group_roster if m != receiver]
                     s.member_info.pop(receiver,None)
                 self.publish()
             return True
@@ -1186,6 +1201,9 @@ class Controller(QThread):
                 if mac not in s.members or (packed&15)!=8:
                     member_info[mac].pop('volume',None)
                     member_info[mac].pop('level_error',None)
+            # Keep selected/previously confirmed slots in their original order.
+            # Only members is authoritative for playback and receiver controls.
+            s.group_roster = list(dict.fromkeys(s.group_roster + s.members + members))
             s.members = members
             s.member_info = member_info
             s.group_status_known = True

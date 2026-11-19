@@ -160,6 +160,18 @@ settings, including while another speaker is joining. These changes have
 simulated regression coverage; no new three-speaker listening test has been
 performed. See [protocol details](implementation-protocol.md#native-receiver-handoff-and-late-join-results).
 
+The stable-roster update retains selected/previously confirmed cards when
+inventory flaps or arrives in a different order. Current membership stays
+strict: non-playing receivers are marked **Not playing**, do not contribute to
+confirmed counts, and cannot use receiver-volume/balance controls. Retry is
+explicit; a failed selection can be removed without sending a Bluetooth
+command. Stop/end-group and control invalidation clear the relevant state.
+
+Windows validation on 2026-11-19: the full Python suite passed with **205 passed,
+1 skipped**. Tests cover a three-slot roster with absent/reordered receivers,
+stable card height, handoff ordering, explicit retry/removal and mix-buffer
+event counts. No new physical listening or adapter-capacity test was performed.
+
 ## Windows Computer mix
 
 The experimental mix uses PyAudioWPatch to capture one WASAPI shared-mode
@@ -178,6 +190,11 @@ Validation confirmed that a test tone reached a second Windows render endpoint
 and that closing the mix dialog released its streams. A simulated test
 confirmed fan-out to four additional outputs. Bluetooth synchronization and the usable number of
 simultaneous Bluetooth audio outputs remain unverified.
+
+The mix now displays totals for app playback-buffer starvation episodes and
+backlog resets while running. Startup silence is excluded and Stop clears the
+totals. Counters cannot observe dropouts downstream of the app's PCM buffers;
+they are diagnostic evidence, not proof of Bluetooth delivery or good sound.
 [Microsoft WASAPI loopback](https://learn.microsoft.com/en-gb/windows/win32/coreaudio/loopback-recording)
 
 A user screenshot exposed an output rejecting a 48 kHz source with PortAudio

@@ -34,18 +34,22 @@ class PlaybackBuffer:
         self.maximum = self.target * 3
         self.samples = bytearray()
         self.primed = False
+        self.underruns = 0
+        self.overruns = 0
         self.lock = Lock()
 
     def append(self, samples):
         with self.lock:
             self.samples.extend(samples)
             if len(self.samples) > self.maximum:
+                self.overruns += 1
                 del self.samples[:-self.target]
 
     def read(self, frame_count):
         size = frame_count * self.frame_bytes
         with self.lock:
             if len(self.samples) < size:
+                if self.primed:self.underruns += 1
                 self.primed = False
             if not self.primed:
                 if len(self.samples) < max(size, self.target):
@@ -55,11 +59,16 @@ class PlaybackBuffer:
             del self.samples[:size]
             return chunk
 
+    def events(self):
+        with self.lock:
+            return self.underruns, self.overruns
+
 
 class WindowsMix:
     def __init__(self):
         self.audio = None
         self.streams = []
+        self.buffers = []
 
     def __enter__(self):
         self.audio = pa.PyAudio()
@@ -88,6 +97,10 @@ class WindowsMix:
     def check(self):
         if self.running and not all(stream.is_active() for stream in self.streams):
             raise RuntimeError('An audio stream stopped. Check the Windows audio outputs and refresh.')
+
+    def buffer_events(self):
+        events=[buffer.events() for buffer in self.buffers]
+        return sum(row[0] for row in events), sum(row[1] for row in events)
 
     def start(self, source, destinations):
         if self.running:
@@ -141,6 +154,7 @@ class WindowsMix:
                     raise RuntimeError(f"Could not open {devices[index]['name']} at {output_rate} Hz "
                                        f"({output_channels} channels): {error}") from error
                 buffers.append((buffer, converter))
+                self.buffers.append(buffer)
 
             def capture(data, frame_count, timing, flags):
                 if data:
@@ -158,6 +172,7 @@ class WindowsMix:
 
     def stop(self):
         streams, self.streams = self.streams, []
+        self.buffers = []
         errors = []
         for stream in reversed(streams):
             try:

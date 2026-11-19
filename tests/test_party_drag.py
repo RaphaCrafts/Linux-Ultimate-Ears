@@ -4,7 +4,7 @@ import os
 os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
 from PySide6.QtCore import Qt, QMimeData, QPoint, QPointF
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
-from PySide6.QtWidgets import QApplication, QPushButton
+from PySide6.QtWidgets import QApplication, QPushButton, QLabel
 from speakerstudio.backend import Controller
 from speakerstudio.ui import Window
 from speakerstudio.party_visual import SPEAKER_MIME, SpeakerDragCard
@@ -32,6 +32,65 @@ def test_receiving_speaker_is_never_selected_as_existing_group_host(tmp_path,mon
     assert w.host_select.findData(receiver['address'])==-1
     assert '1 group members' in w.party_info.text()
     w.close()
+
+
+def test_unstable_members_stay_in_fixed_slots_with_truthful_status(tmp_path,monkeypatch):
+    app,w=window(tmp_path,monkeypatch)
+    try:
+        host=w.devices[w.group_host];receiver='demo-1'
+        host['group_roster']=[receiver]
+        w.demo=False;calls=[]
+        monkeypatch.setattr(w.controller,'submit',lambda *args:calls.append(args))
+        heights=[]
+        for members in ([receiver],[],[receiver],[]):
+            host['members']=members
+            w.render_party();app.processEvents()
+            w.render_party()  # Repeat an unchanged status without rebuilding cards.
+            assert w.group_host==host['address'] and w.party_grid.count()==2
+            card=w.party_grid.itemAtPosition(0,1).widget()
+            labels=[label.text() for label in card.findChildren(QLabel)]
+            assert ('Group member' if members else 'Not playing') in labels
+            assert w.devices[receiver]['name'] in labels
+            if members:
+                assert all(not button.isEnabled() for button in card.findChildren(QPushButton) if button.text()=='Joined')
+            assert w.balance_panel.isHidden() is False
+            if not members:
+                assert not w.member_sliders[receiver].isEnabled()
+                assert not w.balance_slider.isEnabled()
+                assert all(not button.isEnabled() for button in w.party_mode_buttons.values())
+            assert w.party_link.isHidden()
+            heights.append(card.sizeHint().height())
+        assert len(set(heights))==1,'Playback status must not change card height'
+        assert not calls,'An inventory update must not regroup or retry'
+        retry=next(b for b in card.findChildren(QPushButton) if b.text()=='Retry join')
+        retry.click()
+        assert calls==[('group_add',host['address'],receiver)]
+    finally:w.close()
+
+
+def test_three_speaker_roster_survives_missing_and_reordered_members(tmp_path,monkeypatch):
+    app,w=window(tmp_path,monkeypatch)
+    try:
+        host=w.devices[w.group_host]
+        # Include a selected receiver that has not successfully joined yet.
+        w.devices['demo-2']=dict(w.devices['demo-1'],address='demo-2',name='Pink',connected=False)
+        host.update(audio_mode=0,group_status_known=True)
+        receivers=[address for address in w.devices if address!=host['address']]
+        assert len(receivers)==2
+        host['group_roster']=receivers
+        calls=[];w.demo=False
+        monkeypatch.setattr(w.controller,'submit',lambda *args:calls.append(args))
+        for members in ([receivers[0]],[],list(reversed(receivers)),[receivers[1]]):
+            host['members']=members
+            w.render_party()
+            assert w.party_grid.count()==3
+            for column,address in enumerate([host['address']]+receivers):
+                card=w.party_grid.itemAtPosition(0,column).widget()
+                assert w.devices[address]['name'] in [label.text() for label in card.findChildren(QLabel)]
+            assert f'{len(members)} group members' in w.party_info.text()
+            assert w.play_area.receivers.isdisjoint(members)
+        assert not calls
+    finally:w.close()
 
 
 def test_drag_and_button_join_share_confirmation_path(tmp_path,monkeypatch):

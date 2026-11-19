@@ -311,6 +311,12 @@ does not select the Windows music output. Restart Speaker Studio after updating
 to use the receiver handoff and stale-join fixes. Three-speaker playback still
 needs a physical listening check.
 
+Native group cards now stay in their selected order when playback status
+changes. **Not playing** means that receiver is no longer confirmed in the
+latest group status; **Retry join** is an explicit action. A retained card is
+not evidence of audio playback. Remove it from the selection or end the group
+to clear its slot.
+
 ## Play together without PartyUp
 
 If native PartyUp stutters, try **PartyUp → Computer mix · experimental**.
@@ -344,6 +350,11 @@ mirroring. The mix converts audio to each output's default sample rate and
 mono/stereo format. Independent Bluetooth clocks and buffering can cause echo
 or drift. After updating, relaunch with **Speaker-Studio.bat** to install any
 new audio dependencies.
+
+The Windows mix displays app **Buffer gaps** and **buffer resets** while running.
+Increasing counts reveal app-buffer starvation or discarded backlog. Zero
+counts do not rule out Windows driver or Bluetooth dropouts. These diagnostics
+do not claim to repair radio interference or synchronize speaker clocks.
 
 On Android, **Phone mix & wake → Media output** opens the phone’s output
 controls. Phones with manufacturer-provided multi-output playback can use that

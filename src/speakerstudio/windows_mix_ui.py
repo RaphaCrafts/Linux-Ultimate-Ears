@@ -113,6 +113,9 @@ class WindowsMixDialog(QDialog):
     def check_mix(self):
         try:
             self.mix.check()
+            gaps,resets=self.mix.buffer_events()
+            self.message.setText(f'Mix active. Buffer gaps: {gaps}; buffer resets: {resets}. '
+                                 'These counters do not detect dropouts after audio reaches Windows.')
         except (OSError, RuntimeError, ValueError) as error:
             self.stop_mix()
             self.message.setText(f'Mix stopped. {error}')

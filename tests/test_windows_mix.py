@@ -84,10 +84,15 @@ def test_mix_fans_out_to_each_selected_endpoint_and_releases_streams(monkeypatch
         assert opened[-1][1]['rate'] == 48000
         assert opened[-1][1]['channels'] == 2
         mix.check()
+        assert mix.buffer_events()==(0,0)
+        for _,options in opened[:-1]:
+            options['stream_callback'](None,options['rate'],{},0)
+        assert mix.buffer_events()==(len(outputs),0)
         opened[0][0].active = False
         with pytest.raises(RuntimeError, match='audio stream stopped'):
             mix.check()
     assert not mix.running and all(stream.closed for stream, _ in opened)
+    assert mix.buffer_events()==(0,0)
 
 
 @pytest.mark.parametrize('source_rate,rate', [(48000, 44100), (44100, 48000)])
@@ -110,8 +115,11 @@ def test_pcm_conversion_preserves_timing_and_callback_continuity(source_rate, ra
 def test_playback_buffer_caps_backlog_and_reprimes_after_underrun():
     buffer = windows_mix.PlaybackBuffer(4, 1000)
     assert buffer.read(10) == bytes(40)
+    assert buffer.events()==(0,0),'Startup silence is not an underrun'
     buffer.append(bytes(4000) + b'abcd' * 80)
     assert buffer.read(80) == b'abcd' * 80
+    assert buffer.events()==(0,1)
     assert buffer.read(10) == bytes(40)
     buffer.append(b'efgh' * 20)
     assert buffer.read(10) == bytes(40)
+    assert buffer.events()==(1,1),'One starvation episode must not count every silent callback'

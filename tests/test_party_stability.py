@@ -247,3 +247,43 @@ def test_late_join_results_do_not_revive_members_removed_by_inventory(completion
             assert host.members==[]
         assert not snapshots,'Late completions must not make the cards oscillate'
     asyncio.run(scenario())
+
+
+def test_flapping_inventory_retains_ordered_roster_without_claiming_playback():
+    c=Controller();third='00:11:22:33:44:77'
+    host=Speaker(HOST,'','Host',connected=True,broadcast=3)
+    c.speakers[HOST]=host
+    def inventory(rows):
+        records=b''.join(bytes.fromhex(mac.replace(':',''))+bytes([60,state,0,0]) for mac,state in rows)
+        assert c._notification(HOST,Message(0x416,bytes([len(rows)])+records))
+    inventory([(RECEIVER,8),(third,8)])
+    assert host.group_roster==[RECEIVER,third]
+    for _ in range(3):
+        inventory([(RECEIVER,3),(third,3)])
+        assert host.members==[] and host.group_roster==[RECEIVER,third]
+        inventory([(third,8),(RECEIVER,8)])
+        assert host.members==[third,RECEIVER] and host.group_roster==[RECEIVER,third]
+    assert c._notification(HOST,Message(0x41a,bytes.fromhex(RECEIVER.replace(':',''))+b'\0'))
+    assert host.group_roster==[third] and RECEIVER not in host.members
+    c.invalidate(host)
+    assert host.group_roster==[] and host.members==[]
+
+
+def test_rejected_join_keeps_selected_slot_without_automatic_retry(monkeypatch):
+    async def scenario():
+        c,host,_=rig(monkeypatch,'win32');c.loop=asyncio.get_running_loop()
+        host.broadcast=3;host.audio_mode=0;commands=[]
+        class Session:
+            async def request(self,command,response=0,payload=b''):
+                commands.append(command)
+                if command==0x414:return b'\3\0'
+                if command==0x417:c._notification(HOST,Message(0x418,payload[:6]+b'\4'))
+        c.sessions[HOST]=Session()
+        with pytest.raises(RuntimeError,match='Turn on'):
+            await c._group_add(HOST,RECEIVER)
+        assert host.members==[] and host.group_roster==[RECEIVER]
+        assert commands==[0x414,0x417]
+        await c._group_remove(HOST,RECEIVER)
+        assert host.group_roster==[]
+        assert commands==[0x414,0x417],'Removing an unconfirmed selection needs no radio command'
+    asyncio.run(scenario())
