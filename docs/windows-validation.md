@@ -150,6 +150,16 @@ The discovery check covered saved endpoints and BLE recognition. Two- and
 three-speaker playback still need physical listening tests.
 [Microsoft device information properties](https://learn.microsoft.com/en-us/windows/apps/develop/devices-sensors/device-information-properties)
 
+## Native PartyUp receiver handoff
+
+The direct add/drag path releases receiver controls before the host's broadcast
+setup and add command, matching the native mode-switch path. Late add
+completions are acknowledged without recreating a member removed by newer
+inventory. The Windows PartyUp view names the host output to select in Sound
+settings, including while another speaker is joining. These changes have
+simulated regression coverage; no new three-speaker listening test has been
+performed. See [protocol details](implementation-protocol.md#native-receiver-handoff-and-late-join-results).
+
 ## Windows Computer mix
 
 The experimental mix uses PyAudioWPatch to capture one WASAPI shared-mode

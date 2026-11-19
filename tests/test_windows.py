@@ -311,6 +311,30 @@ def test_windows_join_releases_receiver_socket_without_losing_host_membership():
     asyncio.run(scenario())
 
 
+@pytest.mark.skipif(sys.platform != 'win32', reason='Windows native audio routing hint')
+def test_windows_party_hint_names_the_host_output(monkeypatch):
+    from PySide6.QtWidgets import QApplication
+    from speakerstudio.backend import Controller
+    from speakerstudio.ui import Window
+    app=QApplication.instance() or QApplication([])
+    window=Window(Controller(),demo=True)
+    try:
+        app.processEvents()
+        window.navigate('party')
+        window.demo=False
+        host=window.devices[window.group_host]
+        calls=[];monkeypatch.setattr(window.controller,'submit',lambda *args:calls.append(args))
+        for joining in (False,True):
+            host.update(busy=joining,operation='group_add' if joining else '',
+                        group_target=host['members'][0] if joining else '')
+            window.render_party()
+            assert host['name'] in window.play_hint.text()
+            assert 'Windows Sound settings' in window.play_hint.text()
+            assert 'only the host output' in window.play_hint.text()
+        assert not calls,'Rendering must not regroup or change audio routing'
+    finally:window.close()
+
+
 @pytest.mark.skipif(sys.platform != 'win32', reason='Windows BLE projection')
 def test_windows_cancelled_scan_stops_and_unregisters_watcher(monkeypatch):
     from speakerstudio import windows as w

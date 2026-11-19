@@ -205,3 +205,45 @@ def test_sleeping_receiver_wakes_without_requiring_its_control_socket(monkeypatc
         assert calls[:2]==[('wake',RECEIVER),('pause',1)]
         assert host.members==[RECEIVER] and receiver.sleeping is False and not receiver.connected
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('platform',['linux','win32'])
+def test_drag_join_releases_receiver_before_host_reconfiguration(monkeypatch,platform):
+    async def scenario():
+        c,host,receiver=rig(monkeypatch,platform);c.loop=asyncio.get_running_loop()
+        receiver.connected=True;calls=[]
+        class ReceiverSession:
+            def close(self):calls.append('release receiver')
+        class HostSession:
+            async def request(self,command,response=0,payload=b''):
+                calls.append(command)
+                if command==0x414:return bytes([host.broadcast,0])
+                assert RECEIVER not in c.sessions and not receiver.connected
+                if command==0x413:host.broadcast=payload[0]
+                if command==0x417:c._notification(HOST,Message(0x418,payload[:6]+b'\0'))
+        c.sessions={HOST:HostSession(),RECEIVER:ReceiverSession()}
+        await c._group_add(HOST,RECEIVER)
+        assert calls.index('release receiver')<calls.index(0x413)<calls.index(0x417)
+        assert host.connected and host.members==[RECEIVER] and not receiver.error
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('completion_state',['pending','completed','absent'])
+def test_late_join_results_do_not_revive_members_removed_by_inventory(completion_state):
+    async def scenario():
+        c=Controller();host=Speaker(HOST,'','Host',connected=True,broadcast=3)
+        c.speakers[HOST]=host
+        result=Message(0x418,bytes.fromhex(RECEIVER.replace(':',''))+b'\0')
+        future=asyncio.get_running_loop().create_future()
+        if completion_state!='absent':c.group_waiters[(HOST,0x418,RECEIVER)]=future
+        if completion_state=='completed':future.set_result(True)
+        assert c._notification(HOST,result)
+        assert host.members==([RECEIVER] if completion_state=='pending' else [])
+        # A subsequent authoritative inventory reports that nobody is playing.
+        assert c._notification(HOST,Message(0x416,b'\0'))
+        snapshots=[];c.changed.connect(snapshots.append)
+        for _ in range(3):
+            assert c._notification(HOST,result),'Retransmissions still require ACKs'
+            assert host.members==[]
+        assert not snapshots,'Late completions must not make the cards oscillate'
+    asyncio.run(scenario())

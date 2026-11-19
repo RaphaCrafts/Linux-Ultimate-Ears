@@ -304,6 +304,13 @@ cannot be reused after an unconfirmed operation. See the
 [protocol validation notes](docs/implementation-protocol.md#shared-desktop-partyup-improvements-0119)
 for the changes and hardware-testing limits.
 
+For **Native PartyUp on Windows**, select the speaker shown as **Host** as your
+music output in Windows Sound settings. Add the other speakers through that
+host; they receive its audio over PartyUp. Connecting speaker controls alone
+does not select the Windows music output. Restart Speaker Studio after updating
+to use the receiver handoff and stale-join fixes. Three-speaker playback still
+needs a physical listening check.
+
 ## Play together without PartyUp
 
 If native PartyUp stutters, try **PartyUp → Computer mix · experimental**.

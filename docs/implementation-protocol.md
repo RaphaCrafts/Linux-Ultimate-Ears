@@ -215,3 +215,23 @@ receives the shared source update through the existing source launcher; no new
 Windows binary or native Windows Bluetooth listening check was performed.
 Earlier physical observations in the Windows and Android validation reports
 remain separate from these new software checks.
+
+## Native receiver handoff and late join results
+
+Direct add and drag/drop now close a receiver's independent RFCOMM session
+before the host changes broadcast mode or sends `0x0417`, matching the native
+group-switch path. The host retains its own controls and confirmed membership.
+This removes an inconsistent handoff order; it has not established that Windows
+will release a receiver's independent audio profile.
+
+A successful `0x0418` establishes membership only while its matching host/receiver
+join waiter is pending. Valid late or duplicate results are still acknowledged,
+but cannot restore a member removed by a newer `0x0416` inventory. Unsolicited
+membership changes continue to come from actual status-8 inventory records.
+No debounce hides reported departures and no automatic regroup command is sent.
+
+Windows native PartyUp uses the host speaker as the music output. The PartyUp
+view and join completion now name that output in their Windows Sound settings
+guidance. A control connection or successful join does not route desktop audio.
+Regression tests simulate handoff ordering, stale completions and the guidance;
+three-speaker Bluetooth playback and listening remain physically unverified.

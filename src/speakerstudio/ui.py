@@ -1030,6 +1030,10 @@ QMenu {{background:{surface};border:1px solid {line};}} QMenu::item {{padding:9p
         target=self.devices.get(host.get('group_target'))
         joining=bool(target and host['busy'] and host.get('operation')=='group_add')
         self.play_hint.setText('Waiting for '+target['name']+' to confirm joining…' if joining else 'PartyUp is running. Drag another ready speaker here to join.' if active else 'Your host is ready. Drag a speaker here to start playing together.')
+        if sys.platform=='win32' and not self.demo:
+            hint='In Windows Sound settings, select '+host['name']+' as the output for your music. Native PartyUp uses only the host output.'
+            if joining:hint='Waiting for '+target['name']+' to confirm joining… '+hint
+            self.play_hint.setText(hint)
         other=target if joining else self.devices.get(members[0]) if members else next((d for d in available if d['address'] in allowed),None)
         images=tuple(QPixmap(str(self.image_path(d))) if d else QPixmap() for d in (host,other))
         mode='joining' if joining else 'linked' if members else 'ready' if other else 'idle'

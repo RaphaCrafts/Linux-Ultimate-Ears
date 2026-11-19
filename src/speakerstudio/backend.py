@@ -891,6 +891,11 @@ class Controller(QThread):
             if receiver in host.members:
                 self.status.emit('This speaker is already playing in the group.')
                 return
+            if receiver in self.sessions:
+                # Release direct controls before the host takes this receiver
+                # over. Drag/drop must use the same handoff as a mode switch.
+                self._lost(receiver,'Using the host for PartyUp controls',interrupt=False)
+                target.error=''
             if not host.broadcast&2 or host.audio_mode!=0:
                 expanding_stereo=bool(host.broadcast&2)
                 await self._set_party_mode(address,host.broadcast if expanding_stereo else 3,0)
@@ -906,14 +911,9 @@ class Controller(QThread):
             # Switching the host's mode immediately can drop the fresh member.
             self.group_ready_at[address]=time.monotonic()+6
             target.sleeping=False
-            if receiver in self.sessions:
-                # This firmware relinquishes its direct Classic controls when
-                # becoming a native receiver. Do not retain a silently stalled
-                # stream; group controls go through the host instead.
-                self._lost(receiver,'Using the host for PartyUp controls',interrupt=False)
-                target.error=''
             self.publish()
-            self.status.emit('Speaker joined PartyUp')
+            self.status.emit('Speaker joined PartyUp. Select '+host.name+' in Windows Sound settings for music.'
+                             if sys.platform=='win32' else 'Speaker joined PartyUp')
         except TimeoutError:
             self._lost(address,'Group change unconfirmed',interrupt=False)
             raise RuntimeError('Group change unconfirmed. Reconnect to the host and check the speakers before retrying.') from None
@@ -1153,14 +1153,17 @@ class Controller(QThread):
             receiver = ':'.join(f'{v:02X}' for v in payload[:6])
             success = payload[6] == 0
             future = self.group_waiters.get((address, message.command, receiver))
-            if future and not future.done():
+            pending = future is not None and not future.done()
+            if pending:
                 if success:
                     future.set_result(True)
                 else:
                     reason = {1:'Could not connect to the other speaker.',3:'Press the other speaker’s pairing button twice, then try again.',4:'Turn on the other speaker, then try again.'}.get(payload[6],'The speaker could not complete the PartyUp change.')
                     future.set_exception(RuntimeError(reason))
             if success:
-                if message.command == 0x418 and receiver not in s.members:
+                # A retried old add result must not undo a newer inventory
+                # reporting that the receiver left. Still ACK valid results.
+                if message.command == 0x418 and pending and receiver not in s.members:
                     s.members.append(receiver)
                     self.group_ready_at[address]=time.monotonic()+6
                 if message.command == 0x41a:
